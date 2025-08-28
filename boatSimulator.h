@@ -26,22 +26,29 @@ typedef struct
 } route_t;
 
 
+extern const route_t *simulator_routes __attribute__((weak));
+extern const int simulator_num_routes __attribute__((weak));
+	// Note that these are declared as weakly linked so that
+	// they can be overriden by your application as desired.
 
 
+
+	
 class boatSimulator {
 
 public:
 
-	// functional api
+	void init();			// stop the simulator and re-initialize
+	void start();			// start the simulator (sets m_running=1)
+	void stop();			// stop the simulator (sets m_running=0)
+	bool run();				// run one time slice of the simulator
+		// call once per second or so
+		// the simulator keeps track of when the last call happened and uses
+		// TODO: move timer from run() to NMEA0183 application
 
-	void init();		// stop the simulator and re-initialize
-	void start();		// start the simulator
-	void stop();		// stop the simulator
-	bool run();			// run one time slice of the simulator (approx 1 second)
-						// has it's own 1 second timer; returns true if it happened
 	// getters
 
-	bool   running()		{ return m_running; }
+	bool   running()		{ return m_running; }		// true while simulator is running
 
 	double getDepth()		{ return m_depth; }			// feet below surface
 	double getSOG()			{ return m_sog; }			// knots
@@ -50,22 +57,20 @@ public:
 	double getWindSpeed() 	{ return m_wind_speed; }	// knots
 	double getLat()			{ return m_latitude; }
 	double getLon()			{ return m_longitude; }
-
-	double apparentWindAngle()	{ return m_app_wind_angle; }	// degrees relative to the bow of the boat
-	double apparentWindSpeed()	{ return m_app_wind_speed; }	// knots
-
 	double getRPMS()			{ return m_rpms; }
 	double getOilPressure()		{ return m_rpms == 0 ? 0 : 50 + random(-30,30); }	// psi
 	double getAltVoltage()		{ return m_rpms == 0 ? 0 : 12.0 + (((float)random(-300,300)) / 100.0); }
 	double getCoolantTemp()		{ return m_rpms == 0 ? 0 : 180 + random(-40,40); }  // farenheight
 	double getFuelRate()		{ return m_rpms == 0 ? 0 : 1.5 + (((float) random(-100,100)) / 100.0); } // gph
+	double getFuelLevel(int tank) { return (500.0 + ((double) random(-100,100)))/1000; }	// 0..1
 
-	int getNumWaypoints()	{ return m_num_waypoints; }		// in current route
-	int getWaypointNum() 	{ return m_waypoint_num; }		// return the current waypoint to go to
-	const waypoint_t *getWaypoint(int wp_num)
+	int getNumWaypoints()	{ return m_num_waypoints; }		// in the "current route"
+	int getWaypointNum() 	{ return m_waypoint_num; }		// return the "current waypoint" number
+	const waypoint_t *getWaypoint(int wp_num)				// get a waypoing structure by index
 	{
 		if (wp_num > 0 && wp_num < m_num_waypoints)
 			return &m_waypoints[wp_num];
+		return 0;
 	}
 
 	bool getAutopilot()		{ return m_autopilot; }
@@ -73,13 +78,20 @@ public:
 	bool getArrived()		{ return m_arrived; }
 		// get the autopilot, routing, and arrival status
 
-	double headingToWaypoint();		// true
-	double distanceToWaypoint();	// NM
+	double headingToWaypoint();		// true heading to "current waypoint" from current position
+	double distanceToWaypoint();	// NM to "current waypoint" from current position
+
+	// helper functions that calculate the apparent wind based
+	// the SOG, COG, true windAngle, and true windSpeed.
+
+	double apparentWindAngle()	{ return m_app_wind_angle; }	// degrees relative to the bow of the boat
+	double apparentWindSpeed()	{ return m_app_wind_speed; }	// knots
+
 
 	// setters
 
 	void setDepth			(double depth)		{ m_depth = depth; }
-	void setSOG				(double sog)		{ m_sog = sog; calculateApparentWind(); }
+	void setSOG				(double sog)		{ m_sog = sog; calculateApparentWind(); m_rpms=sog?1800:0; }
 	void setCOG				(double cog)		{ m_cog = cog; calculateApparentWind(); }
 	double setWindAngle		(double angle) 		{ m_wind_angle = angle; calculateApparentWind(); }
 	double setWindSpeed 	(double speed)		{ m_wind_speed = speed; calculateApparentWind(); }
@@ -92,23 +104,27 @@ public:
 		// puts the boat at the 0th waypoint and sets the
 		// 		current waypoint number to 1
 	void setWaypointNum(int wp_num);
-		// sets the waypoint to navigate to
-		// constrained 0 to getNumWaypoints()-1
-		// sets a heading to the waypoint and resets m_arrived and m_closest
+		// Sets the waypoint to navigate to.
+		// Does nothing and reports an error if wp_num<0 or wp_num>getNumWaypoints()-1
+		// Resets m_arrived and m_closest
 	void jumpToWaypoint(int wp_num);
-		// moves the boat to the given waypoint
+		// magically moves the boat to the given waypoint
 		// without otherwise altering the simulator
-		// there *really* should be a "last" and "next" waypoint
 
 
 	void setAutopilot(bool on);
-		// automatically sets heading to the next waypoint
-		// on each time slice. Starts watching for arrival,
+		// While on, the simulator automatically sets heading to the
+		// next waypoint in each time slice and starts watching for arrivals,
+		// A completed arrival will turn off the autopilot if not routing.
+		// Turning the autopilot off also turns routing off.
 	void setRouting(bool on);
-		// will automatically advance to the next waypoint
-		// after an arrival and the boat starts getting
-		// farther away from a waypoint.  Will stop the
-		// boat upon arrival at the final waypoint.
+		// Turns routing on or off.
+		// If routing, simulator will automatically advance to the
+		// next waypoint after a completed arrival (when the boat
+		// *arrives* and starts getting farther away from the current
+		// waypoint). Routing will stop the boat upon completed arrival
+		// at the final waypoint in the route.
+		// Turning routing on or off also turns the autopilot on or off.
 
 private:
 
@@ -135,7 +151,7 @@ private:
 
 	// implementation
 
-	uint32_t m_update_num;
+	uint32_t m_update_num;			// number of executed timeslices
 	uint32_t m_last_update_ms;		// ms since last update
 	uint16_t m_closest;				// integer feet
 
@@ -145,8 +161,8 @@ private:
 
 
 extern boatSimulator boat;
-	// static instance in simulator.cpp
+	// static instance in boatSimulator.cpp
 
 
 
-// end of simulator.h
+// end of boatSimulator.h

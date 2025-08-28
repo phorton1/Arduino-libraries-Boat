@@ -5,12 +5,12 @@
 #include "boatSimulator.h"
 #include <myDebug.h>
 #include <math.h>
-#include "ge_routes.h"
 
 #define dbg_sim	 -1
 
 #define SIMULATION_INTERVAL		1000	// ms
 #define CLOSEST_NONE			65535	// exact
+
 
 
 boatSimulator boat;
@@ -56,7 +56,7 @@ void boatSimulator::init()
 	display(0,"INIT SIMULATOR",0);
 
 	if (!m_inited)
-		setRoute(routes[0].name);
+		setRoute(simulator_routes[0].name);
 
 	m_waypoint_num = 1;
 
@@ -102,13 +102,13 @@ void boatSimulator::setRoute(const char *name)
 	m_closest = CLOSEST_NONE;
 
 	const route_t *found = 0;
-	for (int i=0; i<NUM_ROUTES; i++)
+	for (int i=0; i<simulator_num_routes; i++)
 	{
-		const route_t *rte = &routes[i];
+		const route_t *rte = &simulator_routes[i];
 		if (String(name).equalsIgnoreCase(String(rte->name)))
 		{
 			found = rte;
-			i = NUM_ROUTES;
+			i = simulator_num_routes;
 		}
 	}
 
