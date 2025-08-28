@@ -53,7 +53,8 @@ void boatSimulator::init()
 	// initial setting of m_route, m_waypoints, and m_num_waypoints
 	// also sets m_waypoint num to 1,
 
-	display(0,"INIT SIMULATOR",0);
+	display(0,"boatSimulator::init() started",0);
+	proc_entry();
 
 	if (!m_inited)
 		setRoute(simulator_routes[0].name);
@@ -75,8 +76,9 @@ void boatSimulator::init()
 	m_cog = 180;
 	m_wind_angle = 90;	// true east
 	m_wind_speed = 12;
-	m_rpms = 1000;
-
+	m_rpms = 0;
+	m_genset = false;
+	
 	// update vars
 
 	m_update_num = 0;
@@ -86,6 +88,9 @@ void boatSimulator::init()
 	calculateApparentWind(false);
 		// sets m_app_wind_angle and m_app_wind_speed;
 		// with debugging
+
+	proc_leave();
+	display(0,"boatSimulator::init() finished",0);
 }
 
 
@@ -225,62 +230,47 @@ void boatSimulator::setRouting(bool on)
 #define deg2rad(radians)	((radians) * (180.0 / M_PI))
 
 
-bool boatSimulator::run()
+void boatSimulator::run()
 	// Calculate and set new latitude and longitude
 	// based on cog, sog, and millis() since last call
 {
-	if (!m_running)
-		return false;
-	
-	proc_entry();
-
-	if (!m_inited)
-		init();
-
 	uint32_t now = millis();
-	if (now - m_last_update_ms < SIMULATION_INTERVAL)
-	{
-		proc_leave();
-		return false;
-	}
+	double elapsed_secs = (now - m_last_update_ms) / 1000.0;
+	m_last_update_ms = now;
+
+	if (!m_running)
+		return;
 
 	display(dbg_sim,"boatSimulator::run lat(%s) lon(%s) cog(%d) sog(%d)",
 		showDeg(m_latitude).c_str(),
 		showDeg(m_longitude).c_str(),
 		(int) m_cog,
 		(int) m_sog);
-
-	double elapsed_secs = (now - m_last_update_ms) / 1000.0;
-	m_last_update_ms = now;
-	if (m_sog == 0)
-	{
-		proc_leave();
-		return true;
-			// client should send out sensors
-			// even though the boat has not moved
-	}
+	proc_entry();
 
 	// set our new position
 
-	const double EARTH_RADIUS = 6371000; 	// in meters
-	const double KNOTS_TO_MPS = 0.514444;
-	double distance_m = m_sog * KNOTS_TO_MPS * elapsed_secs;
-	double cog_rad = rad2deg(m_cog);
-	double delta_lat = (distance_m * cos(cog_rad)) / EARTH_RADIUS;
-	double delta_lon = (distance_m * sin(cog_rad)) / (EARTH_RADIUS * cos(rad2deg(m_latitude)));
-	double new_lat = m_latitude + deg2rad(delta_lat);
-	double new_lon = m_longitude + deg2rad(delta_lon);
-
-	if (m_latitude != new_lat ||
-		m_longitude != new_lon)
+	if (m_sog != 0)
 	{
-		display(dbg_sim+1,"new lat(%s) lon(%s)",
-			showDeg(new_lat).c_str(),
-			showDeg(new_lon).c_str());
-	}
-	m_latitude = new_lat;
-	m_longitude = new_lon;
+		const double EARTH_RADIUS = 6371000; 	// in meters
+		const double KNOTS_TO_MPS = 0.514444;
+		double distance_m = m_sog * KNOTS_TO_MPS * elapsed_secs;
+		double cog_rad = rad2deg(m_cog);
+		double delta_lat = (distance_m * cos(cog_rad)) / EARTH_RADIUS;
+		double delta_lon = (distance_m * sin(cog_rad)) / (EARTH_RADIUS * cos(rad2deg(m_latitude)));
+		double new_lat = m_latitude + deg2rad(delta_lat);
+		double new_lon = m_longitude + deg2rad(delta_lon);
 
+		if (m_latitude != new_lat ||
+			m_longitude != new_lon)
+		{
+			display(dbg_sim+1,"new lat(%s) lon(%s)",
+				showDeg(new_lat).c_str(),
+				showDeg(new_lon).c_str());
+		}
+		m_latitude = new_lat;
+		m_longitude = new_lon;
+	}
 
 	// adjust our heading if we're routing to a waypoint
 
@@ -310,7 +300,7 @@ bool boatSimulator::run()
 		if (arr && !m_arrived)
 		{
 			display(0,"INITIAL ARRIVAL",0);
-			m_closest == feet_to_wp;
+			m_closest = feet_to_wp;
 			m_arrived = true;
 		}
 
@@ -341,7 +331,7 @@ bool boatSimulator::run()
 	}	// m_autpilot
 
 	proc_leave();
-	return true;
+	
 
 }	// run()
 

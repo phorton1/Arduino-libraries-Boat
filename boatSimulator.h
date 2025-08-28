@@ -8,6 +8,7 @@
 
 #pragma once
 #include <Arduino.h>
+#include <myDebug.h>
 
 
 typedef struct
@@ -41,41 +42,46 @@ public:
 	void init();			// stop the simulator and re-initialize
 	void start();			// start the simulator (sets m_running=1)
 	void stop();			// stop the simulator (sets m_running=0)
-	bool run();				// run one time slice of the simulator
+	void run();				// run one time slice of the simulator
 		// call once per second or so
-		// the simulator keeps track of when the last call happened and uses
-		// TODO: move timer from run() to NMEA0183 application
 
 	// getters
 
-	bool   running()		{ return m_running; }		// true while simulator is running
+	bool   running()			{ return m_running; }		// true while simulator is running
 
-	double getDepth()		{ return m_depth; }			// feet below surface
-	double getSOG()			{ return m_sog; }			// knots
-	double getCOG()			{ return m_cog; }			// true
-	double getWindAngle() 	{ return m_wind_angle; }	// true
-	double getWindSpeed() 	{ return m_wind_speed; }	// knots
-	double getLat()			{ return m_latitude; }
-	double getLon()			{ return m_longitude; }
+	double getDepth()			{ return m_depth; }			// feet below surface
+	double getSOG()				{ return m_sog; }			// knots
+	double getCOG()				{ return m_cog; }			// true
+	double getWindAngle() 		{ return m_wind_angle; }	// true
+	double getWindSpeed() 		{ return m_wind_speed; }	// knots
+	double getLat()				{ return m_latitude; }
+	double getLon()				{ return m_longitude; }
 	double getRPMS()			{ return m_rpms; }
 	double getOilPressure()		{ return m_rpms == 0 ? 0 : 50 + random(-30,30); }	// psi
-	double getAltVoltage()		{ return m_rpms == 0 ? 0 : 12.0 + (((float)random(-300,300)) / 100.0); }
+	double getOilTemp()			{ return m_rpms == 0 ? 0 : 180 + random(-40,40); }  // farenheight
 	double getCoolantTemp()		{ return m_rpms == 0 ? 0 : 180 + random(-40,40); }  // farenheight
+	double getAltVoltage()		{ return m_rpms == 0 ? 0 : 12.0 + (((float)random(-300,300)) / 100.0); }
 	double getFuelRate()		{ return m_rpms == 0 ? 0 : 1.5 + (((float) random(-100,100)) / 100.0); } // gph
-	double getFuelLevel(int tank) { return (500.0 + ((double) random(-100,100)))/1000; }	// 0..1
+	double getFuelLevel(int tank) { return (500.0 + ((double) random(-100,100)))/10.0; }	// 0..1
+	bool   getGenset()			{ return m_genset; }
+	double getGenRPM()			{ return m_genset ? 3600 + random(-100,100) : 0; }
+	double getGenOilPressure()	{ return m_genset ? 50 + random(-30,30) : 0; }	// psi
+	double getGenCoolTemp()		{ return m_genset ? 180 + random(-40,40) : 0; }	// farenheight
+	double getGenVoltage()		{ return m_genset ? 120 + random(-10,10) : 0; }
+	double getGenFreq()			{ return m_genset ? 60 + random(-5,5) : 0; }
 
-	int getNumWaypoints()	{ return m_num_waypoints; }		// in the "current route"
-	int getWaypointNum() 	{ return m_waypoint_num; }		// return the "current waypoint" number
+	int getNumWaypoints()		{ return m_num_waypoints; }		// in the "current route"
+	int getWaypointNum() 		{ return m_waypoint_num; }		// return the "current waypoint" number
 	const waypoint_t *getWaypoint(int wp_num)				// get a waypoing structure by index
 	{
-		if (wp_num > 0 && wp_num < m_num_waypoints)
+		if (wp_num >= 0 && wp_num < m_num_waypoints)
 			return &m_waypoints[wp_num];
 		return 0;
 	}
 
-	bool getAutopilot()		{ return m_autopilot; }
-	bool getRouting()		{ return m_routing; }
-	bool getArrived()		{ return m_arrived; }
+	bool getAutopilot()			{ return m_autopilot; }
+	bool getRouting()			{ return m_routing; }
+	bool getArrived()			{ return m_arrived; }
 		// get the autopilot, routing, and arrival status
 
 	double headingToWaypoint();		// true heading to "current waypoint" from current position
@@ -93,9 +99,10 @@ public:
 	void setDepth			(double depth)		{ m_depth = depth; }
 	void setSOG				(double sog)		{ m_sog = sog; calculateApparentWind(); m_rpms=sog?1800:0; }
 	void setCOG				(double cog)		{ m_cog = cog; calculateApparentWind(); }
-	double setWindAngle		(double angle) 		{ m_wind_angle = angle; calculateApparentWind(); }
-	double setWindSpeed 	(double speed)		{ m_wind_speed = speed; calculateApparentWind(); }
-	double setRPMS			(double rpms)		{ m_rpms = rpms; }
+	void setWindAngle		(double angle) 		{ m_wind_angle = angle; calculateApparentWind(); }
+	void setWindSpeed 		(double speed)		{ m_wind_speed = speed; calculateApparentWind(); }
+	void setRPMS			(double rpms)		{ m_rpms = rpms; }
+	void setGenset			(bool on)			{ m_genset = on; display(0,"GENSET %s",m_genset?"ON":"OFF"); }
 
 	void setRoute(const char *route_name);
 		// see ge_routes.h for names
@@ -144,6 +151,7 @@ private:
 	double m_app_wind_angle;
 	double m_app_wind_speed;
 	double m_rpms;
+	bool   m_genset;
 
 	int m_waypoint_num;
 	int m_num_waypoints;

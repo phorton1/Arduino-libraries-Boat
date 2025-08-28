@@ -1,0 +1,86 @@
+//---------------------------------------------
+// instSimulator.h
+//---------------------------------------------
+
+#pragma once
+#include "boatSimulator.h"
+
+
+- depth
+- log
+- gps
+- wind
+- engine
+
+
+#define INST_DEPTH	0
+#define INST_LOG	1
+#define INST_GPS	2
+#define INST_WIND	3
+#define INST_ENGINE 4
+#define NUM_INSTRUMENTS 5
+
+
+#define PROTOCOL_NONE 		0x00
+#define PROTOCOL_SEATALK	0x01
+#define PROTOCOL_0183		0x02
+#define PROTOCOL_2000		0x04
+
+
+class instBase
+{
+public:
+
+	instBase(int inst_num);
+
+	int getInstNum()	{ return m_inst_num; };
+	virtual const char *getInstName() = 0;
+
+	void setProtocol(uint8_t protocol, bool on)
+	{
+		m_protocols &= ~protocol;
+		if (on) m_protocols |= protocol;
+	}
+
+	virtual void sendProtocols() = 0;
+
+
+private:
+
+	int m_inst_num;
+	uint8_t m_protocols;
+
+
+};	// class instBase
+
+
+
+class deptjInst : public instBase
+{
+public:
+
+	depthInst() : instBase(INST_DEPTH) {};
+
+private:
+
+	virtual const char *getInstName() override { return "DEPTH"; };
+	virtual void sendProtocols() override;
+};
+
+class windInst : public instBase
+{
+public:
+
+	windInst() : instBase(INST_WIND) {};
+
+private:
+
+	virtual const char *getInstName() override { return "WIND"; };
+	virtual void sendProtocols() override;
+};
+
+
+
+
+
+// end of instSimulator.h
