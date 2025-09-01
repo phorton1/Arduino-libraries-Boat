@@ -21,11 +21,6 @@
 // 14 - TX3 to seatalk opto isolator circuit
 // 16 - RX4
 // 17 - TX4
-// 12 - pulse out for testing ST50 instruments
-//      better as 9 to leave MISO available for
-//      display and/or CD
-
-
 
 #define INST_DEPTH			0
 #define INST_LOG			1
