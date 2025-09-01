@@ -5,6 +5,27 @@
 #pragma once
 #include "boatSimulator.h"
 #include <NMEA2000.h>
+#include <myDebug.h>
+
+#define SERIAL_VHF_0183 Serial2
+#define SERIAL_SEATALK	Serial3
+#define SERIAL_E80_0183	Serial4
+
+// Teensy Pins Used
+//
+// 23 - CRX from CANBUS module
+// 22 - CTX to CANBUS module
+// 7  - RX2
+// 8  - TX2
+// 15 - RX3 from seatalk opto isolator circuit
+// 14 - TX3 to seatalk opto isolator circuit
+// 16 - RX4
+// 17 - TX4
+// 12 - pulse out for testing ST50 instruments
+//      better as 9 to leave MISO available for
+//      display and/or CD
+
+
 
 #define INST_DEPTH			0
 #define INST_LOG			1
@@ -21,6 +42,7 @@
 #define PROTOCOL_SEATALK	0x01
 #define PROTOCOL_0183		0x02
 #define PROTOCOL_2000		0x04
+#define PROTOCOL_ALL		0x07
 
 
 //-------------------------------
@@ -31,29 +53,31 @@ class instBase
 {
 public:
 
-	instBase(int inst_num) : m_inst_num(inst_num) {}
-
-	virtual void init(tNMEA2000 *nmea2000)
-		{ m_nmea2000 = nmea2000; }
-
-	int getInstNum()	{ return m_inst_num; };
-	virtual const char *getInstName() = 0;
-
-	void setProtocol(uint8_t protocol, bool on)
+	instBase(uint8_t supported) :
+		m_supported(supported)
 	{
-		m_protocols &= ~protocol;
-		if (on) m_protocols |= protocol;
+		m_protocols = supported;	// 0;
 	}
 
-	virtual void sendProtocols() = 0;
+	virtual const char *getName() = 0;
 
+	bool supported(uint8_t protocol) {
+		return m_supported & protocol; }
+	void setProtocol(uint8_t protocol, bool on) {
+		m_protocols &= ~protocol;
+		if (on) m_protocols |= protocol; }
+	bool doProtocol(uint8_t protocol) {
+		return (m_supported & protocol) &&
+			   (m_protocols & protocol); }
+
+	virtual void sendSeatalk() {};
+	virtual void send0183() {};
+	virtual void send2000(tNMEA2000 *nmea2000) {};
 
 protected:
 
-	int m_inst_num;
+	uint8_t m_supported;
 	uint8_t m_protocols;
-
-	tNMEA2000 *m_nmea2000;
 
 };	// class instBase
 
@@ -62,108 +86,25 @@ protected:
 // instruments
 //--------------------------------
 
-class depthInst : public instBase
-	{
-	public:
-
-		depthInst() : instBase(INST_DEPTH) {};
-
-	private:
-
-		virtual const char *getInstName() override { return "DEPTH"; };
-		virtual void sendProtocols() override;
+#define DEFINE_INST_CLASS(CLASSNAME, NAMESTR, SUPPORTED) \
+	class CLASSNAME : public instBase { \
+	public: \
+		CLASSNAME() : instBase(SUPPORTED) {} \
+	private: \
+		virtual const char* getName() override { return NAMESTR; } \
+		virtual void sendSeatalk() override; \
+		virtual void send0183() override; \
+		virtual void send2000(tNMEA2000 *nmea2000) override; \
 	};
 
-
-class logInst : public instBase
-	{
-	public:
-
-		logInst() : instBase(INST_LOG) {}
-
-	private:
-
-		virtual const char *getInstName() override { return "LOG"; };
-		virtual void sendProtocols() override;
-	};
-
-
-class windInst : public instBase
-	{
-	public:
-
-		windInst() : instBase(INST_WIND) {}
-
-	private:
-
-		virtual const char *getInstName() override { return "WIND"; };
-		virtual void sendProtocols() override;
-	};
-
-
-class compassInst : public instBase
-	{
-	public:
-
-		compassInst() : instBase(INST_COMPASS) {}
-
-	private:
-
-		virtual const char *getInstName() override { return "WIND"; };
-		virtual void sendProtocols() override;
-	};
-
-
-class gpsInst : public instBase
-	{
-	public:
-
-		gpsInst() : instBase(INST_GPS) {}
-
-	private:
-
-		virtual const char *getInstName() override { return "GPS"; };
-		virtual void sendProtocols() override;
-	};
-	
-
-class autopilotInst : public instBase
-	{
-	public:
-
-		autopilotInst() : instBase(INST_AUTOPILOT) {}
-
-	private:
-
-		virtual const char *getInstName() override { return "GPS"; };
-		virtual void sendProtocols() override;
-	};
-
-
-class engineInst : public instBase
-	{
-	public:
-
-		engineInst() : instBase(INST_ENGINE) {}
-
-	private:
-
-		virtual const char *getInstName() override { return "ENGINE"; };
-		virtual void sendProtocols() override;
-	};
-
-
-class gensetInst : public instBase
-	{
-	public:
-
-		gensetInst() : instBase(INST_GENSET) {}
-
-	private:
-
-		virtual const char *getInstName() override { return "GENSET"; };
-		virtual void sendProtocols() override;
-	};
+DEFINE_INST_CLASS(depthInst,      "DEPTH",		PROTOCOL_0183)
+DEFINE_INST_CLASS(logInst,        "LOG",		PROTOCOL_ALL)
+DEFINE_INST_CLASS(windInst,       "WIND",		PROTOCOL_ALL)
+DEFINE_INST_CLASS(compassInst,    "COMPASS",	PROTOCOL_ALL)
+DEFINE_INST_CLASS(gpsInst,        "GPS",		PROTOCOL_ALL)
+DEFINE_INST_CLASS(autopilotInst,  "AUTOPILOT",	PROTOCOL_ALL)
+DEFINE_INST_CLASS(engineInst,     "ENGINE",		PROTOCOL_0183 | PROTOCOL_2000)
+DEFINE_INST_CLASS(gensetInst,     "GENSET",		PROTOCOL_0183 | PROTOCOL_2000)
 
 
 
@@ -180,7 +121,12 @@ public:
 
 	void setProtocol(int inst_num, uint8_t protocol, bool on)
 	{
-		m_inst[inst_num]->setProtocol(protocol,on);
+		instBase *inst = m_inst[inst_num];
+		if (on && !inst->supported(protocol))
+			my_error("request for unsupported protocol(%d) for %s instrument",
+				protocol,inst->getName());
+		else
+			m_inst[inst_num]->setProtocol(protocol,on);
 	}
 
 private:

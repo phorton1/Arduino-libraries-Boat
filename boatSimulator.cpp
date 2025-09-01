@@ -277,8 +277,13 @@ void boatSimulator::run()
 	if (m_routing && !m_arrived)
 	{
 		m_cog = headingToWaypoint();
-		display(dbg_sim+1,"AP cog(%d)",(int) m_cog);
-		calculateApparentWind(true);
+		static int last_cog = 0;
+		if (last_cog != (int) m_cog)
+		{
+			last_cog = (int) m_cog;
+			display(dbg_sim+1,"AP new cog(%d)",(int) m_cog);
+			calculateApparentWind(true);
+		}
 	}
 
 	// handle the autopilot
