@@ -1,70 +1,25 @@
 //---------------------------------------------
-// inst2000.cpp
+// inst2000_out.cpp
 //---------------------------------------------
-// Implementation of NMEA2000 instruments.
+// Implementation of NMEA2000 simulated instruments.
 // Here are the PGNS purportedly sent out by E80, along with
 // whether I send them out from this code
 
 // additionally, I believe it tells us it sends out "1308*" other proprietary
 // messages (or has a bug) as it shows '1308' in the list of transmitted PGNs.
 
+#include "inst2000.h"
 #include "instSimulator.h"
 #include "boatSimulator.h"
-#include <myDebug.h>
 #include <N2kMessages.h>
-
-#define PGN_ISO_ACK					59392L
-#define PGN_ISO_REQUEST				59904L
-#define PGN_ISO_ADDRESS_CLAIM		60928L
-#define PGN_ISO_COMMANDED_ADDRESS	61184L
-#define PGN_PROP_RAYMARINE_65288	65288L
-#define PGN_PROP_RAYMARINE_65311	65311L
-#define PGN_PROP_RAYMARINE_65361	65361L
-#define PGN_PROP_RAYMARINE_65362	65362L
-#define PGN_PROP_RAYMARINE_65364	65364L
-#define PGN_COMMAND_GROUP_FUNCTION	126208L
-#define PGN_TX_RX_PGN_LIST			126464L
-#define PGN_CONFIGURATION_INFO		126720L
-#define PGN_SYSTEM_TIME				126992L
-#define PGN_PRODUCT_INFORMATION		126996L
-
-#define PGN_VESSEL_HEADING			127250L		// sent by compass instrument
-#define PGN_SPEED_WATER_REF			128259L		// sent by log instrument
-#define PGN_WATER_DEPTH				128267L		// sent by depth instrument
-#define PGN_DISTANCE_LOG			128275L
-#define PGN_POSITION_RAPID_UPDATE	129025L
-#define PGN_COG_SOG_RAPID_UPDATE	129026L
-#define PGN_GNSS_POSITION_DATA		129029L		// sent by gps instrument
-#define PGN_LOCAL_TIME_OFFSET		129033L
-#define PGN_DATUM					129044L
-#define PGN_CROSS_TRACK_ERROR		129283L
-#define PGN_NAVIGATION_DATA			129284L		// sent by autopilot instrument
-#define PGN_SET_AND_DRIFT			129291L
-#define PGN_GNSS_SATS_IN_VIEW		129540L
-#define PGN_WIND_DATA				130306L		// sent by wind instrument
-#define PGN_ENV_PARAMETERS			130310L
-#define PGN_DIRECTION_DATA			130577L		// sent by log instrument
-
-// ALSO NOTE that I have verified that the E80 LISTENS for the following
-// even though they are not in the transmit list, AND this is the only
-// way (not Seatalk, not NMEA0183) to get engine info to it
-
-#define PGN_ENGINE_RAPID	127488L
-#define PGN_ENGINE_DYNAMIC	127489L
-#define PGN_FLUID_LEVEL		127505L
-
-
-#define FEET_TO_METERS		0.3048
-#define NM_TO_METERS		1852.0
-#define GALLON_TO_LITRE		3.785
-#define PSI_TO_PASCAL		6895.0
+#include <myDebug.h>
 
 
 //--------------------------------------------------------
 // instruments
 //--------------------------------------------------------
 
-void depthInst::send2000(tNMEA2000 *nmea2000)
+void depthInst::send2000()
 {
 	double meters = boat.getDepth() * FEET_TO_METERS;
 	tN2kMsg msg;
@@ -72,11 +27,11 @@ void depthInst::send2000(tNMEA2000 *nmea2000)
 	SetN2kPGN128267(msg, 255,		// msg, sid
 		meters,						// depth in meters
 		0.0);						// offset from keel
-	nmea2000->SendMsg(msg);
+	nmea2000.SendMsg(msg);
 }
 
 
-void logInst::send2000(tNMEA2000 *nmea2000)
+void logInst::send2000()
 {
 	tN2kMsg msg;
 
@@ -87,7 +42,7 @@ void logInst::send2000(tNMEA2000 *nmea2000)
 		// PGN_SPEED_WATER_REF
 		SetN2kPGN128259(msg, 255,		// msg, sid
 			KnotsToms(boat.getSOG()));	// meters per second
-		nmea2000->SendMsg(msg);
+		nmea2000.SendMsg(msg);
 	#endif
 
 	// PGN_DIRECTION_DATA
@@ -101,11 +56,11 @@ void logInst::send2000(tNMEA2000 *nmea2000)
 		KnotsToms(boat.getSOG()),	// speed through water in m/s
 		0,							// Set
 		0);							// Drift
-	nmea2000->SendMsg(msg);
+	nmea2000.SendMsg(msg);
 }
 
 
-void windInst::send2000(tNMEA2000 *nmea2000)
+void windInst::send2000()
 {
 	tN2kMsg msg;
 	// PGN_WIND_DATA	- we are emulating the wind instrument, so we only send "Apparent" angle
@@ -113,18 +68,18 @@ void windInst::send2000(tNMEA2000 *nmea2000)
 		KnotsToms(boat.apparentWindSpeed()),	// meters per second
 		DegToRad(boat.apparentWindAngle()),		// radians
 		N2kWind_Apparent);						// tN2kWindReference
-	nmea2000->SendMsg(msg);
+	nmea2000.SendMsg(msg);
 	#if 0
 		SetN2kPGN130306(msg, 255,					// not sending out separate "True" angle
 			KnotsToms(boat.getWindSpeed()),			// meters per second
 			DegToRad(boat.getWindAngle()),			// radians
 			N2kWind_True_North);					// tN2kWindReference
-		nmea2000->SendMsg(msg);
+		nmea2000.SendMsg(msg);
 	#endif
 }
 
 
-void compassInst::send2000(tNMEA2000 *nmea2000)
+void compassInst::send2000()
 {
 	tN2kMsg msg;
 	// PGN_VESSEL_HEADING
@@ -133,11 +88,11 @@ void compassInst::send2000(tNMEA2000 *nmea2000)
 		0.0, 						// Deviation
 		0.0, 						// Variation,
 		N2khr_true );				// tN2kHeadingReference(0)
-	nmea2000->SendMsg(msg);
+	nmea2000.SendMsg(msg);
 }
 
 
-void gpsInst::send2000(tNMEA2000 *nmea2000)
+void gpsInst::send2000()
 {
 	tN2kMsg msg;
 		// not using PGN_POSITION
@@ -160,7 +115,7 @@ void gpsInst::send2000(tNMEA2000 *nmea2000)
 		N2kGNSSt_GPS,		// tN2kGNSStype ReferenceStationType=N2kGNSSt_GPS,
 		0,					// uint16_t ReferenceSationID=0,
         0 );				// double AgeOfCorrection=0
-	nmea2000->SendMsg(msg);
+	nmea2000.SendMsg(msg);
 
 	// Note: PGN_GNSS_POSITION is sufficient to spoof E80 into showing the vessel,
 	// but we probably eventually will want to send PGN_GNSS_SATS_IN_VIEW (129540) calling
@@ -170,7 +125,12 @@ void gpsInst::send2000(tNMEA2000 *nmea2000)
 
 
 
-void autopilotInst::send2000(tNMEA2000 *nmea2000)
+void aisInst::send2000()
+{
+}
+
+
+void autopilotInst::send2000()
 	// With NMEA2000 I have not been able to get the waypoint name to show up on the E80,
 	// nor to get the arrival alarm to beep when I get to a waypoint.
 {
@@ -202,7 +162,7 @@ void autopilotInst::send2000(tNMEA2000 *nmea2000)
 			wp->lat,					// double DestinationLatitude,
 			wp->lon,					// double DestinationLongitude,
 			KnotsToms(boat.getCOG()));	// double WaypointClosingVelocity);
-		nmea2000->SendMsg(msg);
+		nmea2000.SendMsg(msg);
 
 		// no joy trying to get alarm to beep or E80 start "following::
 		// or show the waypoint names (like I CAN do with NMEA0183)
@@ -214,7 +174,7 @@ void autopilotInst::send2000(tNMEA2000 *nmea2000)
 				N2kxtem_Estimated,   	  // tN2kXTEMode
 				false,                    // NavigationTerminated
 				5.0 );					  // XTE in meters
-			nmea2000->SendMsg(msg);
+			nmea2000.SendMsg(msg);
 
 			// try sending a route to the E80
 
@@ -248,7 +208,7 @@ void autopilotInst::send2000(tNMEA2000 *nmea2000)
 						break;
 					}
 				}
-				nmea2000->SendMsg(msg);
+				nmea2000.SendMsg(msg);
 			}	// if (one_time)
 
 		#endif
@@ -257,7 +217,7 @@ void autopilotInst::send2000(tNMEA2000 *nmea2000)
 }
 
 
-void engineInst::send2000(tNMEA2000 *nmea2000)
+void engineInst::send2000()
 {
 	tN2kMsg msg;
 
@@ -269,7 +229,7 @@ void engineInst::send2000(tNMEA2000 *nmea2000)
 			boat.getRPMS(),		// EngineSpeed
 			N2kDoubleNA,		// EngineBoostPressure
 			N2kUInt8NA);		// EngineTiltTrim
-	nmea2000->SendMsg(msg);
+	nmea2000.SendMsg(msg);
 
 	// PGN_ENGINE_DYNAMIC
 
@@ -290,7 +250,7 @@ void engineInst::send2000(tNMEA2000 *nmea2000)
 		0,											// EngineTorque        in %
 		status1,									// Status1             Engine Discrete Status 1
 		status2);									// Status2             Engine Discrete Status 2
-	nmea2000->SendMsg(msg);
+	nmea2000.SendMsg(msg);
 
 	// PGN_FLUID_LEVEL
 
@@ -301,34 +261,32 @@ void engineInst::send2000(tNMEA2000 *nmea2000)
 	tN2kFluidType fluid_type = N2kft_Fuel;
 
 	SetN2kPGN127505(msg, 0, fluid_type, level0, capacity);
-	nmea2000->SendMsg(msg);
+	nmea2000.SendMsg(msg);
 
 	SetN2kPGN127505(msg, 1, fluid_type, level1, capacity);
-	nmea2000->SendMsg(msg);
+	nmea2000.SendMsg(msg);
 }
 
 
 
 
-void gensetInst::send2000(tNMEA2000 *nmea2000)
+void gensetInst::send2000()
 {
+#if 0	// nothing worked
+
 	tN2kMsg msg;
 
 	// PGN 127504: AC Input Status
+
 	msg.SetPGN(127504L);
 	msg.Priority = 3;
-
 	msg.AddByte(0xFF);               // SID
 	msg.AddByte(0);                  // AC Instance
 	msg.Add2ByteUDouble(120.0, 0.01); // Line Voltage (120V)
 	msg.Add2ByteUDouble(60.0, 0.001); // Line Frequency (60Hz)
 	msg.Add2ByteUDouble(0.0, 0.1);    // Current (optional, set to 0)
 	msg.AddByte(0);                  // Reserved
-
-	nmea2000->SendMsg(msg);
-
-	return;
-
+	nmea2000.SendMsg(msg);
 
 	// PGN_ENGINE_RAPID
 
@@ -338,13 +296,9 @@ void gensetInst::send2000(tNMEA2000 *nmea2000)
 			boat.getGenRPM(),	// EngineSpeed
 			N2kDoubleNA,		// EngineBoostPressure
 			N2kUInt8NA);		// EngineTiltTrim
-	nmea2000->SendMsg(msg);
-
+	nmea2000.SendMsg(msg);
 
 	// PGN_ENGINE_DYNAMIC
-
-	#define PSI_TO_PASCAL		6895.0
-	#define GALLON_TO_LITRE		3.785
 
 	static tN2kEngineDiscreteStatus1 status1;		// filled with zeros
 	static tN2kEngineDiscreteStatus2 status2;		// filled with zeros
@@ -363,8 +317,9 @@ void gensetInst::send2000(tNMEA2000 *nmea2000)
 		0,											// EngineTorque        in %
 		status1,									// Status1             Engine Discrete Status 1
 		status2);									// Status2             Engine Discrete Status 2
-	nmea2000->SendMsg(msg);
+	nmea2000.SendMsg(msg);
 
+#endif	// nothing worked
 }
 
-// end of inst2000.cpp
+// end of inst2000_out.cpp
