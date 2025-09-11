@@ -20,12 +20,15 @@
 
 #include "instSimulator.h"
 #include "boatSimulator.h"
-#include <inst2000.h>
-	// only port that has a complicated initialization method
+#include "inst2000.h"
+#include "inst0183.h"
+#include "instST.h"
 #include <myDebug.h>
 
 
 #define UPDATE_MILLIS	1000
+
+bool instSimulator::g_MON_OUT = 0;
 
 instSimulator instruments;
 	// global instance
@@ -72,7 +75,17 @@ void instSimulator::init()
 	#endif
 
 
+	//---------------------------------
+	// NMEA2000 initialization
+	//---------------------------------
 
+	nmea2000.init();
+
+
+	//---------------------------------
+	// boatSimulator initialization
+	//---------------------------------
+	// and instrument simulator initialization
 
 	boat.init();
 
@@ -89,6 +102,7 @@ void instSimulator::init()
 	proc_leave();
 	display(0,"instSimulator::init() finished",0);
 }
+
 
 
 void instSimulator::run()
@@ -118,10 +132,11 @@ void instSimulator::run()
 	#endif
 
 
-	#if 0	// listen for input data
-
-
+	#if 1	// listen for NMEA2000 data
 		nmea2000.ParseMessages(); // Keep parsing messages
+	#endif
+
+	#if 1	// listen for NMEA0183 data
 
 		while (SERIAL_0183.available())
 		{
@@ -134,10 +149,8 @@ void instSimulator::run()
 
 			if (buf_ptr >= MAX_MSG || c == 0x0a)
 			{
-				extern void handleNMEAInput(const char *);
-
 				buf[buf_ptr] = 0;
-				handleNMEAInput(buf);
+				handleNMEA0183Input(buf);
 				buf_ptr = 0;
 			}
 			else if (c != 0x0d)
@@ -146,7 +159,63 @@ void instSimulator::run()
 			}
 		}
 
-	#endif	// 0 at this time
+	#endif	// NMEA0183 data
+
+	#if 1	// listen for Seatalk data
+
+		while (SERIAL_SEATALK.available())
+		{
+			int c = SERIAL_SEATALK.read();
+			g_last_st_receive_time = millis();
+
+			// the 9th bit is set on the first 'byte' of a sequence
+			// the low nibble of the 2nd byte + 3 is the total number
+			// 		of bytes, so all messages are at least 3 bytes
+			//		the high nibble may be data.
+			//	data[n+3];, implying a maximum datagram size of 19
+
+			#if 0
+				display(0,"got 0x%02x '%c'",c,(c>32 && c<128)?c:' ');
+			#endif
+
+			static uint8_t datagram[20];
+			static int outp = 0;
+			static int dlen = 0;
+
+			if (c > 0xff)
+			{
+				if (outp)
+				{
+					my_error("Dropped datagram ",0);
+					outp = 0;
+				}
+				datagram[outp++] = c;
+			}
+			else if (outp == 1)
+			{
+				dlen = (c & 0x0f) + 3;
+				datagram[outp++] = c;
+			}
+			else if (outp < dlen)
+			{
+				datagram[outp++] = c;
+				if (outp == dlen)
+				{
+					if (g_MON_ST)
+						showDatagram(datagram);
+					outp = 0;
+					dlen = 0;
+				}
+			}
+			else
+			{
+				my_error("unexpected byte 0x%02x '%c'",c,(c>32 && c<128)?c:' ');
+			}
+
+		}	// receiving datagrams
+	#endif
+
+
 }
 
 

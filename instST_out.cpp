@@ -8,6 +8,8 @@
 #include "boatSimulator.h"
 #include <myDebug.h>
 
+#define dbg_data 		(instruments.g_MON_OUT ? 0 : 1)
+
 
 #define SEND_OK			0
 #define SEND_BUSY 		1
@@ -97,14 +99,11 @@ static int sendDatagram(const uint16_t *dg)
 
 void depthInst::sendSeatalk()
 {
-	memset(dg,0,20*2);
-
-
 	uint16_t d10;
 	if (boat.getDepth() > 999)
 		d10 = 9990;
 	else
-		d10 = boat.getDepth() * 10.0;
+		d10 = (boat.getDepth() + 0.05) * 10.0;
 
 	dg[0] = ST_DEPTH;
 	dg[1] = 0x02;
@@ -117,38 +116,357 @@ void depthInst::sendSeatalk()
 
 void logInst::sendSeatalk()
 {
+	double speed = boat.getSOG();
+	int ispeed = (speed+ 0.05) * 10;
+	display(dbg_data,"stWaterSpeed & stSOG(%0.1f)",speed);
+
+	dg[0] = ST_WATER_SPEED;
+	dg[1] = 0x01;
+	dg[2] = ispeed & 0xff;
+	dg[3] = (ispeed >> 8) & 0xff;
+	sendDatagram(dg);
+
+	dg[0] = ST_SOG;
+	sendDatagram(dg);
 }
+
+
 
 void windInst::sendSeatalk()
 {
+	double speed = boat.apparentWindSpeed();	// getWindSpeed();
+	double angle = boat.apparentWindAngle();	// getWindAngle();
+
+	int tenths = (speed + 0.05) * 10.0;
+	int ispeed = tenths / 10;
+	tenths = tenths % 10;
+
+	display(dbg_data,"stWindSpeed(%0.1f) ispeed=%d tenths=%d",speed,ispeed,tenths);
+
+	dg[0] = ST_WIND_SPEED;
+	dg[1] = 0x01;
+	dg[2] = (ispeed & 0x7f);		// high order bit 0=knots; 1 would be fathoms
+	dg[3] = tenths;
+	sendDatagram(dg);
+
+	display(dbg_data,"stWindAngle(%0.1f)",angle);
+
+	int a2 = angle * 2;
+	dg[0] = ST_WIND_ANGLE;
+	dg[1] = 0x01;
+	dg[2] = (a2 >> 8) & 0xff;
+	dg[3] = a2 & 0xff;
+	sendDatagram(dg);
 }
+
 
 void compassInst::sendSeatalk()
 {
+	// what a weird encoding
+	// .... ........
+	// HH99   222222
+
+	double degrees = boat.getCOG();
+	int idegrees = degrees;
+	int nineties = idegrees / 90;
+	idegrees = idegrees - (nineties * 90);
+	int twos = idegrees / 2;
+	idegrees = idegrees - (twos * 2);
+	int halfs = idegrees * 2;
+
+	display(dbg_data,"stCOG & stHeading(%0.1f) = nineties(%d) twos(%d) halfs(%d)",degrees,nineties,twos,halfs);
+
+	dg[0] = ST_COG;
+	dg[1] = 0 | (nineties << 4) | (halfs<<6);
+	dg[2] = twos;
+	sendDatagram(dg);
+
+	dg[0] = ST_HEADING;
+	dg[1] = 2 | (nineties << 4) | (halfs<<6);
+	dg[2] = twos;
+	dg[3] = 0x00;	// unuaed by me at this time
+	dg[4] = 0x20;	// unuaed by me at this time
+	sendDatagram(dg);
+
 }
+
+
 
 void gpsInst::sendSeatalk()
 {
+	double lat = boat.getLat();
+	double lon = boat.getLon();
+	display(dbg_data,"stLatLon(%0.6f,%0.6f)",lat,lon);
+
+	uint8_t Z1 = 0;
+	uint8_t Z2 = 0x20;
+	if (lat < 0)
+	{
+		lat = abs(lat);
+		Z1 = 0x10;
+	}
+	if (lon < 0)
+	{
+		lon = abs(lon);
+		Z2 = 0x0;
+	}
+
+	// integer portions
+	uint16_t i_lat = lat;
+	uint16_t i_lon = lon;
+
+	// right of decimal point
+	float frac_lat = lat - i_lat;
+	float frac_lon = lon - i_lon;
+
+	// converted to minutes
+	float min_lat = frac_lat * 60.0;
+	float min_lon = frac_lon * 60.0;
+
+	// times 1000 into integers
+	int imin_lat = min_lat * 1000;
+	int imin_lon = min_lon * 1000;
+
+	proc_entry();
+	display(dbg_data,"i_lat(%d) frac_lat(%0.6f) min_lat(%0.6f) imin_lat(%d)",i_lat,frac_lat,min_lat,imin_lat);
+	display(dbg_data,"i_lon(%d) frac_lon(%0.6f) min_lon(%0.6f) imin_lon(%d)",i_lon,frac_lon,min_lon,imin_lon);
+	proc_leave();
+
+	dg[0] = ST_LATLON;
+	dg[1] = 0x5 | Z1 | Z2;
+
+	dg[2] = i_lat;
+	dg[3] = (imin_lat >> 8) & 0xff;
+	dg[4] = imin_lat & 0xff;
+
+	dg[5] = i_lon;
+	dg[6] = (imin_lon >> 8) & 0xff;
+	dg[7] = imin_lon & 0xff;
+	sendDatagram(dg);
 }
+
 
 void aisInst::sendSeatalk()
 {
-	my_error("AIS Instrument not supported on Seatalk",0);
 }
 
 void autopilotInst::sendSeatalk()
 {
+	// as somewhat expected, as with NMEA2000, these messages
+	// don't seem to affect the E80's notion of "following" or XTE values.
+	// I'll have to check this out sometime with the real autopilot
+	
+	if (boat.getAutopilot())
+	{
+		if (1)
+		{
+			// ST_NAV_TO_WP	0x185 "should be sent before ST_TARGET_NAME	0x182"
+			//	85  X6  XX  VU ZW ZZ YF 00 yf   Navigation to waypoint information
+			//					Cross Track Error: XXX/100 nautical miles
+			//					Example: X-track error 2.61nm => 261 dec => 0x105 => X6XX=5_10
+			//					Bearing to destination: (U & 0x3) * 90° + WV / 2°
+			//					Example: GPS course 230°=180+50=2*90 + 0x64/2 => VUZW=42_6
+			//					U&8: U&8 = 8 -> Bearing is true, U&8 = 0 -> Bearing is magnetic
+			//					Distance to destination: Distance 0-9.99nm: ZZZ/100nm, Y & 1 = 1
+			//											Distance >=10.0nm: ZZZ/10 nm, Y & 1 = 0
+			//					Direction to steer: if Y & 4 = 4 Steer right to correct error
+			//										if Y & 4 = 0 Steer left  to correct error
+			//					Example: Distance = 5.13nm, steer left: 5.13*100 = 513 = 0x201 => ZW ZZ YF=1_ 20 1_
+			//							Distance = 51.3nm, steer left: 51.3*10  = 513 = 0x201 => ZW ZZ YF=1_ 20 0_
+			//					F contains four flags which indicate the available data fields:
+			//							Bit 0 (F & 1): XTE present
+			//							Bit 1 (F & 2): Bearing to destination present
+			//							Bit 2 (F & 4): Range to destination present
+			//							Bit 3 (F & 8): XTE >= 0.3nm
+			//						These bits are used to allow a correct translation from for instance an RMB sentence which
+			//						contains only an XTE value, all other fields are empty. Since SeaTalk has no special value
+			//						for a data field to indicate a "not present" state, these flags are used to indicate the
+			//						presence of a value.
+			//					In case of a waypoint change, sentence 85, indicating the new bearing and distance,
+			//					should be transmitted prior to sentence 82 (which indicates the waypoint change).
+			//					Corresponding NMEA sentences: RMB, APB, BWR, BWC, XTE
+
+			double head = boat.headingToWaypoint();
+			double dist = boat.distanceToWaypoint();
+
+			display(dbg_data,"stNavToWp head(%0.1f) dist(%0.3f)",head,dist);
+			proc_entry();
+
+			int h90s = (head / 90.0);								// number of 90's in the heading
+			double remainder = head - ((float) h90s) * 90.0;		// remaining degrees 0..90
+			int halfs = ((remainder + 0.25) * 2);					// number of half degress in remainder
+			uint8_t U  = 0x08 | h90s;	// 0x08=true (0x00 would equal magnetic) + number of 90's
+			uint8_t WV = halfs;			// number of halfs in the bearing
+			uint8_t Y = 0;				// no direction to steer 0x0f
+			display(dbg_data,"h90s(%d) halfs(%d) head rebuilt(%0.1f)",
+				h90s,
+				halfs,
+				(float) (((float)h90s)*90.0) + (((float)halfs)/2.0) );
+
+			uint8_t ZZZ = (dist * 10.0);	// 10ths of NMs
+			if (dist < 10.0)
+			{
+				Y |= 1;						// distance < 10.0 is in 100ths of an NM
+				ZZZ = (dist * 100.0);		// 100's of NMs
+			}
+
+			display(dbg_data,"ZZZ(%d) in %s dist rebuilt(%0.3f)",
+				ZZZ,
+				Y & 1 ? "100ths" : "10ths",
+				(float) ((Y&1) ? (((float)ZZZ) / 100.0) : (((float)ZZZ) / 10.0)) );
+			proc_leave();
+
+			uint8_t F = 0x01 | 0x02 | 0x04;		// XTE, bearing, distance present; 0x08 not set because XTE < 0.3nm;
+			dg[0] = ST_NAV_TO_WP;
+			dg[1] = 0x06;					// X6  X = high 4 bits of xte
+			dg[2] = 0x00;					// XX  XX = bottom 8 bits of XTE
+			dg[3] = (WV << 4) | U;			// VU = V=bottom four bits of WV and four bits of U
+			dg[4] = (WV >> 4) | (ZZZ>>8);	// ZW = W=high four bits of WV and high 4 bits of ZZZZ
+			dg[5] = ZZZ;					// ZZ = bottom 8 bits of ZZZ
+			dg[6] = (Y<<4) | F;				// YF = 4 bits of Y and 4 bits of F
+			dg[7] = 0xff - dg[6];			// yf undocumented presumed weird checksum
+			sendDatagram(dg);
+		}
+
+
+		if (1)
+		{
+			// #define ST_TARGET_NAME	0x182
+			//	82  05  XX  xx YY yy ZZ zz   Target waypoint name
+			//		XX+xx = YY+yy = ZZ+zz = FF (allows error detection)
+			//		Takes the last 4 chars of name, assumes upper case only
+			//		Char= ASCII-Char - 0x30
+			//		XX&0x3F: char1
+			//		(YY&0xF)*4+(XX&0xC0)/64: char2
+			//		(ZZ&0x3)*16+(YY&0xF0)/16: char3
+			//		(ZZ&0xFC)/4: char4
+			//		Corresponding NMEA sentences: RMB, APB, BWR, BWC
+
+			int wp_num = boat.getWaypointNum();
+			const waypoint_t *wp = boat.getWaypoint(wp_num);
+
+			String name(wp->name);
+			name = name.toUpperCase();
+			int len = name.length();
+
+			display(dbg_data,"stTargetName(%s)",name.c_str());
+
+			// another weird 6 bit character encoding
+			// with additionally weird checksumming
+
+			int at = len-4;
+			uint8_t chars[4];	// 4 chars of 6 bits each of (c - 0x30)
+			for (int i=0; i<4; i++)
+			{
+				uint8_t c = at >= 0 ? name.charAt(at) : '0';
+				at++;
+				chars[i] = (c - 0x30) & 0x3f;
+			}
+
+			uint8_t XX = chars[0] | (chars[1] << 6);
+				// 6 bits of char[0], bottom 2 bits of char[1]
+			uint8_t YY = (chars[1] >> 4) | (chars[2]  & 0x04);
+				// top 4 bits of char[1], bottom 4 of char[2]
+			uint8_t ZZ = (chars[2] << 6) | chars[3];
+				// top 2 bits of char[2], 6 bits of char[4]
+			uint8_t xx = 0xff - XX;
+			uint8_t yy = 0xff - YY;
+			uint8_t zz = 0xff - ZZ;
+
+			dg[0] = ST_TARGET_NAME;
+			dg[1] = 0x05;
+			dg[2] = XX;
+			dg[3] = xx;
+			dg[4] = YY;
+			dg[5] = yy;
+			dg[6] = ZZ;
+			dg[7] = zz;
+			sendDatagram(dg);
+		}
+
+		// so I didn't bother to encode this
+
+		// #define ST_ARRIVAL		0x1A2
+		//	A2  X4  00  WW XX YY ZZ Arrival Info
+		//					X&0x2=Arrival perpendicular passed, X&0x4=Arrival circle entered
+		//					WW,XX,YY,ZZ = Ascii char's of waypoint id.   (0..9,A..Z)
+		//									Takes the last 4 chars of name, assumes upper case only
+		//					Corresponding NMEA sentences: APB, AA
+
+	}
 }
 
 void engineInst::sendSeatalk()
 {
 	// not really supported
+	int rpm = boat.getRPMS();
+	display(dbg_data,"stRPM(%d)",rpm);
+	if (rpm > 4000)
+		rpm = 4000;
+	dg[0] = ST_RPM;
+	dg[1] = 0x03;
+	dg[2] = 0;	// engine number
+	dg[3] = rpm / 256;
+	dg[4] = rpm % 256;
+	dg[5] = 0x08;	// default 8 degree pitch
+	sendDatagram(dg);
 }
 
 void gensetInst::sendSeatalk()
 {
 	// not supported
 }
+
+
+// INST_CLOCK
+//
+
+//	void stTime(uint16_t *dg)	// GMT
+//	{
+//		uint32_t elapsed = millis() - time_init;
+//		int hour_counter = (loop_counter / 10) % 24;
+//			// every 10 seconds we increment the hour
+//			// to help find all time bytes in raynet.pm
+//
+//		int secs = elapsed/1000  + hour_counter * 3600;
+//		int hour = secs / 3600;
+//		int minute = (secs - hour * 3600) / 60;
+//		secs = secs % 60;
+//
+//		if (hour > 23)
+//			hour = 0;
+//
+//		// RST is 12 bits (6 bits for minute, 6 bits for second)
+//		// T is four bits (low order four bits of second)
+//		// RS is eight bits (6 bits of minute followed by 2 bits of second)
+//
+//		uint16_t RST = (minute << 6) | secs;
+//		uint16_t T = RST & 0xf;
+//		uint16_t RS = RST >> 4;
+//
+//		dg[0] = ST_TIME;
+//		dg[1] = 0x01 | (T << 4);
+//		dg[2] = RS;
+//		dg[3] = hour;
+//	}
+//
+//
+//	void stDate(uint16_t *dg)
+//	{
+//		int year = time_year;
+//		int month = time_month;
+//		int day = time_day;
+//
+//		display(dbg_data,"stDate(%02d/%02d/%02d)",month,day,year);
+//		dg[0] = ST_DATE;
+//		dg[1] = 0x01 | (month << 4);
+//		dg[2] = day;
+//		dg[3] = year;
+//
+//		// if (loop_counter && loop_counter % 10 == 0)
+//		//	time_day = time_day == 1 ? 2 : 1;
+//
+//	}
 
 
 // end of instST_out.cpp

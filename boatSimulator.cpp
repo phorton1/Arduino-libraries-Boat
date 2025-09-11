@@ -6,15 +6,16 @@
 #include <myDebug.h>
 #include <math.h>
 
-#define dbg_sim	 -1
+#define dbg_sim	 (1 - boat.g_MON_SIM)
 
 #define SIMULATION_INTERVAL		1000	// ms
 #define CLOSEST_NONE			65535	// exact
 
 
-
 boatSimulator boat;
+int boatSimulator::g_MON_SIM = 1;
 	// global instance
+
 
 
 static String showDeg(double coord)
@@ -282,7 +283,7 @@ void boatSimulator::run()
 		{
 			last_cog = (int) m_cog;
 			display(dbg_sim+1,"AP new cog(%d)",(int) m_cog);
-			calculateApparentWind(true);
+			calculateApparentWind();
 		}
 	}
 
@@ -304,7 +305,7 @@ void boatSimulator::run()
 
 		if (arr && !m_arrived)
 		{
-			display(0,"INITIAL ARRIVAL",0);
+			display(dbg_sim,"INITIAL ARRIVAL",0);
 			m_closest = feet_to_wp;
 			m_arrived = true;
 		}
@@ -317,16 +318,17 @@ void boatSimulator::run()
 				m_closest = feet_to_wp;
 			else  									// arrival finished
 			{
-				display(0,"ARRIVAL COMPLETE",0);
+				display(dbg_sim,"ARRIVAL COMPLETE",0);
 				if (m_routing)						// goto next waypoint or stop
 				{
 					if (m_waypoint_num < m_num_waypoints - 1)	// goto next waypoint
 						setWaypointNum(m_waypoint_num+1);
 					else
 					{
-						display(0,"ROUTE COMPLETE",0);
+						display(dbg_sim,"ROUTE COMPLETE",0);
 						setRouting(false);			// turn off routing
 						m_sog = 0;					// stop the boat
+						calculateApparentWind();
 					}
 				}
 				else
@@ -376,14 +378,12 @@ double boatSimulator::distanceToWaypoint()
 }
 
 
-void boatSimulator::calculateApparentWind(bool quiet)
+void boatSimulator::calculateApparentWind(bool quiet /*=true*/)
 	// Calculates and sets app_wind_angle and app_wind_speed
 	// based on cog, sog, wind_angle, and wind_epeed
 	// as degrees relative to the bow of the boat
 {
-	#define dbg_wind 	(quiet?1:0)
-
-
+	#define dbg_wind 	(dbg_sim + (quiet?2:0))
 
 	display(dbg_wind,"calculateApparentWind speed/angle boat(%0.3f,%0.3f) wind(%0.3f,%0.3f)",
 		m_sog,m_cog,m_wind_speed,m_wind_angle);

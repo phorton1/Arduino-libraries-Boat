@@ -8,6 +8,8 @@
 #include "boatSimulator.h"
 #include <myDebug.h>
 
+#define show_0183 (1-g_MON_0183)
+
 
 #define MAX_NMEA_MSG	180
 	// my buffer size is way bigger than official NMEA0183
@@ -105,7 +107,7 @@ void depthInst::send0183()
 	//                       1     2
 	sprintf(nmea_buf,"$SDDPT,%0.1f,0.0",d_meters);
 	checksum();
-	display(0,"depthInst --> %s",nmea_buf);
+	display(show_0183,"depthInst --> %s",nmea_buf);
 	SERIAL_0183.println(nmea_buf);
 }
 
@@ -132,7 +134,7 @@ void logInst::send0183()
 	sprintf(nmea_buf,"$VWVHW,%0.1f,T,,,%0.1f,N,,",
 		boat.getCOG(),boat.getSOG());
 	checksum();
-	display(0,"logInst --> %s",nmea_buf);
+	display(show_0183,"logInst --> %s",nmea_buf);
 	SERIAL_0183.println(nmea_buf);
 }
 
@@ -164,14 +166,14 @@ void windInst::send0183()
 		bow_angle_true,
 		boat.getWindSpeed());
 	checksum();
-	display(0,"windInst --> %s",nmea_buf);
+	display(show_0183,"windInst --> %s",nmea_buf);
 	SERIAL_0183.println(nmea_buf);
 
 	sprintf(nmea_buf,"$WIMWV,%0.1f,R,%0.1f,N,A",
 		bow_angle_apparent,
 		boat.apparentWindSpeed());
 	checksum();
-	display(0,"windInst --> %s",nmea_buf);
+	display(show_0183,"windInst --> %s",nmea_buf);
 	SERIAL_0183.println(nmea_buf);
 }
 
@@ -199,7 +201,7 @@ void gpsInst::send0183()
 		standardLon(boat.getLon()),
 		standardTime());
 	checksum();
-	display(0,"gpsInst --> %s",nmea_buf);
+	display(show_0183,"gpsInst --> %s",nmea_buf);
 	SERIAL_0183.println(nmea_buf);
 
 	// GP = GPS device
@@ -226,7 +228,7 @@ void gpsInst::send0183()
 		boat.getCOG(),
 		standardDate());
 	checksum();
-	display(0,"gpsInst --> %s",nmea_buf);
+	display(show_0183,"gpsInst --> %s",nmea_buf);
 	SERIAL_0183.println(nmea_buf);
 
 }
@@ -276,7 +278,7 @@ void autopilotInst::send0183()
 	// $APRMB,A,0.100,R,,Popa1,0920.0450,N,08214.5230,W,12.000,149.2,149.2,,*5a
 
 	checksum();
-	display(0,"apInst --> %s",nmea_buf);
+	display(show_0183,"apInst --> %s",nmea_buf);
 	SERIAL_0183.println(nmea_buf);
 
 	// E80 lights up a waypoint,

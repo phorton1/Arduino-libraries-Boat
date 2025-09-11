@@ -51,16 +51,6 @@
 #define PORT_MASK_ALL		0x07
 
 
-
-
-// monitor input and output
-
-#define MONITOR_NONE		0x00
-#define MONITOR_OUTPUT  	0x01		// monitor all sent message for port/protocol
-#define MONITOR_SENSORS 	0x02		// monitor sensor (instrument) received messages for port/protocol
-#define MONITOR_BUS	    	0x04		// monitor protcol bus (NMEA2000 only)
-
-
 #define FEET_TO_METERS		0.3048
 #define NM_TO_METERS		1852.0
 #define GALLON_TO_LITRE		3.785
@@ -79,18 +69,15 @@ public:
 	instBase(uint8_t supported) :
 		m_supported(supported)
 	{
-		m_ports = supported;	// 0;
+		m_ports = 0;	// supported;	// 0;
 	}
 
 	virtual const char *getName() = 0;
 
-	bool portSupported(int port_num) {
-		return m_supported & (1 << port_num); }
-	void activatePort(int port_num, bool on) {
-		uint8_t port_mask = (1 << port_num);
-		m_ports &= ~port_mask;
-		if (on) m_ports |= port_mask; }
-	bool portActive(int port_num) {
+	uint8_t getPorts()					{ return m_ports; }
+	void setPorts(uint16_t port_mask) 	{ m_ports = port_mask;}
+
+	bool portActive(int port_num) 		{
 		uint8_t port_mask = (1 << port_num);
 		return (m_supported & port_mask) &&
 			   (m_ports & port_mask); }
@@ -145,34 +132,34 @@ public:
 	void init();
 	void run();
 
-	void activatePort(int inst_num, int port_num, bool on)
+	void setPorts(int inst_num, uint8_t port_mask)
 	{
 		instBase *inst = m_inst[inst_num];
-		if (on && !inst->portSupported(port_num))
-			my_error("request for unsupported port_num(%d) for %s instrument",
-				port_num,inst->getName());
-		else
-			m_inst[inst_num]->activatePort(port_num,on);
+		inst->setPorts(port_mask);
 	}
-
-
-	void activateMonitor(int port_num, uint8_t what, bool on)
+	void setAll(int port_num, bool on)
 	{
-		uint8_t port_mask = (1 << port_num);
-		m_monitor[port_num] &= ~port_mask;
-		if (on) m_monitor[port_num] |= port_mask;
+		uint8_t port_mask = 1 << port_num;
+		for (int i=0; i<NUM_INSTRUMENTS; i++)
+		{
+			instBase *inst = m_inst[i];
+			uint8_t cur = inst->getPorts();
+			if (on)
+				cur |= port_mask;
+			else
+				cur &= ~port_mask;
+			inst->setPorts(cur);
+		}
 	}
 
-	bool monitorActive(int port_num, uint8_t what)
-	{
-		return m_monitor[port_num] & what;
-	}
+
+	static bool g_MON_OUT;
+
 
 
 private:
 
 	instBase *m_inst[NUM_INSTRUMENTS];
-	uint8_t m_monitor[NUM_BOAT_PORTS];
 	
 	
 };	// class instSimulator

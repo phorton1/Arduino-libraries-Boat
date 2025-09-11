@@ -5,22 +5,25 @@
 // from the Navigation.kml exported from googleEarth and
 // manually normalized to this folder.
 
+// NOTE THAT ALL numbers were normalized to 2 digits manually
+// and that all waypoint names must be at least 4 in length
+// to work with ST
 
 #include <boatSimulator.h>
 
 
 static const waypoint_t Popa_waypoints[] =
 {
-    { "Popa0",     9.334083, -82.242050 },
-    { "Popa1",     9.272120, -82.204624 },
-    { "Popa2",     9.255866, -82.197158 },
-    { "Popa3",     9.249720, -82.193311 },
-    { "Popa4",     9.231067, -82.180733 },
-    { "Popa5",     9.227000, -82.165517 },
-    { "Popa6",     9.208679, -82.155577 },
-    { "Popa7",     9.202670, -82.157985 },
-    { "Popa8",     9.200271, -82.152427 },
-    { "Popa9",     9.200832, -82.145835 },
+    { "Popa00",    9.334083, -82.242050 },
+    { "Popa01",    9.272120, -82.204624 },
+    { "Popa02",    9.255866, -82.197158 },
+    { "Popa03",    9.249720, -82.193311 },
+    { "Popa04",    9.231067, -82.180733 },
+    { "Popa05",    9.227000, -82.165517 },
+    { "Popa06",    9.208679, -82.155577 },
+    { "Popa07",    9.202670, -82.157985 },
+    { "Popa08",    9.200271, -82.152427 },
+    { "Popa09",    9.200832, -82.145835 },
     { "Popa10",    9.203776, -82.143256 },
 };
 

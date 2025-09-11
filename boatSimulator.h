@@ -133,6 +133,8 @@ public:
 		// at the final waypoint in the route.
 		// Turning routing on or off also turns the autopilot on or off.
 
+	static int g_MON_SIM;
+	
 private:
 
 	bool m_inited;
