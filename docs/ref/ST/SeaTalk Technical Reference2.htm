@@ -1,0 +1,1381 @@
+<!DOCTYPE html PUBLIC "-//w3c//dtd html 4.0 transitional//en">
+<html><head>
+  <meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+  <meta name="Author" content="Thomas Knauf">
+  <meta name="GENERATOR" content="Mozilla/4.78 [de] (Win98; U) [Netscape]">
+  <meta name="Description" content="Detailed technical description of the SeaTalk protocol">
+  <meta name="KeyWords" content="SeaTalk,Seatalk,NMEA,Raytheon,Autohelm,Seatalk interface, Seatalk connection, Seatalk protocol">
+  <title>Thomas Knauf &nbsp;&nbsp;&nbsp;&nbsp;SeaTalk Technical
+Reference</title>
+</head>
+<body text="#000000" bgcolor="#ddddcc" link="#0000ee" vlink="#551a8b" alink="#ff0000">
+<table border="0" cellspacing="0" cellpadding="0" width="100%">
+  <tbody>
+    <tr>
+      <td><a name="Top"></a>Navigation: <a href="http://www.thomasknauf.de/index.htm">Home</a>
+=&gt;<a href="http://www.thomasknauf.de/soc/profil.htm">Profil</a>=&gt;<a href="http://www.thomasknauf.de/seatalk.htm">SeaTalk</a>=&gt;Part2
+      <br>
+Stand: 21.10.2023</td>
+      <td align="right"><img src="SeaTalk%20Technical%20Reference2_files/logo.gif" height="39" width="287" align="right"></td>
+    </tr>
+  </tbody>
+</table>
+<hr width="100%">
+<h2>SeaTalk Technical Reference Part 2:</h2>
+<h3>
+Recognized Datagrams (in hexadecimal notation):</h3>
+<tt>Com Att Dat Dat...</tt>
+<p><tt>&nbsp;00&nbsp; 02&nbsp; YZ&nbsp; XX XX&nbsp; Depth below
+transducer:
+XXXX/10 feet</tt> <br>
+&nbsp;&nbsp;<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Flags in Y: Y&amp;8 = 8: Anchor Alarm is active<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Y&amp;4 = 4: Metric display units or<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Fathom display units if followed by command 65<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Y&amp;2 = 2: Used, unknown meaning<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Flags in Z: Z&amp;4 = 4: Transducer defective<br>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp; Z&amp;2 = 2: Deep Alarm is
+active<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Z&amp;1 = 1: Shallow Depth Alarm is active</tt><br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentences: DPT, DBT</tt>
+</p>
+<p><tt>&nbsp;01&nbsp; 05&nbsp; XX XX XX XX XX XX&nbsp; Equipment ID,
+sent at power on, reported examples:<br>
+&nbsp;01&nbsp; 05&nbsp; 00 00 00 60 01 00&nbsp; Course Computer 400G</tt>
+<tt></tt><br>
+<tt>&nbsp;01&nbsp; 05&nbsp; 04 BA 20 28 01 00&nbsp; ST60 Tridata<br>
+&nbsp;01&nbsp; 05&nbsp; 70 99 10 28 01 00&nbsp; ST60 Log<br>
+&nbsp;</tt><tt>01&nbsp; 05&nbsp; F3 18 00 26 0F 06&nbsp; ST80 Masterview</tt><br>
+<tt>&nbsp;01&nbsp; 05&nbsp; FA 03 00 30 07 03&nbsp; ST80 Maxi Display</tt><tt><br>
+&nbsp;01&nbsp; 05&nbsp; FF FF FF D0 00 00&nbsp; Smart Controller Remote
+Control Handset<br>
+</tt></p>
+<p><tt>&nbsp;05&nbsp; 03&nbsp; 0X&nbsp; YY ZZ&nbsp; PP&nbsp;&nbsp;
+Engine RPM</tt><tt> and PITCH: <br>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; X = 0: RPM &amp; PITCH <br>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; X = 1: RPM &amp; PITCH&nbsp; starboard<br>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; X = 2: PRM &amp; PITCH&nbsp; port<br>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; YY*256+ZZ = RPM Value (signed value, example: </tt><tt>YYZZ=0x0110=272
+RPM, </tt><tt>YYZZ=0xfef0= -272 RPM</tt><tt>)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+PP = % Pitch (signed value -128%...+127%, example 0x03=3%, 0xFD= -3%)<br>
+</tt></p>
+<p><tt>&nbsp;10&nbsp; 01&nbsp; XX&nbsp; YY&nbsp; Apparent Wind Angle:
+XXYY/2
+degrees right of bow</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Used for autopilots Vane Mode (WindTrim)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentence: MWV</tt>
+</p>
+<p><tt>&nbsp;11&nbsp; 01&nbsp; XX&nbsp; 0Y&nbsp; Apparent Wind Speed:
+(XX
+&amp; 0x7F) + Y/10 Knots</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Units flag: XX&amp;0x80=0&nbsp;&nbsp;&nbsp; =&gt; Display value in Knots</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+XX&amp;0x80=0x80 =&gt; Display value in Meter/Second</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentence: MWV</tt>
+</p>
+<p><tt>&nbsp;20&nbsp; 01&nbsp; XX&nbsp; XX&nbsp; Speed through water:
+XXXX/10
+Knots</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentence: VHW</tt>
+</p>
+<p><tt>&nbsp;21&nbsp; 02&nbsp; XX&nbsp; XX&nbsp; 0X&nbsp; Trip Mileage:
+XXXXX/100 nautical miles</tt>
+</p>
+<p><tt>&nbsp;22&nbsp; 02&nbsp; XX&nbsp; XX&nbsp; 00&nbsp; Total
+Mileage:
+XXXX/10 nautical miles</tt>
+</p>
+<p><tt>&nbsp;23&nbsp; Z1&nbsp; XX&nbsp; YY&nbsp; Water temperature
+(ST50):
+XX deg Celsius, YY deg Fahrenheit<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Flag Z&amp;4: Sensor defective or not connected (Z=4)</tt> <br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentence: MTW</tt>
+</p>
+<p><tt>&nbsp;24&nbsp; 02&nbsp; 00&nbsp; 00&nbsp; XX&nbsp; Display units
+for Mileage &amp; Speed</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+XX: 00=nm/knots, 06=sm/mph, 86=km/kmh</tt>
+</p>
+<p><tt>&nbsp;25&nbsp; Z4&nbsp; XX&nbsp; YY&nbsp; UU&nbsp; VV AW&nbsp;
+Total
+&amp; Trip Log</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+total= (XX+YY*256+Z0* 4096)/ 10 [max=104857.5] nautical miles</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+trip = (UU+VV*256+0W*65536)/100 [max=10485.75] nautical miles</tt>
+</p>
+<p><tt>&nbsp;26&nbsp; 04&nbsp; XX&nbsp; XX&nbsp; YY&nbsp; YY DE&nbsp;
+Speed
+through water:</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+XXXX/100 Knots, </tt><tt>sensor 1, current speed, </tt><tt>valid if
+D&amp;4=4</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+YYYY/100 Knots, average speed (trip/time) if D&amp;8=0 <br>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &nbsp; or data from sensor 2 if D&amp;8=8</tt><br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+E&amp;1=1: Average speed calulation stopped<br>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; E&amp;2=2: Display value in
+MPH<br>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; Corresponding NMEA
+sentence: VHW</tt>
+</p>
+<p><tt>&nbsp;27&nbsp; 01&nbsp; XX&nbsp; XX&nbsp; Water temperature:
+(XXXX-100)/10
+deg Celsius</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentence: MTW</tt>
+</p>
+<p><tt>&nbsp;30&nbsp; 00&nbsp; 0X&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Set
+lamp
+Intensity; X=0: L0, X=4: L1, X=8: L2, X=C: L3</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+(only sent once when setting the lamp intensity)</tt>
+</p>
+<p><tt>&nbsp;36&nbsp; 00&nbsp; 01&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Cancel
+MOB (Man Over Board) condition</tt>
+</p>
+<p><tt>&nbsp;38&nbsp; X1&nbsp; YY&nbsp; yy&nbsp; Codelock data</tt>
+</p>
+<p><tt>&nbsp;50&nbsp; Z2&nbsp; XX&nbsp; YY&nbsp; YY&nbsp; LAT position:
+XX degrees, (YYYY &amp; 0x7FFF)/100 minutes</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+MSB of Y = YYYY &amp; 0x8000 = South if set, North if cleared<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Z= <font face="Courier New">0xA or 0x0 (reported for Raystar 120 GPS),
+meaning unknown<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Stable filtered position, for raw data use command 58</font></tt><br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentences: RMC, GAA, GLL</tt>
+</p>
+<p><tt>&nbsp;51&nbsp; Z2&nbsp; XX&nbsp; YY&nbsp; YY&nbsp; LON position:
+XX degrees, (YYYY &amp; 0x7FFF)/100 minutes</tt>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<tt>MSB of Y = YYYY &amp; 0x8000 = East if set, West if cleared</tt> <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<tt>Z= <font face="Courier New">0xA or 0x0 (reported for Raystar 120
+GPS), meaning unknown</font></tt><tt><font face="Courier New"><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Stable filtered position, for raw data use command 58</font></tt><tt><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentences: RMC, GAA, GLL</tt>
+</p>
+<p><tt>&nbsp;52&nbsp; 01&nbsp; XX&nbsp; XX&nbsp; Speed over Ground:
+XXXX/10
+Knots</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentences: RMC, VTG</tt>
+</p>
+<p><tt>&nbsp;53&nbsp; U0&nbsp; VW&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Course
+over Ground (COG) in degrees:</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+The two lower&nbsp; bits of&nbsp; U * 90 +</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+the six lower&nbsp; bits of VW *&nbsp; 2 +</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+the two higher bits of&nbsp; U /&nbsp; 2 =</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+(U &amp; 0x3) * 90 + (VW &amp; 0x3F) * 2 + (U &amp; 0xC) / 8<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+The Magnetic Course may be offset by the Compass Variation (see
+datagram 99) to get the Course Over Ground (COG).</tt> <br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentences: RMC, VTG</tt>
+</p>
+<p><tt>&nbsp;54&nbsp; T1&nbsp; RS&nbsp; HH&nbsp; GMT-time: HH hours,</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp; 6
+MSBits of RST = minutes = (RS &amp; 0xFC) / 4</tt><br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+6 LSBits of RST = seconds =&nbsp; ST &amp; 0x3F</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentences: RMC, GAA, BWR, BWC</tt>
+</p>
+<p><tt>&nbsp;55&nbsp; X1&nbsp; YY&nbsp; yy&nbsp; TRACK keystroke on GPS
+unit</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+keycodes identical with autopilot (<a href="#86">command 86</a>)</tt>
+</p>
+<p><tt>&nbsp;56&nbsp; M1&nbsp; DD&nbsp; YY&nbsp; Date: YY year, M
+month,
+DD day in month</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentence: RMC</tt>
+</p>
+<p><tt>&nbsp;57&nbsp; S0&nbsp; DD&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Sat
+Info:
+S number of sats, DD horiz. dillution of position, if S=1 -&gt; DD=0x94</tt><small></small><br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentences: GGA, GSA</tt>
+</p>
+<p><tt>&nbsp;58&nbsp; Z5&nbsp; LA XX YY LO QQ RR&nbsp;&nbsp; LAT/LON</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+LA Degrees LAT, LO Degrees LON</tt><br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+minutes LAT = (XX*256+YY) / 1000</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+minutes LON = (QQ*256+RR) / 1000</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Z&amp;1: South (Z&amp;1 = 0: North)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Z&amp;2: East&nbsp; (Z&amp;2 = 0: West)</tt><tt><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Raw unfiltered position, for filtered data use commands 50&amp;51</tt><br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentences: RMC, GAA, GLL</tt>
+</p>
+<p><tt>&nbsp;59&nbsp; 22&nbsp; SS MM XH&nbsp; Set Count Down Timer</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+MM=Minutes ( 00..3B ) ( 00 .. 63 Min ), MSB:0 Count up start flag</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+SS=Seconds ( 00..3B ) ( 00 .. 59 Sec )</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+H=Houres&nbsp; ( 0..9 )&nbsp;&nbsp; ( 00 .. 09 Houres )</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+X= Counter Mode: 0 Count up and start if MSB of MM set</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+4 Count down</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+8 Count down and start</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+( Example 59 22 3B 3B 49 -&gt; Set Countdown Timer to 9.59:59 )</tt>
+<br>
+<tt>&nbsp;59&nbsp; 22&nbsp; 0A 00 80&nbsp; Sent by ST60 in countdown
+mode when counted down to 10 Seconds.<br>
+</tt></p>
+<p><tt>&nbsp;61&nbsp; 03&nbsp; 03 00 00 00&nbsp; Issued by E-80
+multifunction display at initialization<br>
+</tt></p>
+<p><tt>&nbsp;65&nbsp; 00&nbsp; 02&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Select
+Fathom (feet/3.33) display units for depth display (see command 00)<br>
+</tt></p>
+<p><tt>&nbsp;66&nbsp; 00&nbsp; XY &nbsp;&nbsp;&nbsp;&nbsp; Wind
+alarm as indicated by flags in XY:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+X&amp;8 = 8: Apparent Wind angle low<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+X&amp;4 = 4: Apparent Wind angle high<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+X&amp;2 = 2: Apparent Wind speed low<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+X&amp;1 = 1: Apparent Wind speed high<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+</tt><tt>Y&amp;8 = 8: True Wind angle low<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Y&amp;4 = 4: True Wind angle high<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Y&amp;2 = 2: True Wind speed low<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Y&amp;1 = 1: True Wind speed high (causes Wind-High-Alarm on ST40 Wind
+Instrument)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+XY&nbsp; =00: End of wind alarm (only sent once)<br>
+</tt></p>
+<p><tt>&nbsp;68&nbsp; X1 01 00&nbsp;&nbsp; Alarm acknowledgment
+keystroke (from ST80 Masterview)<br>
+&nbsp;68&nbsp; X1 03 00&nbsp;&nbsp; Alarm acknowledgment keystroke
+(from ST80 Masterview)<br>
+&nbsp;68&nbsp; 41 15 00&nbsp;&nbsp; Alarm acknowledgment keystroke
+(from ST40 Wind Instrument)<br>
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; X:
+1=Shallow Shallow Water Alarm, 2=Deep Water Alarm, 3=Anchor Alarm<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+4=True Wind High Alarm, 5=True Wind Low Alarm, 6=True Wind Angle high<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+7=True Wind Angle low, 8=Apparent Wind high Alarm, 9=Apparent Wind low
+Alarm<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+A=Apparent Wind Angle high, B=Apparent Wind Angle low<br>
+</tt></p>
+<p><tt>&nbsp;6C&nbsp; 05&nbsp; XX XX XX XX XX XX Second equipment-ID
+datagram (follows 01...), reported examples:<br>
+&nbsp;6C&nbsp; 05&nbsp; 04 BA 20 28 2D 2D ST60 Tridata<br>
+&nbsp;6C&nbsp; 05&nbsp; 05 70 99 10 28 2D ST60 Log<br>
+&nbsp;6C&nbsp; 05&nbsp; F3 18 00 26 2D 2D ST80 Masterview<br>
+</tt></p>
+<p><tt>&nbsp;6E&nbsp; 07&nbsp; 00&nbsp; 00 00 00 00 00 00 00 MOB (Man
+Over
+Board), (ST80), preceded</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+by a Waypoint 999 command: 82 A5 40 BF 92 6D 24 DB</tt><tt></tt>
+</p>
+<p><tt>&nbsp;70&nbsp; 10&nbsp; XY&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Keystroke
+on Raymarine A25006 ST60 Maxiview Remote Control</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+X=0 =&gt; Single keypress; X=2 =&gt; Two keys pressed;</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+X=4 =&gt; Single key: Press,hold&amp;release; X=6 =&gt; Two keys:
+Press,hold&amp;release</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Y=0 =&gt; Key 1 "Depth"; Y=1 =&gt; Key 2 "Speed" or Keys 1+2;</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Y=2 =&gt; Key 3 "HDG" or Keys 2+4; Y=3 =&gt; Key 4 "Wind" or Keys 1+3;</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Y=4 =&gt; Keys 3+4 "Nav"</tt>
+</p>
+<p><tt>&nbsp;80&nbsp; 00&nbsp; 0X&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Set
+Lamp
+Intensity: X=0 off, X=4: 1, X=8: 2, X=C: 3</tt>
+</p>
+<p><tt>&nbsp;81&nbsp; 01&nbsp; 00&nbsp; 00&nbsp; Sent by course
+computer
+during setup when going past USER CAL.</tt>
+<br>
+<tt>&nbsp;81&nbsp; 00&nbsp; 00&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Sent by
+course computer immediately after above.</tt>
+</p>
+<p><tt>&nbsp;82&nbsp; 05&nbsp; XX&nbsp; xx YY yy ZZ zz&nbsp;&nbsp;
+Target
+waypoint name</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+XX+xx = YY+yy = ZZ+zz = FF (allows error detection)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Takes the last 4 chars of name, assumes upper case only</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Char= ASCII-Char - 0x30</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+XX&amp;0x3F: char1</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+(YY&amp;0xF)*4+(XX&amp;0xC0)/64: char2</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+(ZZ&amp;0x3)*16+(YY&amp;0xF0)/16: char3</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+(ZZ&amp;0xFC)/4: char4</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentences: RMB, APB, BWR, BWC</tt>
+</p>
+<p><tt>&nbsp;83&nbsp; 07&nbsp; XX&nbsp; 00&nbsp; 00&nbsp; 00&nbsp;
+00&nbsp;
+00&nbsp; 80&nbsp; 00&nbsp; 00&nbsp; Sent by course computer.</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+XX = 0 after clearing a failure condition, also sent once after
+power-up.</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+XX = 1 failure, auto release error. Repeated once per second.<br>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; XX = 8 failure, drive stopped.<br>
+</tt></p>
+<p><tt>&nbsp;84&nbsp; U6&nbsp; VW&nbsp; XY 0Z 0M RR SS TT&nbsp; Compass
+heading&nbsp; Autopilot course and</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Rudder position (see also command 9C)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Compass heading in degrees:</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+The two lower&nbsp; bits of&nbsp; U * 90 +</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+the six lower&nbsp; bits of VW *&nbsp; 2 +</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+number of bits set in the two higher bits of U =</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+(U &amp; 0x3)* 90 + (VW &amp; 0x3F)* 2 + (U &amp; 0xC ? (U &amp; 0xC ==
+0xC ? 2 : 1): 0)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Turning direction:</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Most significant bit of U = 1: Increasing heading, Ship turns right</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Most significant bit of U = 0: Decreasing heading, Ship turns left</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Autopilot course in degrees:</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+The two higher bits of&nbsp; V * 90 + XY / 2</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Z &amp; 0x2 = 0 : Autopilot in Standby-Mode</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Z &amp; 0x2 = 2 : Autopilot in Auto-Mode</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Z &amp; 0x4 = 4 : Autopilot in Vane Mode (WindTrim), requires regular
+"10"
+datagrams</tt> <br>
+<tt>&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &nbsp; Z &amp; 0x8 = 8 : Autopilot in Track Mode<br>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; M: Alarms + audible beeps <br>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; M &amp; 0x04 = 4 : Off course <br>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; M &amp; 0x08 = 8 : Wind Shift<br>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Rudder position: RR degrees (positive
+values steer right,</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+negative values steer left. Example: 0xFE = 2° left)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+SS &amp; 0x01 : when set, turns off heading display on 600R control.</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+SS &amp; 0x02 : always on with 400G</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+SS &amp; 0x08 : displays “NO DATA” on 600R</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+SS &amp; 0x10 : displays “LARGE XTE” on 600R</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+SS &amp; 0x80 : Displays “Auto Rel” on 600R</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+TT : Always 0x08 on 400G computer, always 0x05 on 150(G) computer&nbsp;</tt>
+</p>
+<p><tt>&nbsp;85&nbsp; X6&nbsp; XX&nbsp; VU ZW ZZ YF 00 yf&nbsp;&nbsp;
+Navigation
+to waypoint information</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Cross Track Error: XXX/100 nautical miles</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Example: X-track error 2.61nm =&gt; 261 dec =&gt; 0x105 =&gt; X6XX=5_10</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Bearing to destination: (U &amp; 0x3) * 90° + WV / 2°</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Example: GPS course 230°=180+50=2*90 + 0x64/2 =&gt; VUZW=42_6</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+U&amp;8: U&amp;8 = 8 -&gt; Bearing is true, U&amp;8 = 0 -&gt; Bearing
+is magnetic</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Distance to destination: Distance 0-9.99nm: ZZZ/100nm, Y &amp; 1 = 1</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Distance &gt;=10.0nm: ZZZ/10 nm, Y &amp; 1 = 0</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Direction to steer: if Y &amp; 4 = 4 Steer right to correct error</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+if Y &amp; 4 = 0 Steer left&nbsp; to correct error</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Example: Distance = 5.13nm, steer left: 5.13*100 = 513 = 0x201 =&gt; ZW
+ZZ
+YF=1_ 20 1_</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Distance = 51.3nm, steer left: 51.3*10&nbsp; = 513 = 0x201 =&gt; ZW ZZ
+YF=1_
+20 0_</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+F contains four flags which indicate the available data fields:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Bit 0 (F &amp; 1): XTE present</tt><br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Bit 1 (F &amp; 2): Bearing to destination present</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Bit 2 (F &amp; 4): Range to destination present</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Bit 3 (F &amp; 8): XTE &gt;= 0.3nm</tt>
+<tt></tt><br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+These bits are used to allow a correct translation from for instance an
+RMB sentence which</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+contains only an XTE value, all other fields are empty. Since SeaTalk
+has no special value</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+for a data field to indicate a "not present" state, these flags are
+used to indicate the</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+presence of a value.</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+In case of a waypoint change, sentence 85, indicating the new bearing
+and
+distance,</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+should be transmitted prior to sentence 82 (which indicates the
+waypoint
+change).</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentences: RMB, APB, BWR, BWC, XTE</tt>
+</p>
+<p><a name="86"></a><tt>86&nbsp; X1&nbsp; YY&nbsp; yy&nbsp; Keystroke</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+X=1: Sent by Z101 remote control to increment/decrement</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+course of autopilot</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; 11&nbsp; 05&nbsp;
+FA&nbsp;&nbsp;&nbsp;&nbsp;
+-1</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; 11&nbsp; 06&nbsp; F9&nbsp;&nbsp;&nbsp;
+-10</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; 11&nbsp; 07&nbsp;
+F8&nbsp;&nbsp;&nbsp;&nbsp;
++1</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; 11&nbsp; 08&nbsp; F7&nbsp;&nbsp;&nbsp;
++10</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; 11&nbsp; 20&nbsp;
+DF&nbsp;&nbsp;&nbsp;&nbsp;
++1 &amp;&nbsp; -1</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; 11&nbsp; 21&nbsp;
+DE&nbsp;&nbsp;&nbsp;&nbsp;
+-1 &amp; -10</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; 11&nbsp; 22&nbsp;
+DD&nbsp;&nbsp;&nbsp;&nbsp;
++1 &amp; +10</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; 11&nbsp; 28&nbsp; D7&nbsp;&nbsp;&nbsp;
++10 &amp; -10</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; 11&nbsp; 45&nbsp;
+BA&nbsp;&nbsp;&nbsp;&nbsp;
+-1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; pressed longer than 1
+second</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; 11&nbsp; 46&nbsp; B9&nbsp;&nbsp;&nbsp;
+-10&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; pressed longer than 1
+second</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; 11&nbsp; 47&nbsp;
+B8&nbsp;&nbsp;&nbsp;&nbsp;
++1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; pressed longer than 1
+second</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; 11&nbsp; 48&nbsp; B7&nbsp;&nbsp;&nbsp;
++10&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; pressed longer than 1
+second</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; 11&nbsp; 60&nbsp;
+DF&nbsp;&nbsp;&nbsp;&nbsp;
++1 &amp;&nbsp; -1&nbsp; pressed longer than 1 second</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; 11&nbsp; 61&nbsp;
+9E&nbsp;&nbsp;&nbsp;&nbsp;
+-1 &amp; -10&nbsp; pressed longer than 1 second</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; 11&nbsp; 62&nbsp;
+9D&nbsp;&nbsp;&nbsp;&nbsp;
++1 &amp; +10&nbsp; pressed longer than 1 second</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; 11&nbsp; 64&nbsp; 9B&nbsp;&nbsp;&nbsp;
++10 &amp; -10&nbsp; pressed longer than 1 second (why not 11 68 97 ?)</tt>
+</p>
+<p><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Sent by autopilot (X=0: ST 1000+,&nbsp; X=2: ST4000+ or ST600R)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 01&nbsp; FE&nbsp;&nbsp;&nbsp;
+Auto</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 02&nbsp; FD&nbsp;&nbsp;&nbsp;
+Standby</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 03&nbsp; FC&nbsp;&nbsp;&nbsp;
+Track</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 04&nbsp; FB&nbsp;&nbsp;&nbsp;
+disp (in display mode or page in auto chapter = advance)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 05&nbsp;
+FA&nbsp;&nbsp;&nbsp;&nbsp;
+-1 (in auto mode)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 06&nbsp; F9&nbsp;&nbsp;&nbsp;
+-10 (in auto mode)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 07&nbsp;
+F8&nbsp;&nbsp;&nbsp;&nbsp;
++1 (in auto mode)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 08&nbsp; F7&nbsp;&nbsp;&nbsp;
++10 (in auto mode)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 09&nbsp;
+F6&nbsp;&nbsp;&nbsp;&nbsp;
+-1 (in resp or rudder gain mode)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 0A&nbsp;
+F5&nbsp;&nbsp;&nbsp;&nbsp;
++1 (in resp or rudder gain mode)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 21&nbsp;
+DE&nbsp;&nbsp;&nbsp;&nbsp;
+-1 &amp; -10 (port tack, doesn´t work on ST600R?)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 22&nbsp;
+DD&nbsp;&nbsp;&nbsp;&nbsp;
++1 &amp; +10 (stb tack)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 23&nbsp; DC&nbsp;&nbsp;&nbsp;
+Standby &amp; Auto (wind mode)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 28&nbsp; D7&nbsp;&nbsp;&nbsp;
++10 &amp; -10 (in auto mode)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 2E&nbsp;
+D1&nbsp;&nbsp;&nbsp;&nbsp;
++1 &amp; -1 (Response Display)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 41&nbsp; BE&nbsp;&nbsp;&nbsp;
+Auto pressed longer</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 42&nbsp; BD&nbsp;&nbsp;&nbsp;
+Standby pressed longer</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 43&nbsp; BC&nbsp;&nbsp;&nbsp;
+Track pressed longer</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 44&nbsp; BB&nbsp;&nbsp;&nbsp;
+Disp pressed longer</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 45&nbsp;
+BA&nbsp;&nbsp;&nbsp;&nbsp;
+-1 pressed longer (in auto mode)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 46&nbsp; B9&nbsp;&nbsp;&nbsp;
+-10 pressed longer (in auto mode)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 47&nbsp;
+B8&nbsp;&nbsp;&nbsp;&nbsp;
++1 pressed longer (in auto mode)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 48&nbsp; B7&nbsp;&nbsp;&nbsp;
++10 pressed longer (in auto mode)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 63&nbsp; 9C&nbsp;&nbsp;&nbsp;
+Standby &amp; Auto pressed longer (previous wind angle)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 68&nbsp; 97&nbsp;&nbsp;&nbsp;
++10 &amp; -10 pressed longer (in auto mode)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 6E&nbsp;
+91&nbsp;&nbsp;&nbsp;&nbsp;
++1 &amp; -1 pressed longer (Rudder Gain Display)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 80&nbsp;
+7F&nbsp;&nbsp;&nbsp;&nbsp;
+-1 pressed (repeated 1x per second)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 81&nbsp;
+7E&nbsp;&nbsp;&nbsp;&nbsp;
++1 pressed (repeated 1x per second)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 82&nbsp; 7D&nbsp;&nbsp;&nbsp;
+-10 pressed (repeated 1x per second)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 83&nbsp; 7C&nbsp;&nbsp;&nbsp;
++10 pressed (repeated 1x per second)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp; X1&nbsp; 84&nbsp;
+7B&nbsp;&nbsp;&nbsp;&nbsp;
++1, -1, +10 or -10 released</tt>
+</p>
+<p><tt>&nbsp;87&nbsp; 00&nbsp;
+0X&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Set Response level</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+X=1&nbsp; Response level 1: Automatic Deadband</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+X=2&nbsp; Response level 2: Minimum Deadband</tt>
+</p>
+<p><tt>&nbsp;88&nbsp; 03&nbsp; WW&nbsp; XX&nbsp; YY&nbsp; ZZ&nbsp;
+Autopilot
+Parameter: Sent by AP every</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+second while in parameter setting mode.</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+(User or Dealer Calibration Mode)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+WW Parameter Number</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+XX Current Setting</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+YY Max Parameter Value</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+ZZ Min Parameter Value</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Known Paramters: Parameter (min-max)
+[default]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Number</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+rudder gain&nbsp; (1-9)
+[2]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+1</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+counter rudder (1-9)
+[2]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+2</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+rudder limit&nbsp; (10-40)
+[30]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+3</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+turn rate limit&nbsp; (1-30)
+[off]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+4</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+speed&nbsp; (4-60)
+[8]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+5</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+off course limit&nbsp; (15-40)
+[20]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+6</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+auto trim&nbsp; (0-4)
+[1]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+7</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+power steer [Joy Stick] ON/OFF (not on new
+400G)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+9</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+drive type&nbsp; (3,4,5)
+[3]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+A</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+rudder damping&nbsp; (1-9)
+[2]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+B</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+variation: (full degrees)(-30 to +30)
+[0]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+C</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+auto adapt: 0=Off,1=North,2=South
+[1]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+D</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+auto adapt latitude (0-80)
+[0]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+E</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+auto release (only for stern drive)
+ON/
+OFF&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+F</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+rudder alignment (-7 to +7)
+[0]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+10</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Wind Trim (Wind Response) (1-9) [5] (only for
+sail)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+11</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Response&nbsp; (1-9)
+[5]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+12</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Boat type:1=displ,2=semi-displ,3=plan,4=stern,5=work,6=sail 13</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Cal Lock:&nbsp; 0=OFF, 1=ON
+[0]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+15</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Auto Tack Angle (40-125) [100] (only for
+sail)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+1d</tt>
+</p>
+<p><tt>&nbsp;89&nbsp; U2&nbsp; VW&nbsp; XY&nbsp; 2Z&nbsp; Compass
+heading
+sent by ST40 compass instrument</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+(it is read as a compass heading by the ST1000(+) or ST2000(+)
+autopilot)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Compass heading in degrees:</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+The two lower bits of&nbsp; U&nbsp; *&nbsp; 90&nbsp;&nbsp; +</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+the six lower bits of VW&nbsp; *&nbsp;&nbsp; 2&nbsp;&nbsp; +</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+the two higher bits of U&nbsp; /&nbsp;&nbsp; 2&nbsp;&nbsp; =</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+(U &amp; 0x3) * 90 + (VW &amp; 0x3F) * 2 + (U &amp; 0xC) / 8</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Locked stear reference (only send by the ST40 compass):</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+The two higher bits of V * 90 + XY / 2</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Z &amp; 0x2 = 0 : St40 in Standby mode</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Z &amp; 0x2 = 2 : St40 in Locked stear mode</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentences: HDM, HDG, HDT, VHW</tt>
+</p>
+<p><tt>&nbsp;90&nbsp; 00&nbsp;
+XX&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Device Indentification</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+XX=02&nbsp; sent by ST600R ~every 2 secs</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+XX=05&nbsp; sent by type 150, 150G and 400G course computer</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+XX=A3&nbsp; sent by NMEA &lt;-&gt; SeaTalk bridge ~every 10 secs</tt>
+</p>
+<p><tt>&nbsp;91&nbsp; 00&nbsp;
+0X&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Set Rudder gain to X</tt>
+</p>
+<p><tt>&nbsp;92&nbsp; 02&nbsp; XX&nbsp; YY&nbsp; 00 Set Autopilot
+Parameter:
+Sent by the remote head</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+(e.g. ST600R) to set a particular parameter.</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+XX Parameter Number (see 88)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+YY Value to set to.</tt>
+</p>
+<p><tt>&nbsp;93&nbsp; 00&nbsp;
+00&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Enter AP-Setup: Sent by course computer before</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+finally entering the dealer setup. It is repeated</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+once per second, and times out after ten seconds.</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+While this is being sent, command 86 X1 68 97 is</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+needed for final entry into Setup. (600R generates</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this when –1 &amp; +1 are pressed simultaneously in this</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+mode).</tt>
+</p>
+<p><tt>&nbsp;95&nbsp; U6&nbsp; VW&nbsp; XY 0Z 00 RR 00 0T&nbsp;
+Replaces
+command 84 while autopilot is in value setting mode</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+e.g. lamp intensity or response level</tt>
+</p>
+<p><tt>&nbsp;99&nbsp; 00&nbsp;
+XX&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Compass variation sent by ST40 compass instrument</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+or ST1000, ST2000, ST4000+, E-80 every 10 seconds</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+but only if the variation is set on the instrument</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Positive XX values: Variation West, Negative XX values: Variation East</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Examples (XX =&gt; variation): 00 =&gt; 0, 01 =&gt; -1 west, 02 =&gt;
+-2 west ...</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+FF =&gt; +1 east, FE =&gt; +2 east ...</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentences: RMC, HDG</tt>
+</p>
+<p><tt>&nbsp;9A&nbsp; 09&nbsp; L11&nbsp; L12&nbsp; L13&nbsp; L14&nbsp;
+L21&nbsp; L22&nbsp; L23&nbsp; 00&nbsp; 00&nbsp; 00&nbsp; Version String:</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+L11 means line 1 char 1. There are two lines, line 1</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Can have 4 characters and line two can have 3</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Characters. Char: “A”= 0x00, “B”= 0x01,……..</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Char: “0”= 0x25, “1”= 0x26, ……….</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Some special characters are mapped to the range</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Between alphas and numeric chars. It seems modulo</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+masked at 0x36, and wraps around from there.</tt>
+</p>
+<p><tt>&nbsp;9C&nbsp; U1&nbsp; VW&nbsp; RR&nbsp;&nbsp;&nbsp; Compass
+heading
+and Rudder position (see also command 84)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Compass heading in degrees:</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+The two lower&nbsp; bits of&nbsp; U * 90 +</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+the six lower&nbsp; bits of VW *&nbsp; 2 +</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+number of bits set in the two higher bits of U =</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+(U &amp; 0x3)* 90 + (VW &amp; 0x3F)* 2 + (U &amp; 0xC ? (U &amp; 0xC ==
+0xC ? 2 : 1): 0)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Turning direction:</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Most significant bit of U = 1: Increasing heading, Ship turns right</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Most significant bit of U = 0: Decreasing heading, Ship turns left</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Rudder position: RR degrees (positive values steer right,</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+negative values steer left. Example: 0xFE = 2° left)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+The rudder angle bar on the ST600R uses this record</tt>
+</p>
+<p><tt>&nbsp;9E&nbsp; FC&nbsp; 49&nbsp; 49 03 XX AA BB YY OO PP GG HH
+II
+JJ&nbsp;&nbsp; Waypoint definition</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+XX: Degrees LAT, YY: Degrees LON</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+min&amp;sec LAT= AA+(BB&amp;0x1F)*256, BB&amp;0x80 = 0: North,
+BB&amp;0x80
+= 0x80: South</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+min&amp;sec LON= OO+(PP&amp;ßx1F)*256, PP&amp;0x80 = 0:
+West,&nbsp;
+PP&amp;0x80 = 0x80: East</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+GG HH II JJ: Last four characters of waypoint name</tt>
+</p>
+<p><tt>&nbsp;A1&nbsp; XD&nbsp; 49&nbsp; 49 GG HH II JJ C1 C2 C3 C4 C5
+C6
+C7 C8&nbsp; Destination Waypoint Info</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+GG HH II JJ: Last four characters of waypoint name</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+C1...C8: Up to 8 characters of WP name, unused are 0</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Longer names (&gt; 8 chars) create an additional record:</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+X=0: single record (short name)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+X=1: 1st record, more follows</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+X=3: last record</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentences: RMB, APB, BWR, BWC</tt>
+</p>
+<p><tt>&nbsp;A2&nbsp; X4&nbsp; 00&nbsp; WW XX YY ZZ Arrival Info
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+X&amp;0x2=Arrival perpendicular passed, X&amp;0x4=Arrival circle
+entered
+<br>
+&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp; WW,XX,YY,ZZ = Ascii
+char's of waypoint id.&nbsp;&nbsp; (0..9,A..Z)<br>
+&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; Takes the last 4 chars of name,
+assumes upper case only<br>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp; Corresponding NMEA sentences: APB, AAM
+<br>
+</tt></p>
+<p><tt>&nbsp;A4&nbsp; 02&nbsp; 00&nbsp; 00 00 Broadcast query to
+identify all devices on the bus, issued e.g. by C70 plotter<br>
+&nbsp;A4&nbsp; 06&nbsp; 00&nbsp; 00 00 00 00 Termination of request for
+device identification, sent e.g. by C70 plotter<br>
+&nbsp;A4&nbsp; 12&nbsp; II&nbsp; VV WW Device answers identification
+request<br>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;
+&nbsp;&nbsp; &nbsp;&nbsp; II: Unit ID (01=Depth, 02=Speed, 03=Multi,
+04=Tridata, 05=Tridata repeater,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+06=Wind, 07=WMG, 08=Navdata GPS, 09=Maxview, 0A=Steering compas,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+0B=Wind Trim, 0C=Speed trim, 0D=Seatalk GPS, 0E=Seatalk radar ST50,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+0F=Rudder angle indicator, 10=ST30 wind, 11=ST30 bidata, 12=ST30 speed,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+13=ST30 depth, 14=LCD navcenter, 15=Apelco LCD chartplotter,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+16=Analog speedtrim, 17=Analog depth, 18=ST30 compas,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+19=ST50 NMEA
+bridge, A8=ST80 Masterview)<br>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;
+&nbsp;&nbsp; &nbsp;&nbsp; VV: Main Software Version<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+WW: Minor Software Version<br>
+</tt></p>
+<p><tt>&nbsp;A5&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+GPS and DGPS Info<br>
+&nbsp;A5&nbsp; 57&nbsp; QQ&nbsp; HH ?? AA GG ZZ YY
+DD&nbsp;&nbsp;
+GPS and DGPS Fix Info</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Signal Quality= QQ&amp;0xF, QQ&amp;0x10: Signal Quality available flag</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+HDOP= HH&amp;0x7C, HH&amp;0x80: HDOP available flag</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Antenna Height= AA</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Number of Sats= (QQ&amp;0xE0)/16+(HH&amp;0x1), HH&amp;0x2: NumSats
+available
+flag</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+GeoSeperation= GG*16 (-2048....+2047 meters)</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Differential age=(ZZ&amp;0xE0)/2+(YY&amp;0xF), YY&amp;0x10: Diff. age
+available
+flag</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Differential Station ID=(YY&amp;0xC0)*4+DD, YY&amp;0x20: Diff.St.ID
+available
+flag</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentences: GGA, RMC, GSV, GLL, GGA<br>
+&nbsp;A5&nbsp; 61&nbsp; 04&nbsp; E2&nbsp;&nbsp;&nbsp; , A5 8D ..., A5
+98 ..., A5 B5 ..., A5 0C...&nbsp; Unknown meaning<br>
+&nbsp;A5&nbsp; 74&nbsp; ID&nbsp; ID ID ID ID&nbsp;&nbsp; GPS
+Info:
+ID numbers of satellites</tt>
+<br>
+<tt>&nbsp;A5&nbsp; XD&nbsp; NN&nbsp; AA EE SS MM BB FF GG OO CC DD
+XX YY ZZ&nbsp;&nbsp; GPS Info: Sat Position and Signal</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Data of up to three sattelites [1,2,3] per datagram</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Satellite number: [1] NN&amp;0xFE, [2] (MM&amp;0x70)/2+(BB&amp;0x7),
+[3]
+CC&amp;0x3F</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Satellite azimuth:[1] AA*2+(EE&amp;0x1), [2]
+(BB&amp;0xF8)*2+(FF&amp;0xF),
+[3] (CC&amp;0xC0)*2+DD&amp;0x7F</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Satellite elevation:[1] (EE&amp;0xFE)/2, [2]
+(FF&amp;0xF0)/2+GG&amp;0x7,
+[3] XX&amp;0x7F</tt>
+<br>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Satellite signal: [1] (SS&amp;0xFE)/2, [2] (GG&amp;0x80)/2+OO&amp;0x3F,
+[3] (YY&amp;0xFC)/2+ZZ&amp;0x1</tt>
+</p>
+<blockquote>
+  <blockquote>
+    <blockquote>
+      <blockquote><tt>It seems that there will be 4 sat info datagrams
+generated,
+the first with X=0 carries the position and signal data of the 1st 3
+satellites.
+The second also with X=0, but NN&amp;0x1 set and a length of 0x0C
+carries
+the data of the next 2 satellites and then the ID numbers of the 1st 4
+sats. A datagram like the 1st one, but with X=2 carries data of 3 more
+sats [6,7,8]. It was not possible to get more than 8 sats mapped to
+SeaTalk.
+Finally a datagram with X=7 carries the next 5 ID numbers.</tt></blockquote>
+    </blockquote>
+  </blockquote>
+</blockquote>
+<tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Corresponding NMEA sentences: GSV, GSA<br>
+<br>
+&nbsp;A7&nbsp; 09&nbsp; 86 000000000000000079 Unknown meaning, sent by
+Raystar 120 GPS<br>
+<br>
+&nbsp;A8&nbsp; 53&nbsp; 80 00 00 D3&nbsp; Alarm ON&nbsp; for Guard #1
+or #2<br>
+</tt><tt>&nbsp;A8&nbsp; 43&nbsp; 80 00 00 C3&nbsp; Alarm OFF for Guard
+#1 or #2<br>
+</tt><tt>&nbsp;AB&nbsp; 53&nbsp; 80 00 00 D3&nbsp; Alarm ON&nbsp; for
+Guard #1 or #2<br>
+</tt><tt>&nbsp;AB&nbsp; 43&nbsp; 80 00 00 C3&nbsp; Alarm OFF for Guard
+#1 or #2</tt><br>
+<p><font size="+1"><a href="#Top">Return to Top of Page</a>&nbsp;&nbsp;
+<a href="http://www.thomasknauf.de/seatalk.htm">Overview</a>&nbsp;
+<a href="http://www.thomasknauf.de/rap/seatalk1.htm">Part 1</a>&nbsp;&nbsp;&nbsp;&nbsp; <b><a href="http://www.thomasknauf.de/rap/seatalk3.htm">Part
+3</a></b></font>
+</p>
+
+
+</body></html>

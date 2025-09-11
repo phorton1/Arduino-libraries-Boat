@@ -1,0 +1,142 @@
+<!DOCTYPE html PUBLIC "-//w3c//dtd html 4.0 transitional//en">
+<html><head>
+   <meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+   <meta name="Author" content="Thomas Knauf">
+   <meta name="GENERATOR" content="Mozilla/4.78 [de] (Win98; U) [Netscape]">
+   <meta name="Description" content="Detailed technical description of the SeaTalk protocol">
+   <meta name="KeyWords" content="SeaTalk,Seatalk,NMEA,Raytheon,Autohelm,Seatalk interface, Seatalk connection, Seatalk protocol">
+   <title>Thomas Knauf &nbsp;&nbsp;&nbsp;&nbsp;SeaTalk Technical Reference</title>
+</head>
+<body text="#000000" bgcolor="#DDDDCC" link="#0000EE" vlink="#551A8B" alink="#FF0000">
+&nbsp;
+<table border="0" cellspacing="0" cellpadding="0" width="100%">
+<tbody><tr>
+<td><a name="Top"></a>Navigation: <a href="http://www.thomasknauf.de/index.htm">Home</a> =&gt;<a href="http://www.thomasknauf.de/soc/profil.htm">Profil</a>=&gt;<a href="http://www.thomasknauf.de/seatalk.htm">SeaTalk</a>=&gt;Part3
+<br>Stand: 01.09.2003</td>
+
+<td align="RIGHT"><img src="SeaTalk%20Technical%20Reference3_files/logo.gif" height="39" width="287" align="RIGHT"></td>
+</tr>
+</tbody></table>
+
+<hr width="100%">
+<h2>
+SeaTalk Technical Reference Part 3: Processing SeaTalk Data with a PC</h2>
+
+<h3>
+<a name="Uni"></a>Unidirectional SeaTalk =&gt; RS232 Interface</h3>
+This simple unidirectional interface circuit inverts the SeaTalk signal
+to make it readable by the PC serial port:
+<br><img src="SeaTalk%20Technical%20Reference3_files/seaconv.GIF" vspace="20" nosave="" height="266" width="425">
+<h3>
+<a name="Bid"></a>Bidirectional SeaTalk &lt;=&gt; RS232 Interface</h3>
+
+<p><br>For bidirectional communication the circuit has to be extended by
+a second transistor:
+</p><p><img src="SeaTalk%20Technical%20Reference3_files/seabidi.GIF" height="272" width="425">
+</p><p>A PC-board may be obtained from <a href="http://www.tklinux.de/" target="_blank">Frank
+Wallenwein</a>.
+</p><h3>
+<a name="Mon"></a>SeaTalk Monitor</h3>
+
+<p><br>The following piece of C-code gives an example of how to collect
+and process SeaTalk data. It monitors the SeaTalk bus and echoes the SeaTalk
+datagrams in hexadecimal notation to the screen.
+</p><p><tt>#include &lt;stdio.h&gt;</tt>
+</p><p><tt>/* Set Address of Serial Port: COM1=0x3F8, COM2=0x2F8 */</tt>
+<br><tt>#define PORT 0x3F8</tt>
+</p><p><tt>unsigned int collision_ctr,overrun_ctr;</tt>
+<br><tt>char buffer[256],in_ptr,out_ptr,limit_ptr;</tt>
+<br><tt>char line_status_reg,receiver_buf,byte_ctr;</tt>
+<br><tt>char hex[]="0123456789ABCDEF";</tt>
+</p><p><tt>main() {</tt>
+<br><tt>&nbsp; puts("SeaTalk Monitor Rev. 1.01&nbsp;&nbsp;&nbsp; (c)2000
+by Thomas Knauf\r\n");</tt>
+</p><p><tt>&nbsp;/* Serial Port Initialization */</tt>
+<br><tt>&nbsp;_outb(&nbsp;&nbsp; 0, PORT+1); /*IER Disable Interrupts */</tt>
+<br><tt>&nbsp;_outb(&nbsp;&nbsp; 1, PORT+2); /*FCR Enable Fifo */</tt>
+<br><tt>&nbsp;_outb(0x80, PORT+3); /*LCR Enable access to Divisor Latch
+*/</tt>
+<br><tt>&nbsp;_outb(&nbsp; 24, PORT&nbsp; ); /*DLL Set Baud Rate to 4800
+LSB*/</tt>
+<br><tt>&nbsp;_outb(&nbsp;&nbsp; 0, PORT+1); /*DLM Baud Rate Divisor MSB
+*/</tt>
+<br><tt>&nbsp;_outb(0x3B, PORT+3); /*LCR Stick Parity to 0, Enable Parity,
+1 Stop bit, 8 bits/char */</tt>
+<br><tt>&nbsp;_outb(0x0F, PORT+4); /*MCR Disable LOOP Mode */</tt>
+<br><tt>&nbsp;_outb(&nbsp;&nbsp; 0, PORT+5); /*LSR Clear Error flags */</tt>
+</p><p><tt>&nbsp;while(1) { /* Continous data processing loop */</tt>
+<br><tt>&nbsp;&nbsp; if((line_status_reg= _inb(PORT+5)) &amp; 1) { /* LSR
+New SeaTalk Data received ? */</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp; receiver_buf=_inb(PORT);&nbsp; /* RBR
+Read SeaTalk Data Byte */</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp; if(line_status_reg &amp; 2) overrun_ctr++;
+/* PC too slow, should not happen */</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp; if(line_status_reg &amp; 4) { /* Parity
+bit set =&gt; Command Byte */</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if(byte_ctr) {&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/* More characters expected =&gt; Collision */</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; in_ptr=limit_ptr;&nbsp;&nbsp;&nbsp;
+/* Discard last datagram, restart from beginning */</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; collision_ctr++;&nbsp;&nbsp;&nbsp;&nbsp;
+/* Count collision events */</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; buffer[in_ptr++]='\r';&nbsp;
+/* Put new command on new line */</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; buffer[in_ptr++]='\n';</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; byte_ctr=255;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/* Undefined datagram length, wait for next character */</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp; } else</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if(byte_ctr==254)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/* Attribute byte ? */</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; byte_ctr=(receiver_buf
+&amp; 0xF) + 2; /* Read expected datagram length */</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp; if(byte_ctr) {&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/* Process valid data bytes, should always be true */</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; buffer[in_ptr++]=hex[receiver_buf
+&gt;&gt;&nbsp; 4]; /* Convert Data to hex */</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; buffer[in_ptr++]=hex[receiver_buf
+&amp; 0xF];</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; buffer[in_ptr++]=' 
+';&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+/* Seperate by space */</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if(! --byte_ctr) limit_ptr=in_ptr;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/* Complete datagram ready for output */</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp; }</tt>
+<br><tt>&nbsp;&nbsp; } else</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp; if(out_ptr != limit_ptr)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/* Characters waiting for Output ? */</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; putc(buffer[out_ptr++],stdout);
+/* Copy single character from buffer to screen */</tt>
+<br><tt>&nbsp;&nbsp;&nbsp;&nbsp; else if(scr_csts()) break;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/* Query keyboard, terminate if any key hit */</tt>
+<br><tt>&nbsp;}</tt>
+<br><tt>&nbsp;printf("\r\nSeatalk Collisions : %5u",collision_ctr);</tt>
+<br><tt>&nbsp;printf("\r\nUART Overrun Errors: %5u",overrun_ctr);</tt>
+<br><tt>}</tt>
+</p><p>Compiled EXE-Files can be downloaded here as <a href="http://www.thomasknauf.de/rap/seamon1.exe">SEAMON1.EXE</a>
+(using COM1:) or <a href="http://www.thomasknauf.de/rap/seamon2.exe">SEAMON2.EXE</a> (using COM2:). They
+run in any MS-DOS environment. Redirecting the output logs data to a file
+(example: SEAMON1 &gt; LOGFILE). Pressing any key terminates the program.
+</p><h3>
+<a name="Track"></a>SeaTrack: Route documentation software</h3>
+The <a href="http://pbeekman.com/seatrack.htm" target="_blank">SeaTrack</a>
+software developed by Philip Beekman for reading editing combining displaying
+and saving trip routes is able to handle SeaTalk data directly. The author
+also describes how he solved the problem to handle the <a href="http://pbeekman.com/seatalk/" target="_blank">parity/command-bit
+interpetation within VisualBasic</a>.
+<br>&nbsp;
+<h3>
+<a name="Sig"></a>SeaSigma: A simple SeaTalk command generator</h3>
+The file <a href="http://www.thomasknauf.de/rap/SeaSigma.zip">SeaSigma.zip</a> contains a MS-Windows
+program which allows to generate SeaTalk commands and to send them via
+COM1: or COM2: to the SeaTalk bus. Since SeaSigma is a contribution of
+<a href="mailto:ales_janhar@siol.net">Ales
+Janhar</a> I cannot give support or take any responsibility for this software.
+<p><font size="+1"><a href="#Top">Return to Top of Page</a>&nbsp;&nbsp; <a href="http://www.thomasknauf.de/seatalk.htm">Overview</a>&nbsp;&nbsp;
+
+<a href="http://www.thomasknauf.de/rap/seatalk1.htm">Part 1</a>&nbsp;&nbsp;&nbsp;&nbsp; <a href="http://www.thomasknauf.de/rap/seatalk2.htm">Part
+2</a></font>
+
+
+</p></body></html>

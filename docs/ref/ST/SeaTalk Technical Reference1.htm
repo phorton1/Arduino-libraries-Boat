@@ -1,0 +1,133 @@
+<!DOCTYPE html PUBLIC "-//w3c//dtd html 4.0 transitional//en">
+<html><head>
+  <meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+  <meta name="Author" content="Thomas Knauf">
+  <meta name="GENERATOR" content="Mozilla/4.78 [de] (Win98; U) [Netscape]">
+  <meta name="Description" content="Detailed technical description of the SeaTalk protocol">
+  <meta name="KeyWords" content="SeaTalk,Seatalk,NMEA,Raytheon,Autohelm,Seatalk interface, Seatalk connection, Seatalk protocol">
+  <title>Thomas Knauf &nbsp;&nbsp;&nbsp;&nbsp;SeaTalk Technical
+Reference</title>
+</head>
+<body text="#000000" bgcolor="#ddddcc" link="#0000ee" vlink="#551a8b" alink="#ff0000">
+<table border="0" cellspacing="0" cellpadding="0" width="100%">
+  <tbody>
+    <tr>
+      <td>Navigation: <a href="http://www.thomasknauf.de/index.htm">Home</a> =&gt;<a href="http://www.thomasknauf.de/soc/profil.htm">Profil</a>=&gt;<a href="http://www.thomasknauf.de/seatalk.htm">SeaTalk</a>=&gt;Part1
+      <br>
+Stand: 01.02.2009</td>
+      <td align="right"><img src="SeaTalk%20Technical%20Reference1_files/logo.gif" height="39" width="287" align="right"></td>
+    </tr>
+  </tbody>
+</table>
+<hr width="100%">
+<h2>SeaTalk Technical Reference Part 1: How SeaTalk works</h2>
+<h3>
+<a name="Har"></a>Hardware-Interface</h3>
+SeaTalk uses three wires, connected in parallel to all devices on the
+bus:
+<ol>
+  <li>&nbsp;+12V&nbsp;&nbsp;&nbsp; Supply, red</li>
+  <li>&nbsp;GND&nbsp;&nbsp;&nbsp; Supply, grey</li>
+  <li>&nbsp;Data&nbsp;&nbsp;&nbsp;&nbsp; Serial Data, yellow:
++12V=Idle/Mark=1,
+0V=Space/Data=0, 4800 Baud, pullup circuit in each device, talker pulls
+down to 0V (wired OR). For <a href="http://www.thomasknauf.de/rap/seatalk3.htm#Uni">connection to a
+RS232
+receiver</a> voltage levels must be inverted.</li>
+</ol>
+<h3>
+<a name="Ser"></a>Serial Data Transmission</h3>
+11 bits are transmitted for each character:
+<blockquote><li>1&nbsp; Start bit (0V)</li>
+  <li>8&nbsp; Data Bits (least significant bit transmitted first)</li>
+  <li>1&nbsp; Command bit, set on the first character of each datagram.
+Reflected
+in the parity bit of most UARTs. Not compatible with NMEA0183 but well
+suited for the multiprocessor communications mode of 8051-family
+microcontrollers
+(bit SM2 in SCON set).</li>
+  <li>1&nbsp; Stop bit (+12V)</li>
+</blockquote>
+<h3>
+<a name="Com"></a>Composition of Messages</h3>
+Each datagram contains between 3 and 18 characters:
+<ol>
+  <li>Type of command (the only byte with the command-bit set)</li>
+  <li>Attribute Character, specifying the total length of the datagram
+in the
+least significant nibble:</li>
+  <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Most&nbsp; significant 4 bits: 0 or
+part of a data value <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Least significant 4 bits: Number of
+additional data bytes = n&nbsp; =&gt; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Total length of datagram = 3 + n&nbsp;
+characters <li>First, mandatory data byte</li>
+  <li>- 18.&nbsp; optional, additional data bytes</li>
+</ol>
+<p><br>
+No datagrams or devices carry addresses. This eliminates the need
+for an initialization or arbitration phase on the bus. Events (such as
+a keystroke) are published as soon as they occure. Measured data is
+repeatedly
+transfered, typically about once per second. So the current values are
+always available to all devices on the bus and there is no need (and
+with the exception of command A4 no
+way) to request a particular information.
+<br>
+&nbsp;
+</p>
+<h3><a name="Col"></a>Collision Management</h3>
+There is no master on the bus. Every device has equal rights and is
+allowed
+to talk as soon as it recognizes the bus to be idle (+12V for at least
+10/4800 seconds). Low priority messages use a longer or randomly
+selected
+idle-bus-waiting-time. This allows messages from other devices with a
+higher
+priority to be transmitted first. The different waiting times of all
+devices
+make data collisions (two or more devices start talking at exactly the
+same moment) very rare. Since each device also listens to its own
+transmission
+it will recognize when its message is garbled by a second talker. In
+this
+case it abandons the remaining characters of the datagram. It waits for
+the bus to become free again and then retransmits the whole message.
+For
+listeners this means that messages which are shorter than expected are
+invalid and have to be cancelled totally.
+<br>
+&nbsp;
+<h3><a name="Dat"></a>Data Coding</h3>
+Some characters are repeated with all bits inverted for noise or
+transmission
+error detection. Example: 0xA2 is followed by 0x5D. The sum of both
+bytes
+must always be 0xFF. The listing below shows repeated bytes in small
+letters
+(example: ZZ zz).
+<p>Numerical values are transmitted binary coded and with least
+significant
+data first.&nbsp; Example: 0x13 0x57 means 0x5713 = 22291
+</p>
+<p>Some values are put together by certain bits of a byte or nibble.
+The
+meaningful bits can be isolated by a bitwise AND operation (&amp;).
+Example:
+(U &amp; 0x3) filters the least significant two bits of U.
+</p>
+<p>The "distance to destination" value (ZZZ in command 0x85) uses a
+scaling
+factor of 1/10 or 1/100 nm depending on the shift indicator bit (LSBit
+of Y).
+<br>
+&nbsp;
+</p>
+<p><font size="+1"><a href="#Top">Return to Top of Page</a>&nbsp;&nbsp;&nbsp;
+<a href="http://www.thomasknauf.de/seatalk.htm">Overview</a>&nbsp;&nbsp;&nbsp;&nbsp; <b><a href="http://www.thomasknauf.de/rap/seatalk2.htm">Part
+2</a></b>&nbsp;&nbsp;&nbsp;&nbsp; <a href="http://www.thomasknauf.de/rap/seatalk3.htm">Part 3</a></font>
+</p>
+
+
+</body></html>

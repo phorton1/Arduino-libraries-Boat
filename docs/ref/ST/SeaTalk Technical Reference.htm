@@ -1,0 +1,198 @@
+<!DOCTYPE html PUBLIC "-//w3c//dtd html 4.0 transitional//en">
+<html><head>
+  <meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+  <meta name="Author" content="Thomas Knauf">
+  <meta name="GENERATOR" content="Mozilla/4.78 [de] (Win98; U) [Netscape]">
+  <meta name="Description" content="Detailed technical description of the SeaTalk protocol">
+  <meta name="KeyWords" content="SeaTalk,Seatalk,Raymarine,NMEA,Autohelm,Seatalk interface, Seatalk connection, Seatalk protocol">
+  <title>Thomas Knauf &nbsp;&nbsp;&nbsp;&nbsp;SeaTalk Technical
+Reference</title>
+</head>
+<body text="#000000" bgcolor="#ddddcc" link="#0000ee" vlink="#551a8b" alink="#ff0000">
+<table border="0" cellspacing="0" cellpadding="0" width="100%">
+  <tbody>
+    <tr>
+      <td>Navigation: <a href="http://www.thomasknauf.de/index.htm">Home</a> =&gt;<a href="http://www.thomasknauf.de/soc/profil.htm">Profil</a>=&gt;SeaTalk <br>
+Stand: 29.07.2017</td>
+      <td align="right"><img src="SeaTalk%20Technical%20Reference_files/logo.gif" height="39" width="287" align="right"></td>
+    </tr>
+  </tbody>
+</table>
+<hr width="100%">
+<h2>SeaTalk Technical
+Reference&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <font size="+1">Revision
+3.23</font></h2>
+<h3>
+General Information</h3>
+SeaTalk is a simple interface for networking <a href="http://www.raymarine.com/" target="_blank">Raymarine/Autohelm</a>
+marine equipment so that all devices of a ship can exchange and share
+their
+data. SeaTalk is a proprietary solution of Autohelm and <b>not</b>
+compatible
+with NMEA or CAN. Unfortunately Raymarine keeps the technical details
+of
+SeaTalk secret. To assist users who want to develop hard- or software
+to
+connect their devices to the SeaTalk bus these pages uncover some of
+the
+mysteries. Part 3 adds hints how to interface SeaTalk with a PC. The
+information
+is unsupported by Raymarine and was found by watching the bits
+travelling
+on the bus. Therefore the description is incomplete inaccurate and may
+even be wrong. <a href="mailto:thomas.knauf@t-online.de">Corrections
+and
+contributions</a> are welcome.
+<h3><font size="+1">Content</font></h3>
+The technical description of the SeaTalk protocol is divided into three
+parts:
+<ol>
+  <li> <a href="http://www.thomasknauf.de/rap/seatalk1.htm">Part 1: How SeaTalk works</a></li>
+  <ol type="a">
+    <li> <a href="http://www.thomasknauf.de/rap/seatalk1.htm#Har">Hardware-Interface</a>
+describes
+the function
+of the three SeaTalk wires</li>
+    <li> <a href="http://www.thomasknauf.de/rap/seatalk1.htm#Ser">Serial Data Transmission</a>
+describes the
+parameters of the asynchron serial port</li>
+    <li> <a href="http://www.thomasknauf.de/rap/seatalk1.htm#Com">Composition of Messages</a>
+describes the
+structure of datagrams</li>
+    <li> <a href="http://www.thomasknauf.de/rap/seatalk1.htm#Col">Collision Management</a>
+describes
+the arbitration
+between simultaneous talkers</li>
+    <li> <a href="http://www.thomasknauf.de/rap/seatalk1.htm#Dat">Data Coding</a> describes
+common
+rules for
+coding numerical values</li>
+  </ol>
+  <li> <a href="http://www.thomasknauf.de/rap/seatalk2.htm">Part 2: Recognized Datagrams </a>describes
+the
+SeaTalk messages and their meaning</li>
+  <li> <a href="http://www.thomasknauf.de/rap/seatalk3.htm">Part 3: Processing SeaTalk Data with
+a PC</a></li>
+  <ol type="a">
+    <li> <a href="http://www.thomasknauf.de/rap/seatalk3.htm#Uni">Circuit example for an
+unidirectional SeaTalk
+=&gt; PC interface</a></li>
+    <li> <a href="http://www.thomasknauf.de/rap/seatalk3.htm#Bid">Circuit example for a
+bidrectonal
+SeaTalk
+&lt;=&gt; PC interface</a></li>
+    <li> <a href="http://www.thomasknauf.de/rap/seatalk3.htm#Mon">Simple SeaTalk monitoring
+utility
+for download</a></li>
+    <li> <a href="http://www.thomasknauf.de/rap/seatalk3.htm#Track">SeaTrack: VisualBasic
+software
+for trip
+documentation</a></li>
+    <li> <a href="http://www.thomasknauf.de/rap/seatalk3.htm#Sig">SeaSigma: A small SeaTalk
+command
+generator
+for download</a></li>
+  </ol>
+</ol>
+<h3>
+Revision History:</h3>
+<blockquote>Rev 3.23: [July 2017] Commands 85 and 89 corrected thx
+Mindert Sprang and Hans Almquist<br>
+Rev 3.22: [May 2014] Command 53 corrected thx John Rhind and Meindert
+Sprang<br>
+Rev 3.21: [March 2011] Time coding in command 54 clarified
+thx&nbsp; Tim Thornton<br>
+Rev 3.20: [January 2011] Some observations with Raystar 120
+GPS included thx Tim Thornton<br>
+Rev 3.19: [August 2010]&nbsp; Command&nbsp; A2 revised thx
+Frank Wallenwein<br>
+Rev 3.18: [March 2009]&nbsp; Several commands edited and
+new commands 05 and 68 added thx Frank Wallenwein<br>
+Rev 3.17: [February 2009] Command A4 added thx&nbsp; Tord
+Lindner<br>
+Rev 3.16: [October 2008] Commands 65, 66, A8 and AB added
+thx Ray Holland<br>
+Rev 3.15: [June 2006]&nbsp; Command 61 added thx Ian
+Molesworth<br>
+Rev 3.14: [January 2006] Minor changes to commands&nbsp;
+26, 01 and&nbsp; 6C thx&nbsp; Ian Molesworth<br>
+Rev 3.13: [December 2005]&nbsp; Additional bits found in
+command 26 by Pim Snoeks<br>
+  <br>
+</blockquote>
+<h3>
+<a name="Ack"></a>Acknowledgement</h3>
+Many thanks to
+<p><b>Knut Wiren, Finland</b>
+<br>
+<b><a href="http://www.ridax.se/mikael/seatalk.htm" target="_blank">Mikael
+Wahlgren</a>, Sweden </b>(developed a PIC-based SeaTalk remote
+control)
+<br>
+<b>Reiner Patommel, Danmark</b>
+<br>
+<b>Arnold de Maa, Holland</b>
+<br>
+<b><a href="http://www.voti.nl/seatalk/" target="_blank">Wouter van
+Ooijen</a>, Netherlands </b>(developed a PIC-based SeaTalk protocol
+converter)
+<br>
+<b><a href="http://www.saniter.de/" target="_blank">Jürgen
+Saniter</a>, Germany</b> (developed a SX-28 based SeaTalk remote
+control)
+<br>
+<b>Harald Sammer, Scotland</b>
+<br>
+<b>Ales Janhar, Slovenija </b>(developed the SeaSigma utility)
+<br>
+<a name="Jon"></a><b><a href="http://www.vermontficks.org/pic.htm" target="_blank">Jon
+Fick</a>, USA</b> (developed a PIC-based SeaTalk remote control)
+<br>
+<b><a href="http://www.tklinux.de/" target="_blank">Frank Wallenwein</a></b>,
+<b>Germany
+</b>(<a href="http://www.gadgetpool.de/" target="_blank">NMEA
+&lt;=&gt; SeaTalk
+Bridge and several boat electronics projects</a>)
+<br>
+<b>Dave Martin, Great Britain</b>
+<br>
+<a name="Pezzo"></a><b>Horacio
+Martinez del Pezzo, Argentinia </b>(developed an intelligent
+SeaTalk
+/ NMEA multiplexer)
+<br>
+<b><a href="http://www.sealog.de/" target="_blank">Pit Förster
+and Jochen Buttkereit</a>, Germany</b> (supplier of third party SeaTalk
+equipment for instance
+<a href="http://www.brookhouseonline.com/" target="_blank">Brookhouse
+interfaces</a>)
+<br>
+<b><a href="http://www.phys.um.edu.mt/%7Elzamm/st_remote" target="_blank">Louis
+Zammit Mangion</a>, Malta </b>(developed a PIC-based SeaTalk remote
+control)
+<br>
+<b><a href="http://www.shipmodul.com/" target="_blank">Meindert Sprang</a>,
+Netherlands </b>(develops and manufactures
+NMEA/SeaTalk/Bluetooth/RS232-multiplexers)
+<br>
+<b>Dennis Hambleton, Australia </b>
+<br>
+<b><a href="http://www.lula.es/" target="_blank">Fernando MAS CADIZ</a>,
+Spain</b><br>
+<b>Ray Holland, Australia</b> (developed a <a href="http://www.tech-x.com.au/Products.html" target="_blank">WakeUp
+Marine Alarm</a> box) <br>
+<b>Tord Lindner, Sweden </b>and<b><br>
+Tim Thornton, United Kingdom </b>(<a href="http://www.teamsurv.eu/" target="_blank">TeamSurv</a> project for navigational data logging and
+<a href="http://www.smartcomsoftware.com/" target="_blank">Smartcom
+Software Ltd.</a>)
+</p>
+<p>who contributed valueable information for this page.
+</p>
+<p><font size="+1"><a href="#Top">Return to Top of Page</a>&nbsp;&nbsp;
+<a href="http://www.thomasknauf.de/rap/seatalk1.htm">Part
+1</a>&nbsp;&nbsp;&nbsp;&nbsp; <a href="http://www.thomasknauf.de/rap/seatalk2.htm">Part 2</a>&nbsp;&nbsp;
+<a href="http://www.thomasknauf.de/rap/seatalk3.htm">Part 3</a></font>
+</p>
+
+
+</body></html>
