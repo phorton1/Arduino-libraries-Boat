@@ -23,7 +23,7 @@ typedef struct
 {
 	const char *name;
 	const waypoint_t *wpts;
-	int	num_wpts;
+	uint8_t num_wpts;
 } route_t;
 
 
@@ -47,32 +47,34 @@ public:
 
 	// getters
 
-	bool   running()			{ return m_running; }		// true while simulator is running
+	bool	running()				{ return m_running; }		// true while simulator is running
 
-	double getDepth()			{ return m_depth; }			// feet below surface
-	double getSOG()				{ return m_sog; }			// knots
-	double getCOG()				{ return m_cog; }			// true
-	double getWindAngle() 		{ return m_wind_angle; }	// true
-	double getWindSpeed() 		{ return m_wind_speed; }	// knots
-	double getLat()				{ return m_latitude; }
-	double getLon()				{ return m_longitude; }
-	double getRPMS()			{ return m_rpms; }
-	double getOilPressure()		{ return m_rpms == 0 ? 0 : 50 + random(-30,30); }	// psi
-	double getOilTemp()			{ return m_rpms == 0 ? 0 : 180 + random(-40,40); }  // farenheight
-	double getCoolantTemp()		{ return m_rpms == 0 ? 0 : 180 + random(-40,40); }  // farenheight
-	double getAltVoltage()		{ return m_rpms == 0 ? 0 : 12.0 + (((float)random(-300,300)) / 100.0); }
-	double getFuelRate()		{ return m_rpms == 0 ? 0 : 1.5 + (((float) random(-100,100)) / 100.0); } // gph
-	double getFuelLevel(int tank) { return (500.0 + ((double) random(-100,100)))/10.0; }	// 0..1
-	bool   getGenset()			{ return m_genset; }
-	double getGenRPM()			{ return m_genset ? 3600 + random(-100,100) : 0; }
-	double getGenOilPressure()	{ return m_genset ? 50 + random(-30,30) : 0; }	// psi
-	double getGenCoolTemp()		{ return m_genset ? 180 + random(-40,40) : 0; }	// farenheight
-	double getGenVoltage()		{ return m_genset ? 120 + random(-10,10) : 0; }
-	double getGenFreq()			{ return m_genset ? 60 + random(-5,5) : 0; }
+	float	 getDepth()				{ return m_depth; }				// feet below surface
+	float	 getSOG()				{ return m_sog; }				// knots
+	float	 getCOG()				{ return m_cog; }				// true
+	float	 getWindAngle() 		{ return m_wind_angle; }		// true
+	float	 getWindSpeed() 		{ return m_wind_speed; }		// knots
+	double	 getLat()				{ return m_latitude; }
+	double	 getLon()				{ return m_longitude; }
+	uint16_t getRPM()				{ return m_rpm; }
+	uint16_t getOilPressure()		{ return m_oil_pressure; }		// psi
+	uint16_t getOilTemp()			{ return m_oil_temp; }			// farenheight
+	uint16_t getCoolantTemp()		{ return m_coolant_temp; }		// farenheight
+	float 	 getAltVoltage()		{ return m_alt_voltage; }		// volts
+	float 	 getFuelRate()			{ return m_fuel_rate; }			// gph
+	float	 getFuelLevel(int tank) { return tank ? m_fuel_level2 : m_fuel_level1; }	// 0..1
+	bool     getGenset()			{ return m_genset; }
+	uint16_t getGenRPM()			{ return m_gen_rpm; }
+	uint16_t getGenOilPressure()	{ return m_gen_oil_pressure; }	// psi
+	uint16_t getGenCoolTemp()		{ return m_gen_cool_temp; }		// farenheight
+	float    getGenVoltage()		{ return m_gen_voltage; }		// volts
+	uint8_t  getGenFreq()			{ return m_gen_freq; }
 
-	int getNumWaypoints()		{ return m_num_waypoints; }		// in the "current route"
-	int getWaypointNum() 		{ return m_waypoint_num; }		// return the "current waypoint" number
-	const waypoint_t *getWaypoint(int wp_num)				// get a waypoing structure by index
+	uint8_t	 getNumWaypoints()		{ return m_num_waypoints; }		// in the "current route"
+	uint8_t  getStartWPNum()		{ return m_start_wp_num; }
+	uint8_t  getTargetWPNum() 		{ return m_target_wp_num; }		// return the "current waypoint" number
+
+	const waypoint_t *getWaypoint(uint8_t wp_num)				// get a waypoing structure by index
 	{
 		if (wp_num >= 0 && wp_num < m_num_waypoints)
 			return &m_waypoints[wp_num];
@@ -84,25 +86,24 @@ public:
 	bool getArrived()			{ return m_arrived; }
 		// get the autopilot, routing, and arrival status
 
-	double headingToWaypoint();		// true heading to "current waypoint" from current position
-	double distanceToWaypoint();	// NM to "current waypoint" from current position
+	float headingToWaypoint();		// true heading to "current waypoint" from current position
+	float distanceToWaypoint();	// NM to "current waypoint" from current position
 
 	// helper functions that calculate the apparent wind based
 	// the SOG, COG, true windAngle, and true windSpeed.
 
-	double apparentWindAngle()	{ return m_app_wind_angle; }	// degrees relative to the bow of the boat
-	double apparentWindSpeed()	{ return m_app_wind_speed; }	// knots
-
+	float apparentWindAngle()	{ return m_app_wind_angle; }	// degrees relative to the bow of the boat
+	float apparentWindSpeed()	{ return m_app_wind_speed; }	// knots
 
 	// setters
 
-	void setDepth			(double depth)		{ m_depth = depth; }
-	void setSOG				(double sog)		{ m_sog = sog; calculateApparentWind(); m_rpms=sog?1800:0; }
-	void setCOG				(double cog)		{ m_cog = cog; calculateApparentWind(); }
-	void setWindAngle		(double angle) 		{ m_wind_angle = angle; calculateApparentWind(); }
-	void setWindSpeed 		(double speed)		{ m_wind_speed = speed; calculateApparentWind(); }
-	void setRPMS			(double rpms)		{ m_rpms = rpms; }
-	void setGenset			(bool on)			{ m_genset = on; display(0,"GENSET %s",m_genset?"ON":"OFF"); }
+	void setDepth		(float depth);
+	void setSOG			(float sog);
+	void setCOG			(float cog);
+	void setWindAngle	(float angle);
+	void setWindSpeed 	(float speed);
+	void setRPM			(uint16_t rpm);
+	void setGenset		(bool on);
 
 	void setRoute(const char *route_name);
 		// see ge_routes.h for names
@@ -110,14 +111,13 @@ public:
 		// 		but does not stop the simulator
 		// puts the boat at the 0th waypoint and sets the
 		// 		current waypoint number to 1
-	void setWaypointNum(int wp_num);
+	void setStartWPNum(uint8_t wp_num);
+		// magically moves the boat to the given waypoint
+		// without otherwise altering the simulator
+	void setTargetWPNum(uint8_t wp_num);
 		// Sets the waypoint to navigate to.
 		// Does nothing and reports an error if wp_num<0 or wp_num>getNumWaypoints()-1
 		// Resets m_arrived and m_closest
-	void jumpToWaypoint(int wp_num);
-		// magically moves the boat to the given waypoint
-		// without otherwise altering the simulator
-
 
 	void setAutopilot(bool on);
 		// While on, the simulator automatically sets heading to the
@@ -135,28 +135,55 @@ public:
 
 	static int g_MON_SIM;
 	
+	// added opaque time functions
+
+	int getYear();
+	int getMonth();
+	int getDay();
+	int getHour();
+	int getMinute();
+	int getSecond();
+
+	void setDateTime(int year, int month, int day, int hour, int minute, int second);		// HH:MM::SS   (24 hour clock);
+
+
 private:
 
-	bool m_inited;
-	bool m_running;
-	bool m_autopilot;
-	bool m_routing;
-	bool m_arrived;
+	bool	 m_inited;
+	bool	 m_running;
+	bool	 m_autopilot;
+	bool	 m_routing;
+	bool	 m_arrived;
 
-	double m_depth;
-	double m_sog;
-	double m_cog;
-	double m_wind_angle;
-	double m_wind_speed;
-	double m_latitude;
-	double m_longitude;
-	double m_app_wind_angle;
-	double m_app_wind_speed;
-	double m_rpms;
-	bool   m_genset;
+	float	 m_depth;
+	float	 m_sog;
+	float	 m_cog;
+	float	 m_wind_angle;
+	float	 m_wind_speed;
+	double	 m_latitude;
+	double	 m_longitude;
+	float	 m_app_wind_angle;
+	float	 m_app_wind_speed;
 
-	int m_waypoint_num;
-	int m_num_waypoints;
+	uint16_t m_rpm;
+	uint16_t m_oil_pressure;
+	uint16_t m_oil_temp;
+	uint16_t m_coolant_temp;
+	float	 m_alt_voltage;
+	float	 m_fuel_rate;
+	float	 m_fuel_level1;
+	float	 m_fuel_level2;
+
+	bool  	 m_genset;
+	uint16_t m_gen_rpm;
+	uint16_t m_gen_oil_pressure;
+	uint16_t m_gen_cool_temp;
+	float	 m_gen_voltage;
+	uint8_t	 m_gen_freq;
+
+	uint8_t	 m_start_wp_num;
+	uint8_t	 m_target_wp_num;
+	uint8_t	 m_num_waypoints;
 	const waypoint_t *m_waypoints;
 
 	// implementation
@@ -167,11 +194,15 @@ private:
 
 	void calculateApparentWind(bool quiet=true);
 
+	void sendBinaryBoatState(bool doit=1);
+	
+
 };	// class Simulator
 
 
 extern boatSimulator boat;
 	// static instance in boatSimulator.cpp
+
 
 
 

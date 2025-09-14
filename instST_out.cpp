@@ -23,7 +23,7 @@
 uint32_t last_seatalk_receive_time;
 
 
-static uint16_t dg[20];
+static uint16_t dg[MAX_ST_SEEN];
 static int retry_num = 0;
 
 
@@ -33,6 +33,14 @@ static int sendDatagram(const uint16_t *dg)
 		return SEND_BUSY;	// bus busy
 
 	#define WRITE_TIMEOUT	40
+
+			uint8_t echo_dg[8];
+			for (int i=0; i<8; i++)
+			{
+				echo_dg[i] = dg[i];
+			}
+			showDatagram(true,echo_dg);
+
 
 	//	if (show_output)
 	//	{
@@ -86,6 +94,8 @@ static int sendDatagram(const uint16_t *dg)
 
 	// if (show_output)
 	// 	Serial.println();
+
+
 	return SEND_OK;
 }
 
@@ -258,6 +268,22 @@ void autopilotInst::sendSeatalk()
 	
 	if (boat.getAutopilot())
 	{
+		int wp_num = boat.getTargetWPNum();
+		const waypoint_t *wp = boat.getWaypoint(wp_num);
+
+		String name(wp->name);
+		int len = name.length();
+
+		while (len < 4)
+		{
+			name += '0';
+			len++;
+		}
+
+		int at = len-4;
+		String name4 = name.substring(at,at+4);
+		name4 = name4.toUpperCase();
+
 		if (1)
 		{
 			// ST_NAV_TO_WP	0x185 "should be sent before ST_TARGET_NAME	0x182"
@@ -288,9 +314,15 @@ void autopilotInst::sendSeatalk()
 
 			double head = boat.headingToWaypoint();
 			double dist = boat.distanceToWaypoint();
+			uint16_t xte_hundreths = 123;
 
-			display(dbg_data,"stNavToWp head(%0.1f) dist(%0.3f)",head,dist);
+			display(0,"stNavToWp head(%0.1f) dist(%0.3f) xte(%0.2f)",head,dist,((float) xte_hundreths)/100.0);
 			proc_entry();
+
+			uint8_t X6 = (xte_hundreths & 0xf) << 4;
+			X6 |= 6;
+			xte_hundreths >>= 4;
+			uint8_t XX = xte_hundreths;
 
 			int h90s = (head / 90.0);								// number of 90's in the heading
 			double remainder = head - ((float) h90s) * 90.0;		// remaining degrees 0..90
@@ -298,7 +330,8 @@ void autopilotInst::sendSeatalk()
 			uint8_t U  = 0x08 | h90s;	// 0x08=true (0x00 would equal magnetic) + number of 90's
 			uint8_t WV = halfs;			// number of halfs in the bearing
 			uint8_t Y = 0;				// no direction to steer 0x0f
-			display(dbg_data,"h90s(%d) halfs(%d) head rebuilt(%0.1f)",
+
+			display(0,"h90s(%d) halfs(%d) head rebuilt(%0.1f)",
 				h90s,
 				halfs,
 				(float) (((float)h90s)*90.0) + (((float)halfs)/2.0) );
@@ -317,15 +350,22 @@ void autopilotInst::sendSeatalk()
 			proc_leave();
 
 			uint8_t F = 0x01 | 0x02 | 0x04;		// XTE, bearing, distance present; 0x08 not set because XTE < 0.3nm;
+
+			uint8_t VU = (WV << 4) | U;						// VU = V=bottom four bits of WV and bottom (all) four bits of U
+			uint8_t ZW = (WV >> 4) | ((ZZZ & 0x0f) << 4);  	// ZW = W=high four bits of WV and low 4 bits of ZZZZ
+			uint8_t ZZ = ZZZ >> 4;							// ZZ = high 8 bits of ZZZ
+
 			dg[0] = ST_NAV_TO_WP;
-			dg[1] = 0x06;					// X6  X = high 4 bits of xte
-			dg[2] = 0x00;					// XX  XX = bottom 8 bits of XTE
-			dg[3] = (WV << 4) | U;			// VU = V=bottom four bits of WV and four bits of U
-			dg[4] = (WV >> 4) | (ZZZ>>8);	// ZW = W=high four bits of WV and high 4 bits of ZZZZ
-			dg[5] = ZZZ;					// ZZ = bottom 8 bits of ZZZ
+			dg[1] = X6;						// X6  X = low 4 bits of xte_hundreths
+			dg[2] = XX;						// XX  XX = high 8 bits of xte_hundreths
+			dg[3] = VU;						// VU = V=bottom four bits of WV and bottom (all) four bits of U
+			dg[4] = ZW;						// ZW = W=high four bits of WV and low 4 bits of ZZZZ
+			dg[5] = ZZ;						// ZZ = high 8 bits of ZZZ
 			dg[6] = (Y<<4) | F;				// YF = 4 bits of Y and 4 bits of F
 			dg[7] = 0xff - dg[6];			// yf undocumented presumed weird checksum
+
 			sendDatagram(dg);
+
 		}
 
 
@@ -342,33 +382,23 @@ void autopilotInst::sendSeatalk()
 			//		(ZZ&0xFC)/4: char4
 			//		Corresponding NMEA sentences: RMB, APB, BWR, BWC
 
-			int wp_num = boat.getWaypointNum();
-			const waypoint_t *wp = boat.getWaypoint(wp_num);
 
-			String name(wp->name);
-			name = name.toUpperCase();
-			int len = name.length();
-
-			display(dbg_data,"stTargetName(%s)",name.c_str());
+			display(0,"stTargetName(%s) name4(%s)",name.c_str(),name4.c_str());
 
 			// another weird 6 bit character encoding
 			// with additionally weird checksumming
 
-			int at = len-4;
 			uint8_t chars[4];	// 4 chars of 6 bits each of (c - 0x30)
 			for (int i=0; i<4; i++)
 			{
-				uint8_t c = at >= 0 ? name.charAt(at) : '0';
-				at++;
+				uint8_t c = name4.charAt(i);
 				chars[i] = (c - 0x30) & 0x3f;
 			}
 
-			uint8_t XX = chars[0] | (chars[1] << 6);
-				// 6 bits of char[0], bottom 2 bits of char[1]
-			uint8_t YY = (chars[1] >> 4) | (chars[2]  & 0x04);
-				// top 4 bits of char[1], bottom 4 of char[2]
-			uint8_t ZZ = (chars[2] << 6) | chars[3];
-				// top 2 bits of char[2], 6 bits of char[4]
+			uint8_t XX = (chars[1] % 4) << 6 | (chars[0] & 0x3f);
+			uint8_t YY = ((chars[2] % 16) << 4) | (chars[1] / 4);
+			uint8_t ZZ = (chars[3] << 2) | (chars[2] / 16);
+
 			uint8_t xx = 0xff - XX;
 			uint8_t yy = 0xff - YY;
 			uint8_t zz = 0xff - ZZ;
@@ -384,14 +414,30 @@ void autopilotInst::sendSeatalk()
 			sendDatagram(dg);
 		}
 
-		// so I didn't bother to encode this
+		if (1)
+		{
+			// #define ST_ARRIVAL		0x1A2
+			//	A2  X4  00  WW XX YY ZZ Arrival Info
+			//					X&0x2=Arrival perpendicular passed, X&0x4=Arrival circle entered
+			//					WW,XX,YY,ZZ = Ascii char's of waypoint id.   (0..9,A..Z)
+			//									Takes the last 4 chars of name, assumes upper case only
+			//					Corresponding NMEA sentences: APB, AA
 
-		// #define ST_ARRIVAL		0x1A2
-		//	A2  X4  00  WW XX YY ZZ Arrival Info
-		//					X&0x2=Arrival perpendicular passed, X&0x4=Arrival circle entered
-		//					WW,XX,YY,ZZ = Ascii char's of waypoint id.   (0..9,A..Z)
-		//									Takes the last 4 chars of name, assumes upper case only
-		//					Corresponding NMEA sentences: APB, AA
+
+			// What I see is a bit different.
+			// It looks like WW XX YY ZZ follow X4 immediately
+			// and there is an extra flag byte at the end.
+
+			dg[0] = ST_ARRIVAL;
+			dg[1] = boat.getArrived() ? 0x64 : 0x04;			// both arrival types
+			dg[2] = 0;
+			dg[3] = name4.charAt(0); // - 0x30;
+			dg[4] = name4.charAt(1); // - 0x30;
+			dg[5] = name4.charAt(2); // - 0x30;
+			dg[6] = name4.charAt(3); // - 0x30;
+			sendDatagram(dg);
+		}
+
 
 	}
 }
@@ -399,8 +445,8 @@ void autopilotInst::sendSeatalk()
 void engineInst::sendSeatalk()
 {
 	// not really supported
-	int rpm = boat.getRPMS();
-	display(dbg_data,"stRPM(%d)",rpm);
+	int rpm = boat.getRPM();
+	display(0,"stRPM(%d)",rpm);
 	if (rpm > 4000)
 		rpm = 4000;
 	dg[0] = ST_RPM;

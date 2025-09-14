@@ -173,12 +173,14 @@ void instSimulator::run()
 			// 		of bytes, so all messages are at least 3 bytes
 			//		the high nibble may be data.
 			//	data[n+3];, implying a maximum datagram size of 19
+			//  this routine can never receive more than 19 bytes
+			//	but MAX_ST_BUF is set to 20 for neatness
 
 			#if 0
 				display(0,"got 0x%02x '%c'",c,(c>32 && c<128)?c:' ');
 			#endif
 
-			static uint8_t datagram[20];
+			static uint8_t datagram[MAX_ST_BUF];
 			static int outp = 0;
 			static int dlen = 0;
 
@@ -201,8 +203,7 @@ void instSimulator::run()
 				datagram[outp++] = c;
 				if (outp == dlen)
 				{
-					if (g_MON_ST)
-						showDatagram(datagram);
+					showDatagram(false,datagram);
 					outp = 0;
 					dlen = 0;
 				}

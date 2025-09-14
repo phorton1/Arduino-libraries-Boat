@@ -5,67 +5,419 @@
 
 #include "instST.h"
 #include <myDebug.h>
+#include "instSimulator.h"
+#include "boatUtils.h"
+#include "boatBinary.h"
+
+
+// notes
+//
+// even with sim_0183, which is the only one to get the E80 to
+//		display a target wp name, the E80 only gives out internal
+//		numberic target wp names
+
 
 bool g_MON_ST;
 uint32_t g_last_st_receive_time;
 
-
-// these three happen when the unit is idle
-//
-//		#define ST_UNKNOWN01	0x159		// in 		59 11 ce ff
-//		#define ST_COMPASS_VAR	0x199		// in 		99  00  XX
-//		#define ST_E80_SIG		0x161		// in 		61 03 03 00 00 00
-//
-//
-//		#define ST_WPT_NAV_INFO 0x185		// in 		85 06 00 08 00 00 10 00 ef
-//
-//		// some kind of WAYPOINT info, 9e 0d 00 00 02 00 00 00 00 00 00 00 00 00 00 00
-//
-//		// no cigar #define ST_DST_WPT_INFO 0x1A1		// in 		a1 9d 30 30 30 30 30 30 47 4f 54 4f 20 57 41 59
-//		//                                                             XD 49 49
-//		// 000000GOTO WAY
-//
-//		#define ST_INFORMATIONAL 0x1a1		// my guess, a general purpose text message about waypoints
-//			// 0x0000: a1 9d 30 30 30 30 30 30 47 4f 54 4f 20 57 41 59     ..000000GOTO WAY
-//			// 0x0000: a1 bd 30 30 30 30 30 30 50 4f 49 4e 54 00 00 00 	   ..000000POINT...
+#define MAX_ST_NAME		12
 
 
-
-
-int datagram_counter = 0;
-
-void showDatagram(const uint8_t *datagram)
+typedef struct
 {
-	#define WIDTH_OF_HEX	3
-	#define MAX_DISPLAY 	16
-	#define MAX_LEFT		MAX_DISPLAY * WIDTH_OF_HEX
+	uint16_t	st;
+	const char *name;
+	int out_inst;
+} st_info_type;
 
-	int len = (datagram[1] & 0xf) + 3;
+const st_info_type st_known[] =
+{
+	//                              name			out_inst		},	// sim0183	e80_idle	decoded
+	/* 0x100 */ { ST_DEPTH,			"DEPTH",		INST_DEPTH,		},	// 	  x
+	/* 0x105 */ { ST_RPM,			"RPM",			INST_ENGINE,    },	//
+	/* 0x110 */ { ST_WIND_ANGLE,	"WIND_ANGLE",	INST_WIND,		},	// 	  x
+	/* 0x111 */ { ST_WIND_SPEED,	"WIND_SPEED",	INST_WIND,		},	// 	  x
+	/* 0x120 */ { ST_WATER_SPEED,	"WATER_SPEED",	INST_LOG,		},	// 	  x
+	/* 0x126 */ { ST_LOG_SPEED,		"LOG_SPEED",	-1,				},	// 	  x
+	/* 0x150 */ { ST_LAT,			"LAT",			-1,				},	// 	  x
+	/* 0x151 */ { ST_LON,			"LON",			-1,				},	// 	  x
+	/* 0x152 */ { ST_SOG,			"SOG",			INST_LOG,		},	// 	  x
+	/* 0x153 */ { ST_COG,			"COG",			INST_COMPASS,	},	// 	  x
+	/* 0x154 */ { ST_TIME,			"TIME",			INST_GPS,		},	// 	  x
+	/* 0x156 */ { ST_DATE,			"DATE",			INST_GPS,		},	// 	  x
+	/* 0x157 */ { ST_57,			"57",			-1,				},	// 	  x
+	/* 0x158 */ { ST_LATLON,		"LATLON",		INST_GPS,		},	// 	  x
+	/* 0x159 */ { ST_59,			"59",			-1,				},	// 	  x		x
+	/* 0x161 */ { ST_E80_SIG,		"E80_SIG",		-1,				},	// 	  x		x
+	/* 0x182 */ { ST_TARGET_NAME,	"TARGET_NAME",	INST_AUTOPILOT,	},	// 	  x
+	/* 0x185 */ { ST_NAV_TO_WP,		"NAV_TO_WP",	INST_AUTOPILOT,	},	// 	  x
+	/* 0x189 */ { ST_HEADING,		"HEADING",		INST_COMPASS,	},	//    x
+	/* 0x199 */ { ST_COMPASS_VAR,	"COMPASS_VAR",	-1,				},	//    x		z
+	/* 0x1a2 */ { ST_ARRIVAL,		"ARRIVAL",		INST_AUTOPILOT,	},	//    x
+	0,
+};
 
-	static char buf_left[MAX_LEFT + 1];
-	static char buf_right[MAX_DISPLAY + 1];
-	memset(buf_left,0,MAX_LEFT + 1);
-	memset(buf_right,0,MAX_DISPLAY + 1);
 
-	for (int i=0; i<len && i<MAX_DISPLAY; i++)
+
+static String decodeST(uint16_t st, const uint8_t *dg)
+{
+	String retval;
+
+
+	if (st == ST_DEPTH)		// 0x100
 	{
-		uint8_t byte = datagram[i];
-		char *pr = &buf_right[i];
-		char *pl = &buf_left[i * WIDTH_OF_HEX];
-		sprintf(pl,"%02x ",byte);
-		sprintf(pr,"%c",byte > 32 ? byte : '.');
+		float feet = dg[4]*256 + dg[3];
+		feet /= 10;
+		retval = "feet(";
+		retval += feet;
+		retval += ")";
+	}
+	else if (st == ST_RPM)			// 0x105
+	{
+		int16_t rpm = (int16_t) ((uint16_t)(dg[3]*256 + dg[4]));
+		int8_t pitch = (int8_t) dg[5];
+		retval = "rpm(";
+		retval += rpm;
+		retval += ") pitch(";
+		retval += pitch;
+		retval += ")";
+	}
+	else if (st == ST_WIND_ANGLE)	// 0x110
+	{
+		float angle = dg[2]*256 + dg[3];
+		angle /= 2;
+		retval += "apparent_angle(";
+		retval += angle;
+		retval += ")";
+	}
+	else if (st == ST_WIND_SPEED)	// 0x111
+	{
+		float speed = dg[3];
+		speed /= 10;
+		speed += (dg[2] & 0x7f);
+		retval = "apparent_knots(";
+		retval += speed;
+		retval += ")";
+	}
+	else if (st == ST_WATER_SPEED)	// 0x120
+	{
+		float speed = dg[3]*256 + dg[2];
+		speed /= 10;
+		retval += "knots(";
+		retval += speed;
+		retval += ")";
+	}
+	else if (st == ST_LOG_SPEED)	// 0x126
+	{
+		float speed = dg[3]*256 + dg[2];
+		float avg = dg[5]*256 + dg[4];
+		speed /= 100;
+		avg /= 100;
+		uint8_t flags = dg[6];
+			// my flags are 0x10 and the speed
+			// appears valid even if !0x04
+		if (1)	// flags & 0x04)
+		{
+			retval += "knots(";
+			retval += speed;
+			retval += ") ";
+		}
+		if (flags & 0x08)
+		{
+			retval += "speed2(";
+			retval += avg;
+			retval += ")";
+		}
+		else
+		{
+			retval += "avg(";
+			retval += avg;
+			retval += ")";
+		}
+	}
+	else if (st == ST_LAT)			// 0x150
+	{
+		float lat = dg[2];
+		uint16_t YYYY = dg[4];
+		YYYY <<= 8;
+		YYYY |= dg[3];
+
+		bool south = YYYY & 0x8000 ? 1 : 0;
+		YYYY &= 0x7fff;
+		float mins = YYYY;
+		mins /= 100;
+
+		lat += (mins / 60.0);
+		if (south) lat = -lat;
+		retval = "lat(";
+		retval += strDegreeMinutes(lat);
+		retval += ")";
+	}
+	else if (st == ST_LON)			// 0x150
+	{
+		float lon = dg[2];
+		uint16_t YYYY = dg[4];
+		YYYY <<= 8;
+		YYYY |= dg[3];
+
+		bool east = YYYY & 0x8000 ? 1 : 0;
+		YYYY &= 0x7fff;
+		float mins = YYYY;
+		mins /= 100;
+
+		lon += mins / 60.0;
+		if (!east) lon = -lon;
+		retval = "lat(";
+		retval += strDegreeMinutes(lon);
+		retval += ")";
+	}
+	else if (st == ST_SOG)			// 0x152
+	{
+		float speed = dg[3]*256 + dg[2];
+		speed /= 10;
+		retval += "knots(";
+		retval += speed;
+		retval += ")";
+	}
+	else if (st == ST_COG)			// 0x153
+	{
+		float cog = (dg[1] * 0x0c);
+		cog /= 8;
+		cog += ((dg[1] & 0x30) >> 4)*90 + (dg[1] & 0x3f) * 2;
+		retval = "cog(";
+		retval += cog;
+		retval += ")";
+	}
+	else if (st == ST_TIME)			// 0x154
+	{
+		uint8_t T = dg[1] >> 4;
+		uint8_t RS = dg[2];
+		uint8_t ST = (RS << 4) | T;
+
+		uint8_t hour = dg[3];
+		uint8_t minutes = (RS & 0xfc) / 4;
+		uint8_t secs = ST & 0x3F;
+		char buf[32];
+		sprintf(buf,"time(%02d:%02d:%02d)",hour,minutes,secs);
+		retval = buf;
+	}
+	else if (st == ST_DATE)			// 0x156
+	{
+		uint16_t year = dg[3] + 2000;
+		uint8_t day = dg[2];
+		uint8_t month = dg[1]>>4;
+		char buf[32];
+		sprintf(buf,"date(%04d-%02d-%02d)",year,month,day);
+		retval = buf;
+	}
+	else if (st == ST_LATLON)		// 0x158
+	{
+		// degrees
+		double lat = dg[2];
+		double lon = dg[5];
+		// minutes
+		double lat_mins = dg[3]*256.0 + dg[4];
+		double lon_mins = dg[6]*256.0 + dg[7];
+		lat_mins /= 1000.0;
+		lon_mins /= 1000.0;
+		// minutes to fractional degrees
+		lat += lat_mins/60.0;
+		lon += lon_mins/60.0;
+		// sign
+		if (dg[1] & 0x10) lat = -lat;
+		if (!(dg[1] & 0x20)) lon = -lon;
+
+		retval = "lat(";
+		retval += strDegreeMinutes(lat);
+		retval += ")  lon(";
+		retval += strDegreeMinutes(lon);
+		retval += ")";
+	}
+	else if (st == ST_NAV_TO_WP)	// 0x185
+	{
+		uint16_t XXX = dg[2];
+		XXX <<= 4;
+		XXX |= dg[1] >> 4;
+		float xte = XXX;
+		xte /= 100;
+
+		uint8_t VU = dg[3];
+		uint8_t ZW = dg[4];
+		uint8_t ZZ = dg[5];
+		uint8_t YF = dg[6];
+
+
+		uint8_t WV = (ZW << 4) | (VU >> 4);
+		float part = WV;
+		part /= 2;
+		float bearing = (VU & 0x03);
+		bearing *= 90;
+		bearing += part;
+
+		const char *b_type = VU & 0x08 ? "true" : "magnetic";
+
+		uint8_t Y = (YF>>4);
+		uint16_t ZZZ = (ZZ << 4) | (ZW >> 4);
+		ZZZ |= ZZ;
+		float range = ZZZ;
+		range /= (Y&1) ? 100.0 : 10.0;
+
+		bool has_xte = YF & 0x01;
+		bool has_bearing = YF & 0x02;
+		bool has_range = YF & 0x04;
+
+		retval = "xte(";
+		retval += xte;
+		retval += ") ";
+		retval += b_type;
+		retval += " bearing(";
+		retval += bearing;
+		retval += ") range(";
+		retval += range;
+		retval += ") flags(";
+		retval += has_xte ? "X" : " ";
+		retval += has_bearing ? "B" : " ";
+		retval += has_range ? "R" : " ";
+		retval += ")";
+	}
+	else if (st == ST_HEADING)		// 0x189
+	{
+		uint8_t U = dg[1] >> 4;
+		uint8_t VW = dg[2];
+		float heading = U & 0xC;
+		heading /= 8;
+		heading += (U & 0x3) * 90;
+		heading += (VW & 0x3F) * 2;
+		retval = "heading(";
+		retval += heading;
+		retval += ") magnetic";
+	}
+	else if (st == ST_TARGET_NAME)	// 0x182
+	{
+		uint8_t XX = dg[2];
+		uint8_t YY = dg[4];
+		uint8_t ZZ = dg[6];
+		uint8_t char1 = XX & 0x3f;
+		uint8_t char2 = (YY & 0xf)*4 + (XX & 0xc0)/64;
+		uint8_t char3 = (ZZ & 0x3)*16 + (YY & 0xf0)/16;
+		uint8_t char4 = (ZZ & 0xfc)/4;
+		retval = "name(";
+		retval += (char) (char1 + 0x30);
+		retval += (char) (char2 + 0x30);
+		retval += (char) (char3 + 0x30);
+		retval += (char) (char4 + 0x30);
+		retval += ")";
+	}
+	else if (st == ST_COMPASS_VAR)	// 0x199
+	{
+		char buf[20];
+		int8_t var = (int8_t) dg[2];
+		const char *direction = "west";
+		if (var < 0)
+		{
+			var = -var;
+			direction = "east";
+		}
+		sprintf(buf,"%s(%d)",direction,var);
+		retval = buf;
+	}
+	else if (st == ST_ARRIVAL)		// 0x1a2
+	{
+		// #define ST_ARRIVAL		0x1A2
+		//	A2  X4  00  WW XX YY ZZ Arrival Info
+		//					X&0x2=Arrival perpendicular passed, X&0x4=Arrival circle entered
+		//					WW,XX,YY,ZZ = Ascii char's of waypoint id.   (0..9,A..Z)
+		//									Takes the last 4 chars of name, assumes upper case only
+		//					Corresponding NMEA sentences: APB, AA
+
+		bool perp = dg[1] & 0x20 ? 1 : 0;
+		bool circ = dg[1] & 0x40 ? 1 : 0;
+		String wp_name;
+		wp_name += (char) (dg[3]);	//  + 0x30);
+		wp_name += (char) (dg[4]);	//  + 0x30);
+		wp_name += (char) (dg[5]);	//  + 0x30);
+		wp_name += (char) (dg[6]);	//  + 0x30);
+		retval = wp_name;
+		if (perp) retval += " perp";
+		if (circ) retval += " circ";
+
 	}
 
-	// display_bytes_long(0,0x0000,datagram,len);
+	return retval;
+}
+
+
+
+
+
+void showDatagram(bool out_direction, const uint8_t *dg)
+{
+	if (!g_MON_ST && !(g_BINARY & BINARY_TYPE_ST))
+		return;
+
+	#define WIDTH_OF_HEX	3
+	#define PAD_HEX         (MAX_ST_SEEN * WIDTH_OF_HEX)
 
 	static int in_counter = 0;
 	in_counter++;
 
-	static char format[32];
-	static char obuf[MAX_LEFT + MAX_DISPLAY + 2 + 12];
-	sprintf(format,"%%-4d <-- %%-%ds %%s",MAX_LEFT);
-	sprintf(obuf,format,in_counter++,buf_left,buf_right);
-	Serial.println(obuf);
+	uint16_t st = dg[0] | 0x100;
+	const st_info_type *found = 0;
+	const st_info_type *search = st_known;
+	while (!found && search->st)
+	{
+		if (search->st == st) found = search;
+		search++;
+	}
+	const char *name = found ?
+		found->name : "unknown";
+	const char *inst = found && found->out_inst>= 0?
+		instruments.getInst(found->out_inst)->getName() : "";
+
+	String st_name("ST_");
+	st_name += name;
+	pad(st_name,MAX_ST_NAME+3);
+
+	String out_inst(inst);
+	pad(out_inst,MAX_INST_NAME);
+
+	// fill out the hex buf
+
+	String hex;
+	int len = (dg[1] & 0xf) + 3;
+	char hex_buf[WIDTH_OF_HEX + 1];
+	for (int i=0; i<len && i<MAX_ST_BUF; i++)
+	{
+		uint8_t byte = dg[i];
+		sprintf(hex_buf,"%02x ",byte);
+		hex += hex_buf;
+	}
+	pad(hex,PAD_HEX);
+
+	String out(in_counter);
+	pad(out,7);
+
+	out += out_direction ? "--> " : "<-- ";
+	out += st_name;
+	out += ' ';
+	out += hex;
+	out += ' ';
+	out += out_inst.toLowerCase();
+	out += ' ';
+	out += decodeST(st,dg);
+
+	if (g_MON_ST)
+		Serial.println(out.c_str());
+
+	if (g_BINARY & BINARY_TYPE_ST)
+	{
+		#define MSG_BUF_SIZE 256
+		/*static*/ uint8_t binary_buf[BINARY_HEADER_LEN + MSG_BUF_SIZE];
+		int offset = startBinary(binary_buf,BINARY_TYPE_ST);
+		offset = binaryVarStr(binary_buf, offset, out.c_str(), MSG_BUF_SIZE);
+		endBinary(binary_buf,offset);
+		Serial.write(binary_buf,offset);
+	}
 }
 
 

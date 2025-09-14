@@ -33,19 +33,31 @@ static void checksum()
 static const char *standardDate()
 	// returns constant fake date
 {
-	return "100525";	// 2025-05-10
+	// return "100525";	// 2025-05-10
+	int year = boat.getYear();
+	year = year > 2000 ? year-2000 : 0;
+	int month = boat.getMonth();
+	int day = boat.getDay();
+	static char time_buf[20];
+	sprintf(time_buf,"%02d%02d%02d",day,month,year);
+	return time_buf;
 }
 
 
 static const char *standardTime()
 	// returns time of day as millis() since boot
 {
-	int secs = 12*3600 + millis()/1000;
-	int hour = secs / 3600;
-	int minute = (secs - hour * 3600) / 60;
-	secs = secs % 60;
-	if (hour > 23)
-		hour = 0;
+	// int secs = 12*3600 + millis()/1000;
+	// int hour = secs / 3600;
+	// int minute = (secs - hour * 3600) / 60;
+	// secs = secs % 60;
+	// if (hour > 23)
+	// 	hour = 0;
+
+	int hour = boat.getHour();
+	int minute = boat.getMinute();
+	int secs = boat.getSecond();
+
 	static char time_buf[20];
 	sprintf(time_buf,"%02d%02d%02d.00",hour,minute,secs);
 	return time_buf;
@@ -256,18 +268,31 @@ void autopilotInst::send0183()
 	// 13) Arrival Status, A = Arrival Circle Entered; V=reset arrival alarm
 	// 14) Checksum
 
-	double xte = 0.01;
+	double xte = 0.12;	// something I can see in 1/100's of an NM (from ST)
 	char lr = 'R';
 	const char *arrive_char = boat.getArrived() ? "A" : "V";
-	int wp_num = boat.getWaypointNum();
-	const waypoint_t *wp = boat.getWaypoint(wp_num);
+	const waypoint_t *start_wp = boat.getWaypoint(boat.getStartWPNum());
+	const waypoint_t *target_wp = boat.getWaypoint(boat.getTargetWPNum());
+	String start_name(start_wp->name);
+	String target_name(target_wp->name);
+
+	if (0)
+	{
+		// a vain attempt to get the E80 to echo a meaningful
+		// waypoint name back to the ST_ARRIVAL message
+		
+		start_name.toUpperCase();
+		target_name.toUpperCase();
+		start_name = start_name.substring(2,6);
+		target_name = target_name.substring(2,6);
+	}
 
 	//                       1 2     3  4  5  67 89 10    11    12    13
 	sprintf(nmea_buf,"$APRMB,A,%0.3f,%c,%s,%s,%s,%s,%0.3f,%0.1f,%0.1f,%s,",
 		xte,						// 2
 		lr,							// 3
-		"unused_from_wp",			// 4
-		wp->name,					// 5
+		start_name.c_str(),			// 4
+		target_name.c_str(),		// 5
 		standardLat(boat.getLat()),	// 67
 		standardLon(boat.getLon()),	// 89
 		boat.distanceToWaypoint(),	// 10

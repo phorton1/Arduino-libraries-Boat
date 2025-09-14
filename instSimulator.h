@@ -93,6 +93,7 @@ protected:
 
 };	// class instBase
 
+#define MAX_INST_NAME	10		// for display purposes
 
 //--------------------------------
 // instruments
@@ -116,7 +117,7 @@ DEFINE_INST_CLASS(compassInst,    "COMPASS",	PORT_MASK_ALL)
 DEFINE_INST_CLASS(gpsInst,        "GPS",		PORT_MASK_ALL)
 DEFINE_INST_CLASS(aisInst,        "AIS",		PORT_MASK_0183 | PORT_MASK_2000)
 DEFINE_INST_CLASS(autopilotInst,  "AUTOPILOT",	PORT_MASK_ALL)
-DEFINE_INST_CLASS(engineInst,     "ENGINE",		PORT_MASK_0183 | PORT_MASK_2000)
+DEFINE_INST_CLASS(engineInst,     "ENGINE",		PORT_MASK_ALL)
 DEFINE_INST_CLASS(gensetInst,     "GENSET",		PORT_MASK_0183 | PORT_MASK_2000)
 
 
@@ -154,7 +155,7 @@ public:
 
 
 	static bool g_MON_OUT;
-
+	instBase *getInst(int i)  { return i<NUM_INSTRUMENTS ? m_inst[i] : 0; }
 
 
 private:

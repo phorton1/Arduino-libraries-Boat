@@ -7,29 +7,41 @@
 
 #include <Arduino.h>
 
+#define MAX_ST_BUF		20			// size of my maximum datagram buffers
+#define MAX_ST_SEEN		9			// largest ST message I've seen
 
-#define ST_DEPTH		0x100
-#define ST_RPM			0x105
-#define ST_WIND_ANGLE	0x110
-#define ST_WIND_SPEED	0x111
-#define ST_WATER_SPEED	0x120
-#define ST_SOG			0x152
-#define ST_COG			0x153
-#define ST_TIME			0x154
-#define ST_DATE			0x156
-#define ST_LATLON		0x158
-#define ST_HEADING		0x189
 
-#define ST_TARGET_NAME	0x182
-#define ST_NAV_TO_WP	0x185
-#define ST_ARRIVAL		0x1A2
+// Received by/from												0183_sim	E80_idle	notes
+
+#define ST_DEPTH		0x100		// sent by instDepth		recd
+#define ST_RPM			0x105		// sent by instEngine
+#define ST_WIND_ANGLE	0x110		// sent	by instWind			recd					apparent
+#define ST_WIND_SPEED	0x111		// sent	by instWind			recd					apparent
+#define ST_WATER_SPEED	0x120		// sent by instLog			recd
+#define ST_LOG_SPEED	0x126		//							recd
+#define ST_LAT			0x150		//							recd
+#define ST_LON			0x151		// 							recd
+#define ST_SOG			0x152		// sent	by instLog			recd
+#define ST_COG			0x153		// sent	by instCompass		recd
+#define ST_TIME			0x154		// sent by instGPS			recd
+#define ST_DATE			0x156		// sent by instGPS
+#define ST_57			0x157		// 							recd
+#define ST_LATLON		0x158		// sent by instGPS
+#define ST_59			0x159		//							recd		idle
+#define ST_E80_SIG		0x161		//							recd		idle
+#define ST_TARGET_NAME	0x182		// sent by instAutopilot	recd
+#define ST_NAV_TO_WP	0x185		// sent by instAutopilot	recd
+#define ST_HEADING		0x189		// sent by instCompass		recd
+#define ST_COMPASS_VAR	0x199		//							recd		idle
+#define ST_ARRIVAL		0x1A2		// sent	by instAutopilot	recd
 
 
 // in instSTIn
 
 extern bool g_MON_ST;
+
 extern uint32_t g_last_st_receive_time;
-extern void showDatagram(const uint8_t *datagram);
+extern void showDatagram(bool out, const uint8_t *datagram);
 	// in decode.cpp
 
 

@@ -137,7 +137,7 @@ void autopilotInst::send2000()
 
 	if (boat.getAutopilot())
 	{
-		uint32_t wp_num = boat.getWaypointNum();
+		uint32_t wp_num = boat.getTargetWPNum();
 		const waypoint_t *wp = boat.getWaypoint(wp_num);
 		double dist = boat.distanceToWaypoint();
 		bool arrived = boat.getArrived();
@@ -226,7 +226,7 @@ void engineInst::send2000()
 	SetN2kPGN127488(
 			msg,
 			0,					// EngineInstance
-			boat.getRPMS(),		// EngineSpeed
+			boat.getRPM(),		// EngineSpeed
 			N2kDoubleNA,		// EngineBoostPressure
 			N2kUInt8NA);		// EngineTiltTrim
 	nmea2000.SendMsg(msg);
