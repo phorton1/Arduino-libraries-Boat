@@ -196,53 +196,138 @@ void compassInst::send0183()
 
 
 void gpsInst::send0183()
+	//	Recommended NMEA Sentence Order
+	//	For a full GPS data stream that devices like the Raymarine E80 expect, the typical order and priority is:
+	//	- $GPGGA — Fix data (position, satellites used, HDOP, altitude)
+	//	- $GPGSA — Satellites used in fix + DOP values
+	//	- $GPGSV — Satellites in view (PRNs, elevation, azimuth, SNR)
+	//	- $GPRMC — Recommended minimum data (position, speed, course, date)
+	//	- $GPGLL — Latitude/Longitude (optional, often redundant with GGA/RMC)
 {
-	// GP = Global Positioning System
-	// GLL = Geographic Position - Latitude/Longitude
-	// E80 takes about 10 seconds to lose this
-	//
-	//	1) Latitude
-	//	2) N or S (North or South)
-	//	3) Longitude
-	//	4) E or W (East or West)
-	//	5) Time (UTC)
-	//	6) Status A - Data Valid, V - Data Invalid
-	//                       12 34 5  6
-	sprintf(nmea_buf,"$GPGLL,%s,%s,%s,A",
-		standardLat(boat.getLat()),
-		standardLon(boat.getLon()),
-		standardTime());
-	checksum();
-	display(show_0183,"gpsInst --> %s",nmea_buf);
-	SERIAL_0183.println(nmea_buf);
 
-	// GP = GPS device
-	// RMC = Recommended Minimum Navigation Information 'C'
-	// "$GPRMC,092750.000,A,5321.6802,N,00630.3372,W,0.02,31.66,280511,,,A*43",
-	//
-	// 1) Time (UTC)
-	// 2) Status, A=valid, V=Navigation receiver warning
-	// 3) Latitude
-	// 4) N or S
-	// 5) Longitude
-	// 6) E or W
-	// 7) Speed over ground, knots
-	// 8) Track made good, degrees true
-	// 9) Date, ddmmyy
-	// 10) Magnetic Variation, degrees
-	// 11) E or W
-	//                       1  2 34 56 7     8     9 10&11 missing
-	sprintf(nmea_buf,"$GPRMC,%s,A,%s,%s,%0.1f,%0.1f,%s,,,",
-		standardTime(),
-		standardLat(boat.getLat()),
-		standardLon(boat.getLon()),
-		boat.getSOG(),
-		boat.getCOG(),
-		standardDate());
-	checksum();
-	display(show_0183,"gpsInst --> %s",nmea_buf);
-	SERIAL_0183.println(nmea_buf);
+	if (1)
+	{
+		// $GPGGA - Global Positioning System Fix Data
+		// Format:
+		// $GPGGA,<UTC>,<Latitude>,<N/S>,<Longitude>,<E/W>,<FixQuality>,<NumSat>,<HDOP>,<Altitude>,M,<GeoidSep>,M,,*<checksum>
+		//
+		// Field breakdown:
+		//  1) UTC Time (hhmmss)
+		//  2) Latitude (ddmm.mmmm)
+		//  3) N/S Indicator
+		//  4) Longitude (dddmm.mmmm)
+		//  5) E/W Indicator
+		//  6) Fix Quality: 0 = invalid, 1 = GPS fix, 2 = DGPS fix
+		//  7) Number of satellites used (00–12 typical)
+		//  8) HDOP (horizontal dilution of precision)
+		//  9) Altitude above mean sea level (meters)
+		// 10) 'M' = units for altitude
+		// 11) Geoid separation (meters)
+		// 12) 'M' = units for geoid separation
+		// 13) Age of differential GPS data (blank if unused)
+		// 14) DGPS reference station ID (blank if unused)
+		//
+		//                        1  23 45 6 7  8   9   10 11  12
+		sprintf(nmea_buf, "$GPGGA,%s,%s,%s,1,03,2.2,15.3,M,0.0,M,,",
+			standardTime(),
+			standardLat(boat.getLat()),
+			standardLon(boat.getLon())
+		);
+		checksum();  // Appends *hh
+		SERIAL_0183.println(nmea_buf);
+	}
 
+	if (1)
+	{
+		// $GPGSA - GNSS DOP and Active Satellites
+		// Format:
+		// $GPGSA,<1>,<2>,<3>...<14>,<15>,<16>,<17>*hh
+		//
+		// Field breakdown:
+		//  1) Mode (M = Manual, A = Automatic)
+		//  2) Fix type (1 = no fix, 2 = 2D fix, 3 = 3D fix)
+		//  3-14) PRNs of satellites used in fix (up to 12, blank if unused)
+		// 15) PDOP (Position Dilution of Precision)
+		// 16) HDOP (Horizontal DOP)
+		// 17) VDOP (Vertical DOP)
+		// *hh) Checksum (XOR of all characters between $ and *)
+
+		strcpy(nmea_buf, "$GPGSA,A,3,07,08,10,,,,,,,,,,1.8,2.2,2.1");
+		checksum();  // Appends *hh checksum
+		SERIAL_0183.println(nmea_buf);
+	}
+
+	if (1)
+	{
+		// GSV Satellites in view
+		//
+		// 1) number of messages (4 sats per message)
+		// 2) msg number 1 of n
+		// 3) num sats
+		//
+		// for each sat:
+		//   a = PRN number
+		//   b = Elevation
+		//   c = Azimuth degrees
+		//   d = Signal to noise ratio
+		//
+		//                      1 2 3  a  b  c   d  a  b  c   d  a  b  c   d
+		strcpy(nmea_buf,"$GPGSV,1,1,03,07,79,048,42,08,62,308,45,10,51,180,88");
+		checksum();
+		SERIAL_0183.println(nmea_buf);
+	}
+
+	if (1)
+	{
+		// GP = GPS device
+		// RMC = Recommended Minimum Navigation Information 'C'
+		// "$GPRMC,092750.000,A,5321.6802,N,00630.3372,W,0.02,31.66,280511,,,A*43",
+		//
+		// 1) Time (UTC)
+		// 2) Status, A=valid, V=Navigation receiver warning
+		// 3) Latitude
+		// 4) N or S
+		// 5) Longitude
+		// 6) E or W
+		// 7) Speed over ground, knots
+		// 8) Track made good, degrees true
+		// 9) Date, ddmmyy
+		// 10) Magnetic Variation, degrees
+		// 11) E or W
+		//                       1  2 34 56 7     8     9 10&11 missing
+		sprintf(nmea_buf,"$GPRMC,%s,A,%s,%s,%0.1f,%0.1f,%s,,,",
+			standardTime(),
+			standardLat(boat.getLat()),
+			standardLon(boat.getLon()),
+			boat.getSOG(),
+			boat.getCOG(),
+			standardDate());
+		checksum();
+		display(show_0183,"gpsInst --> %s",nmea_buf);
+		SERIAL_0183.println(nmea_buf);
+	}
+
+	if (1)
+	{
+		// GP = Global Positioning System
+		// GLL = Geographic Position - Latitude/Longitude
+		// E80 takes about 10 seconds to lose this
+		//
+		//	1) Latitude
+		//	2) N or S (North or South)
+		//	3) Longitude
+		//	4) E or W (East or West)
+		//	5) Time (UTC)
+		//	6) Status A - Data Valid, V - Data Invalid
+		//                       12 34 5  6
+		sprintf(nmea_buf,"$GPGLL,%s,%s,%s,A",
+			standardLat(boat.getLat()),
+			standardLon(boat.getLon()),
+			standardTime());
+		checksum();
+		display(show_0183,"gpsInst --> %s",nmea_buf);
+		SERIAL_0183.println(nmea_buf);
+	}
 }
 
 

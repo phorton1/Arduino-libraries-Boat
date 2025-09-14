@@ -24,9 +24,9 @@
 #define ST_SOG			0x152		// sent	by instLog			recd
 #define ST_COG			0x153		// sent	by instCompass		recd
 #define ST_TIME			0x154		// sent by instGPS			recd
-#define ST_DATE			0x156		// sent by instGPS
-#define ST_57			0x157		// 							recd
-#define ST_LATLON		0x158		// sent by instGPS
+#define ST_DATE			0x156		// sent by instGPS			recd
+#define ST_SAT_INFO		0x157		// 							recd
+#define ST_LATLON		0x158		// sent by instGPS			recd
 #define ST_59			0x159		//							recd		idle
 #define ST_E80_SIG		0x161		//							recd		idle
 #define ST_TARGET_NAME	0x182		// sent by instAutopilot	recd

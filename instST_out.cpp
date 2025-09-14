@@ -316,7 +316,7 @@ void autopilotInst::sendSeatalk()
 			double dist = boat.distanceToWaypoint();
 			uint16_t xte_hundreths = 123;
 
-			display(0,"stNavToWp head(%0.1f) dist(%0.3f) xte(%0.2f)",head,dist,((float) xte_hundreths)/100.0);
+			display(dbg_data,"stNavToWp head(%0.1f) dist(%0.3f) xte(%0.2f)",head,dist,((float) xte_hundreths)/100.0);
 			proc_entry();
 
 			uint8_t X6 = (xte_hundreths & 0xf) << 4;
@@ -331,7 +331,7 @@ void autopilotInst::sendSeatalk()
 			uint8_t WV = halfs;			// number of halfs in the bearing
 			uint8_t Y = 0;				// no direction to steer 0x0f
 
-			display(0,"h90s(%d) halfs(%d) head rebuilt(%0.1f)",
+			display(dbg_data+1,"h90s(%d) halfs(%d) head rebuilt(%0.1f)",
 				h90s,
 				halfs,
 				(float) (((float)h90s)*90.0) + (((float)halfs)/2.0) );
@@ -383,7 +383,7 @@ void autopilotInst::sendSeatalk()
 			//		Corresponding NMEA sentences: RMB, APB, BWR, BWC
 
 
-			display(0,"stTargetName(%s) name4(%s)",name.c_str(),name4.c_str());
+			display(dbg_data,"stTargetName(%s) name4(%s)",name.c_str(),name4.c_str());
 
 			// another weird 6 bit character encoding
 			// with additionally weird checksumming
@@ -446,7 +446,7 @@ void engineInst::sendSeatalk()
 {
 	// not really supported
 	int rpm = boat.getRPM();
-	display(0,"stRPM(%d)",rpm);
+	display(dbg_data,"stRPM(%d)",rpm);
 	if (rpm > 4000)
 		rpm = 4000;
 	dg[0] = ST_RPM;

@@ -45,7 +45,7 @@ const st_info_type st_known[] =
 	/* 0x153 */ { ST_COG,			"COG",			INST_COMPASS,	},	// 	  x
 	/* 0x154 */ { ST_TIME,			"TIME",			INST_GPS,		},	// 	  x
 	/* 0x156 */ { ST_DATE,			"DATE",			INST_GPS,		},	// 	  x
-	/* 0x157 */ { ST_57,			"57",			-1,				},	// 	  x
+	/* 0x157 */ { ST_SAT_INFO,		"SAT_INFO",		-1,				},	// 	  x
 	/* 0x158 */ { ST_LATLON,		"LATLON",		INST_GPS,		},	// 	  x
 	/* 0x159 */ { ST_59,			"59",			-1,				},	// 	  x		x
 	/* 0x161 */ { ST_E80_SIG,		"E80_SIG",		-1,				},	// 	  x		x
@@ -209,6 +209,21 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 		char buf[32];
 		sprintf(buf,"date(%04d-%02d-%02d)",year,month,day);
 		retval = buf;
+	}
+	else if (st == ST_SAT_INFO)
+	{
+		uint8_t num_sats = dg[1] >> 4;
+		retval = "num_sats(";
+		retval += num_sats;
+		retval += ")";
+		if (num_sats > 1)
+		{
+			uint8_t prec = dg[2];
+			retval += " prec(";
+			retval += prec;
+			retval += ")";
+		}
+
 	}
 	else if (st == ST_LATLON)		// 0x158
 	{
