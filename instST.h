@@ -35,6 +35,11 @@
 #define ST_COMPASS_VAR	0x199		//							recd		idle
 #define ST_ARRIVAL		0x1A2		// sent	by instAutopilot	recd
 
+#define ST_WP_DEF		0x19E		// got it once, could be bogus bytes
+#define ST_DEV_QUERY	0x1A4		// we don't respond (yet)
+#define ST_SAT_DETAIL	0x1A5
+#define ST_A7			0x1A7		// some kind of gps message
+#define ST_AD			0x1AD		// unknown
 
 // in instSTIn
 

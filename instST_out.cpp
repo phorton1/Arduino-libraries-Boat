@@ -23,7 +23,7 @@
 uint32_t last_seatalk_receive_time;
 
 
-static uint16_t dg[MAX_ST_SEEN];
+static uint16_t dg[MAX_ST_BUF];
 static int retry_num = 0;
 
 
@@ -253,6 +253,102 @@ void gpsInst::sendSeatalk()
 	dg[6] = (imin_lon >> 8) & 0xff;
 	dg[7] = imin_lon & 0xff;
 	sendDatagram(dg);
+
+	dg[0] = ST_SAT_INFO;
+	dg[1] = 0x30;	// num_sats<<4
+	dg[2] = 0x02;	// hdop
+	sendDatagram(dg);
+
+	uint8_t sat1_id = 0x07;
+	uint8_t sat2_id = 0x08;
+	uint8_t sat3_id = 0x0a;
+
+	if (0)
+	{
+		// SAT_DETAIL (57)
+		// if the HDOP available flag is set it counts as the low order bit of num_sats
+
+		uint8_t num_sats = 3;
+		dg[0] = ST_SAT_DETAIL;
+		dg[1] = 0x57;			// fixed
+		dg[2] = 0x17 | (num_sats & 0x7)<<4 ; // QQ=0x10=Quality available 0x7=quality; high 3 bits of num_sats in top nibble
+		dg[3] = 0x83;						 // HH=top bit is HDOP available, rest of bits are HDOP
+		dg[4] = 0x00;						 // ??=unknown
+		dg[5] = 0x33;						 // AA=antenna height
+		dg[6] = 0x20;  						 // GG=GeoSeparation = +512 meters
+		dg[7] = 0x00;						 // ZZ=differential age
+		dg[8] = 0x00;						 // YY=differential station ID
+		dg[9] = 0x00;						 // DD=differential station id
+		sendDatagram(dg);
+
+
+		// SAT_DETAIL(0x74)  (satellite IDs)
+		dg[0] = ST_SAT_DETAIL;
+		dg[1] = 0x74;
+		dg[2] = sat1_id;	// id1
+		dg[3] = sat2_id;	// id2
+		dg[4] = sat3_id;	// id3
+		dg[5] = 0x00;		// id4
+		dg[6] = 0x00;		// id5
+		sendDatagram(dg);
+	}
+
+
+
+
+	if (0)
+	{
+		// SAT_DETAIL(0xXD)  (satellite IDs)
+		// Satellite 1 (PRN 07)
+		uint8_t sat1_az  = 48;   // Azimuth: 48° (low eastern sky)
+		uint8_t sat1_el  = 79;   // Elevation: 79° (almost overhead)
+		uint8_t sat1_snr = 42;   // SNR: strong signal
+
+		// Satellite 2 (PRN 08)
+		uint8_t sat2_az  = 182;  // Azimuth: 182° (northwest)
+		uint8_t sat2_el  = 62;   // Elevation: 62° (high in sky)
+		uint8_t sat2_snr = 45;   // SNR: excellent signal
+
+		// Satellite 3 (PRN 10)
+		uint8_t sat3_az  = 180;  // Azimuth: 180° (due south)
+		uint8_t sat3_el  = 51;   // Elevation: moderate
+		uint8_t sat3_snr = 43;   // SNR: solid signal
+
+		uint8_t NN = sat1_id & 0xFE;
+		uint8_t AA = sat1_az / 2;
+		uint8_t EE = (sat1_el << 1) | (sat1_az & 0x01);
+		uint8_t SS = (sat1_snr << 1) & 0xFE;
+
+		uint8_t MM = (sat2_id << 1) & 0x70;
+		uint8_t BB = (sat2_id & 0x07) | ((sat2_az / 2) & 0xF8);
+		uint8_t FF = ((sat2_az & 0x0F)) | ((sat2_el << 1) & 0xF0);
+		uint8_t GG = ((sat2_el & 0x07) << 5) | (sat2_snr & 0x3F);
+		uint8_t OO = sat2_snr & 0x3F;
+
+		uint8_t CC = (sat3_id & 0x3F) | ((sat3_az >> 1) & 0xC0);
+		uint8_t DD = sat3_az & 0x7F;
+		uint8_t XX = sat3_el & 0x7F;
+		uint8_t YY = (sat3_snr << 2) & 0xFC;
+		uint8_t ZZ = sat3_snr & 0x01;
+
+		dg[0] = ST_SAT_DETAIL;
+		dg[1] = 0x0d;	// msg number and length
+		dg[2] = NN;
+		dg[4] = AA;
+		dg[5] = EE;
+		dg[6] = SS;
+		dg[7] = MM;
+		dg[8] = BB;
+		dg[9] = FF;
+		dg[10] = GG;
+		dg[11] = OO;
+		dg[12] = CC;
+		dg[13] = DD;
+		dg[14] = XX;
+		dg[15] = YY;
+		dg[16] = ZZ;
+		sendDatagram(dg);
+	}
 }
 
 

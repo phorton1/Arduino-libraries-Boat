@@ -54,6 +54,13 @@ const st_info_type st_known[] =
 	/* 0x189 */ { ST_HEADING,		"HEADING",		INST_COMPASS,	},	//    x
 	/* 0x199 */ { ST_COMPASS_VAR,	"COMPASS_VAR",	-1,				},	//    x		z
 	/* 0x1a2 */ { ST_ARRIVAL,		"ARRIVAL",		INST_AUTOPILOT,	},	//    x
+
+	/* 0x19E */	{ ST_WP_DEF,		"WP_DEF",		-1, 			},	// got it once, could be bogus bytes
+	/* 0z1A4 */	{ ST_DEV_QUERY,		"DEV_QUERY",	-1,				},	// we don't respond (yet)
+	/* 0z1A4 */	{ ST_SAT_DETAIL,	"SAT_DETAIL",	-1,				},
+	/* 0x1A7 */	{ ST_A7,			"A7",			-1,				},	// some kind of gps message
+	/* 0x1AD */	{ ST_AD,			"AD"			-1,				},	// unknown
+
 	0,
 };
 
