@@ -118,14 +118,9 @@ void boatSimulator::setWindSpeed(float speed)	{ m_wind_speed = speed; calculateA
 void boatSimulator::setRPM(uint16_t rpm)		{ m_rpm = rpm; sendBinaryBoatState(!m_running);}
 void boatSimulator::setGenset(bool on)			{ m_genset = on; display(0,"GENSET %s",m_genset?"ON":"OFF"); sendBinaryBoatState(!m_running);}
 
-void boatSimulator::setRoute(const char *name)
-{
-	m_sog = 0;
-	m_autopilot = false;
-	m_routing = false;
-	m_arrived = false;
-	m_closest = CLOSEST_NONE;
 
+const route_t *boatSimulator::getRoute(const char *name)
+{
 	const route_t *found = 0;
 	for (int i=0; i<simulator_num_routes; i++)
 	{
@@ -140,8 +135,21 @@ void boatSimulator::setRoute(const char *name)
 	if (!found)
 	{
 		my_error("Could not find route(%s)",name);
-		return;
+		return 0;
 	}
+	return found;
+}
+
+void boatSimulator::setRoute(const char *name)
+{
+	m_sog = 0;
+	m_autopilot = false;
+	m_routing = false;
+	m_arrived = false;
+	m_closest = CLOSEST_NONE;
+
+	const route_t *found = getRoute(name);
+	if (!found) return;
 
 	m_start_wp_num = 0;
 	m_target_wp_num = 1;

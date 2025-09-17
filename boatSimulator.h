@@ -105,6 +105,9 @@ public:
 	void setRPM			(uint16_t rpm);
 	void setGenset		(bool on);
 
+	const route_t *getRoute(const char *name);
+		// for experimental use
+		// previously route innards were not exposed
 	void setRoute(const char *route_name);
 		// see ge_routes.h for names
 		// stops the boat, turns off autopilot and routing
@@ -146,6 +149,9 @@ public:
 
 	void setDateTime(int year, int month, int day, int hour, int minute, int second);		// HH:MM::SS   (24 hour clock);
 
+
+
+	
 
 private:
 
