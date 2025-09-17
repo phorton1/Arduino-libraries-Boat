@@ -6,6 +6,7 @@
 #include "inst0183.h"
 #include "instSimulator.h"
 #include "boatSimulator.h"
+#include "boatBinary.h"
 #include <myDebug.h>
 
 #define show_0183 (1-g_MON_0183)
@@ -15,6 +16,32 @@
 	// my buffer size is way bigger than official NMEA0183
 	// maximum of 80 bytes
 static char nmea_buf[MAX_NMEA_MSG+1];
+
+
+
+#define BINARY_BUF_SIZE		200
+#define SEND_NMEA0183_AS_BINARY		1
+	// send these messages out as binary so teensyBoat.pm can
+	// forward them to a VSPE COM29 for RNS
+
+static void sendNMEA0183()
+{
+	if (SEND_NMEA0183_AS_BINARY)
+	{
+		uint8_t buf[BINARY_BUF_SIZE+1];
+		int offset = startBinary(buf,BINARY_TYPE_0183);
+		offset = binaryVarStr(buf,offset,nmea_buf,BINARY_BUF_SIZE);
+		endBinary(buf,offset);
+		// display(0,"sending type(%d) %d bytes to binary serial port",BINARY_TYPE_0183,offset);
+		Serial.write(buf,offset);
+	}
+	// else
+	{
+		SERIAL_0183.println(nmea_buf);
+	}
+}
+
+
 
 
 
@@ -120,7 +147,7 @@ void depthInst::send0183()
 	sprintf(nmea_buf,"$SDDPT,%0.1f,0.0",d_meters);
 	checksum();
 	display(show_0183,"depthInst --> %s",nmea_buf);
-	SERIAL_0183.println(nmea_buf);
+	sendNMEA0183();
 }
 
 
@@ -147,7 +174,7 @@ void logInst::send0183()
 		boat.getCOG(),boat.getSOG());
 	checksum();
 	display(show_0183,"logInst --> %s",nmea_buf);
-	SERIAL_0183.println(nmea_buf);
+	sendNMEA0183();
 }
 
 
@@ -179,14 +206,14 @@ void windInst::send0183()
 		boat.getWindSpeed());
 	checksum();
 	display(show_0183,"windInst --> %s",nmea_buf);
-	SERIAL_0183.println(nmea_buf);
+	sendNMEA0183();
 
 	sprintf(nmea_buf,"$WIMWV,%0.1f,R,%0.1f,N,A",
 		bow_angle_apparent,
 		boat.apparentWindSpeed());
 	checksum();
 	display(show_0183,"windInst --> %s",nmea_buf);
-	SERIAL_0183.println(nmea_buf);
+	sendNMEA0183();
 }
 
 
@@ -234,7 +261,7 @@ void gpsInst::send0183()
 			standardLon(boat.getLon())
 		);
 		checksum();  // Appends *hh
-		SERIAL_0183.println(nmea_buf);
+		sendNMEA0183();
 	}
 
 	if (1)
@@ -254,7 +281,7 @@ void gpsInst::send0183()
 
 		strcpy(nmea_buf, "$GPGSA,A,3,07,08,10,,,,,,,,,,1.8,2.2,2.1");
 		checksum();  // Appends *hh checksum
-		SERIAL_0183.println(nmea_buf);
+		sendNMEA0183();
 	}
 
 	if (1)
@@ -274,7 +301,7 @@ void gpsInst::send0183()
 		//                      1 2 3  a  b  c   d  a  b  c   d  a  b  c   d
 		strcpy(nmea_buf,"$GPGSV,1,1,03,07,79,048,42,08,62,308,45,10,51,180,88");
 		checksum();
-		SERIAL_0183.println(nmea_buf);
+		sendNMEA0183();
 	}
 
 	if (1)
@@ -304,7 +331,7 @@ void gpsInst::send0183()
 			standardDate());
 		checksum();
 		display(show_0183,"gpsInst --> %s",nmea_buf);
-		SERIAL_0183.println(nmea_buf);
+		sendNMEA0183();
 	}
 
 	if (1)
@@ -326,7 +353,7 @@ void gpsInst::send0183()
 			standardTime());
 		checksum();
 		display(show_0183,"gpsInst --> %s",nmea_buf);
-		SERIAL_0183.println(nmea_buf);
+		sendNMEA0183();
 	}
 }
 
@@ -389,7 +416,7 @@ void autopilotInst::send0183()
 
 	checksum();
 	display(show_0183,"apInst --> %s",nmea_buf);
-	SERIAL_0183.println(nmea_buf);
+	sendNMEA0183();
 
 	// E80 lights up a waypoint,
 	// shows xte, name, bearing, and distance to waypoint,
@@ -416,6 +443,96 @@ void engineInst::send0183()
 
 void gensetInst::send0183()
 {
+}
+
+
+//--------------------------------------------------------
+// experiment
+//--------------------------------------------------------
+// The declared maximum length of an NMEA0183 sentence is 82 bytes
+// which includes everything from the leading $ to the *hh checksum
+// and <cr><lf> that follows it.  We use println() to send the messages
+// and call checksum separately, so our limit is down to 77 bytes.
+// In addition the number of messages may grow beyond one charcter,
+// so I use 70 bytes.
+//
+// Our nmea_buffer is only limted to MAX_NMEA_MSG=180 and has space for
+// terminating zero, so it's not a factor.
+
+#define MAX_BYTES_PER_MSG	70
+
+
+void sendNMEA0183Route(String route_name)
+	// We have to do two passes .. one to count the number
+	// of needed messags, and a second to build them and send them.
+{
+	const route_t *found = boat.getRoute(route_name.c_str());
+	if (!found) return;
+	const char *name = found->name;
+	const int num_wpts = found->num_wpts;
+	const waypoint_t *wpts = found->wpts;
+
+	display(0,"sendNMEA0183Route(%s) with %d waypoints",found->name,found->num_wpts);
+
+	if (0)
+	{
+		// count the number of RTE messages needed assuming x and y are one digit
+		// the 70 byte number allows for 3 digits each
+
+		sprintf(nmea_buf,"$ECRTE,x,y,%s",found->name);
+			// was $GP
+
+		int num_msgs = 0;
+		int header_len = strlen(nmea_buf);
+		int message_len = header_len;
+		for (int i=0; i<num_wpts; i++)
+		{
+			const char *wp_name = wpts[i].name;
+			int wp_len = strlen(wp_name);
+			if (message_len + wp_len + 1 >= MAX_BYTES_PER_MSG)	// one for leading comma
+			{
+				num_msgs++;
+				message_len = header_len;
+			}
+			message_len += wp_len;
+		}
+		if (message_len != header_len)
+			num_msgs++;
+
+		// build and send the RTE message
+
+		int wp_num = 0;
+		for (int msg_num=1; msg_num<=num_msgs; msg_num++)
+		{
+			sprintf(nmea_buf,"$ECRTE,%d,%d,%s",num_msgs,msg_num,found->name);
+			while (wp_num < num_wpts && strlen(nmea_buf) < MAX_BYTES_PER_MSG)
+			{
+				strcat(nmea_buf,",");
+				strcat(nmea_buf,wpts[wp_num++].name);
+			}
+			checksum();
+			display(0,"   --->%s",nmea_buf);
+			sendNMEA0183();
+		}
+	}
+	
+
+	// build and send the WPL messags
+
+	for (int i=0; i<num_wpts; i++)
+	{
+		const waypoint_t *wp = &wpts[i];
+		sprintf(nmea_buf,"$ECWPL,%s,%s,%s",
+			standardLat(wp->lat),
+			standardLon(wp->lon),
+			wp->name);
+		checksum();
+		display(0,"   ===>%s",nmea_buf);
+		sendNMEA0183();
+	}
+
+	display(0,"sendNMEA0183Route(%s) finshed",found->name);
+
 }
 
 

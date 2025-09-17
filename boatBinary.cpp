@@ -6,7 +6,8 @@
 #include "boatBinary.h"
 #include <myDebug.h>
 
-uint16_t g_BINARY = BINARY_TYPE_BOAT | BINARY_TYPE_ST;
+uint16_t g_BINARY = 0;
+
 
 int binaryBool(uint8_t *buf, int offset, bool b)
 {
@@ -26,7 +27,6 @@ int binaryUint8(uint8_t *buf, int offset, uint8_t u)
 	buf[offset] = u;
 	return offset + 1;
 }
-
 
 
 int binaryInt16(uint8_t *buf, int offset, int16_t i)
@@ -65,13 +65,11 @@ int binaryFloat(uint8_t *buf, int offset, float f)
 }
 
 
-
 int binaryDouble(uint8_t *buf, int offset, double d)
 {
 	memcpy(&buf[offset],&d,sizeof(double));
 	return offset + sizeof(double);
 }
-
 
 
 int binaryVarStr(uint8_t *buf, int offset, const char *s, int buf_size)
@@ -97,7 +95,6 @@ int binaryFixStr(uint8_t *buf, int offset, const char *s, int fixed_len)
 	memcpy(&buf[offset+1],s,len);
 	return offset + fixed_len + 1;
 }
-
 
 
 
