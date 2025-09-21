@@ -133,26 +133,11 @@ public:
 	void init();
 	void run();
 
-	void setPorts(int inst_num, uint8_t port_mask)
-	{
-		instBase *inst = m_inst[inst_num];
-		inst->setPorts(port_mask);
-	}
-	void setAll(int port_num, bool on)
-	{
-		uint8_t port_mask = 1 << port_num;
-		for (int i=0; i<NUM_INSTRUMENTS; i++)
-		{
-			instBase *inst = m_inst[i];
-			uint8_t cur = inst->getPorts();
-			if (on)
-				cur |= port_mask;
-			else
-				cur &= ~port_mask;
-			inst->setPorts(cur);
-		}
-	}
-
+	void setPorts(int inst_num, uint8_t port_mask, bool no_echo);
+	void setAll(int port_num, bool on, bool no_echo);
+	void saveToEEPROM();
+	void loadFromEEPROM();
+	void sendBinaryState();
 
 	static bool g_MON_OUT;
 	instBase *getInst(int i)  { return i<NUM_INSTRUMENTS ? m_inst[i] : 0; }
@@ -161,7 +146,6 @@ public:
 private:
 
 	instBase *m_inst[NUM_INSTRUMENTS];
-	
 	
 };	// class instSimulator
 

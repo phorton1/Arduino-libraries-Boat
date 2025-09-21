@@ -23,6 +23,8 @@
 #include "inst2000.h"
 #include "inst0183.h"
 #include "instST.h"
+#include "boatBinary.h"
+#include <EEPROM.h>
 #include <myDebug.h>
 
 
@@ -43,6 +45,97 @@ autopilotInst	i_autopilot;
 engineInst		i_engine;
 gensetInst		i_genset;
 
+
+//----------------------------------------------------
+// EEPROM
+//----------------------------------------------------
+
+#define dbg_eeprom  0
+
+#define INST_EEPROM_BASE 	512
+
+
+void instSimulator::saveToEEPROM()
+{
+	for (int i=0; i<NUM_INSTRUMENTS; i++)
+	{
+		uint8_t mask = m_inst[i]->getPorts();
+		EEPROM.write(i + INST_EEPROM_BASE,mask);
+		display(dbg_eeprom,"wrote mask(%d) for instrment(%d) to EEPROM",mask,i);
+	}
+}
+
+void instSimulator::loadFromEEPROM()
+{
+	for (int i=0; i<NUM_INSTRUMENTS; i++)
+	{
+		uint8_t mask = EEPROM.read(i + INST_EEPROM_BASE);
+		if (mask != 255)
+		{
+			display(dbg_eeprom,"got mask(%d) for instrment(%d) from EEPROM",mask,i);
+			m_inst[i]->setPorts(mask);
+		}
+	}
+	sendBinaryState();
+}
+
+
+//-----------------------------------------------------
+// accessors
+//-----------------------------------------------------
+
+// FLAG_FROM_PERL
+
+void instSimulator::setPorts(int inst_num, uint8_t port_mask, bool no_echo)
+{
+	display(0,"setPorts(%d) mask(%d) no_echo(%d)",inst_num,port_mask,no_echo);
+	m_inst[inst_num]->setPorts(port_mask);
+	if (!no_echo) sendBinaryState();
+}
+
+
+void instSimulator::setAll(int port_num, bool on, bool no_echo)
+{
+	uint8_t port_mask = 1 << port_num;
+	display(0,"setAll(%d) on(%d) no_echo(%d)",port_num,on,no_echo);
+
+	for (int i=0; i<NUM_INSTRUMENTS; i++)
+	{
+		instBase *inst = m_inst[i];
+		uint8_t cur = inst->getPorts();
+		if (on)
+			cur |= port_mask;
+		else
+			cur &= ~port_mask;
+		inst->setPorts(cur);
+	}
+	if (!no_echo) sendBinaryState();
+}
+
+
+void instSimulator::sendBinaryState()
+{
+	display(0,"sendBinaryState()",0);
+	proc_entry();
+	uint8_t buf[BINARY_HEADER_LEN + NUM_INSTRUMENTS];
+	int offset = startBinary(buf,BINARY_TYPE_PROG);
+	display(0,"offset after header=%d",offset);
+	for (int i=0; i<NUM_INSTRUMENTS; i++)
+	{
+		uint8_t mask = m_inst[i]->getPorts();
+		display(0,"inst(%d) offset(%d) <= mask(%d)",i,offset,mask);
+		offset = binaryUint8(buf,offset,mask);
+	}
+	endBinary(buf,offset);
+	display_bytes(0,"sending",buf,offset);
+	proc_leave();
+	Serial.write(buf,offset);
+}
+
+
+//----------------------------------------------------
+// implementation
+//----------------------------------------------------
 
 void instSimulator::init()
 {
@@ -99,6 +192,8 @@ void instSimulator::init()
 	m_inst[INST_ENGINE]		= &i_engine;
 	m_inst[INST_GENSET]		= &i_genset;
 
+	loadFromEEPROM();
+	
 	proc_leave();
 	display(0,"instSimulator::init() finished",0);
 }
@@ -216,8 +311,9 @@ void instSimulator::run()
 		}	// receiving datagrams
 	#endif
 
-
 }
+
+
 
 
 // end of instSimulator.cpp

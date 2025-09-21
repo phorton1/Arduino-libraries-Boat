@@ -15,6 +15,9 @@
 #define BINARY_TYPE_ST		0x0004
 #define BINARY_TYPE_0183	0x0008
 
+#define NO_ECHO_TO_PERL		10000
+
+
 
 #define BINARY_HEADER_LEN	3
 
