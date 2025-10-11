@@ -183,9 +183,7 @@ void windInst::send0183()
 	double cog = boat.getCOG();
 	double bow_angle_true = boat.getWindAngle() - cog;
 	if (bow_angle_true < 0) bow_angle_true += 360;
-	double bow_angle_apparent = boat.apparentWindAngle() - cog;
-	if (bow_angle_apparent < 0) bow_angle_true += 360;
-
+	
 	// WI = Weather Instruments
 	// MWV = Wind Speed and Angle
 	// the E80 does not not know VWR - Relative Wind Speed and Angle
@@ -208,8 +206,10 @@ void windInst::send0183()
 	display(show_0183,"windInst --> %s",nmea_buf);
 	sendNMEA0183();
 
+	// apparentWindAngle() is ALREADY measured relative to the bow!
+
 	sprintf(nmea_buf,"$WIMWV,%0.1f,R,%0.1f,N,A",
-		bow_angle_apparent,
+		boat.apparentWindAngle(),
 		boat.apparentWindSpeed());
 	checksum();
 	display(show_0183,"windInst --> %s",nmea_buf);
