@@ -10,6 +10,7 @@
 #include <TimeLib.h>
 
 #define dbg_sim	 (1 - boat.g_MON_SIM)
+#define dbg_ap  1
 
 #define SIMULATION_INTERVAL		1000	// ms
 #define CLOSEST_NONE			65535	// exact
@@ -18,6 +19,10 @@
 boatSimulator boat;
 int boatSimulator::g_MON_SIM = 0;
 	// global instance
+
+
+#define deg2rad(degrees)	((degrees) * M_PI / 180.0)
+#define rad2deg(radians)	((radians) * (180.0 / M_PI))
 
 
 
@@ -52,11 +57,6 @@ void boatSimulator::init()
 	if (!m_inited)
 		setRoute(simulator_routes[0].name);
 
-	m_start_wp_num = 0;
-	m_target_wp_num = 1;
-	m_latitude = m_waypoints[0].lat;
-	m_longitude = m_waypoints[0].lon;
-	
 	// state vars
 
 	m_inited 	= true;
@@ -65,13 +65,40 @@ void boatSimulator::init()
 	m_routing 	= false;
 	m_arrived 	= false;
 
-	// simulation vars
+	// simulation inputs
 
+	m_start_wp_num = 0;
+	m_target_wp_num = 1;
+	m_latitude = m_waypoints[0].lat;
+	m_longitude = m_waypoints[0].lon;
+	m_desired_heading = 90;	// 0;
+	
 	m_depth 	 	= 10;
-	m_sog 		 	= 0;
-	m_cog 		 	= 180;
-	m_wind_angle 	= 90;	// true east
+	m_heading		= 180;
+	m_water_speed   = 0;
+	m_wind_angle 	= 90;			// from true east
 	m_wind_speed 	= 12;
+	m_current_set 	= 45;			// to north east
+	m_current_drift = 0;
+
+	// calculated variabls
+
+	m_cog	= 0;
+	m_sog	= 0;
+
+	m_app_wind_angle = 0;
+	m_app_wind_speed = 0;
+
+	// autopilot
+
+	m_estimated_set 	= 0;
+	m_estimated_drift 	= 0;
+	m_track_error 		= 0;
+	m_track_error 		= 0;
+
+
+	// artificial
+
 	m_rpm 		 	= 0;
 
 	m_oil_pressure 	= 0;
@@ -95,10 +122,7 @@ void boatSimulator::init()
 	m_last_update_ms = 0;
 	m_closest = CLOSEST_NONE;
 
-	calculateApparentWind(false);
-		// sets m_app_wind_angle and m_app_wind_speed;
-		// with debugging
-
+	calculate(false);
 	sendBinaryBoatState(1);
 
 	proc_leave();
@@ -111,8 +135,12 @@ void boatSimulator::init()
 //-------------------------------------------
 
 void boatSimulator::setDepth(float depth)		{ m_depth = depth; 	sendBinaryBoatState(!m_running); }
-void boatSimulator::setSOG(float sog)			{ m_sog = sog; calculateApparentWind(); m_rpm=sog?1800:0; sendBinaryBoatState(!m_running);}
-void boatSimulator::setCOG(float cog)			{ m_cog = cog; calculateApparentWind(); sendBinaryBoatState(!m_running);}
+
+void boatSimulator::setHeading(float heading)	{ m_heading = heading; 		calculate(); sendBinaryBoatState(!m_running);}
+void boatSimulator::setWaterSpeed(float speed)	{ m_water_speed = speed; 	calculate(); m_rpm = m_sog ? 1800 : 0; sendBinaryBoatState(!m_running);}
+void boatSimulator::setCurrentSet(float angle){ m_current_set = angle;	calculate(); sendBinaryBoatState(!m_running);}
+void boatSimulator::setCurrentDrift(float speed){ m_current_drift = speed;	calculate(); sendBinaryBoatState(!m_running);}
+
 void boatSimulator::setWindAngle(float angle) 	{ m_wind_angle = angle; calculateApparentWind(); sendBinaryBoatState(!m_running);}
 void boatSimulator::setWindSpeed(float speed)	{ m_wind_speed = speed; calculateApparentWind(); sendBinaryBoatState(!m_running);}
 void boatSimulator::setRPM(uint16_t rpm)		{ m_rpm = rpm; sendBinaryBoatState(!m_running);}
@@ -174,20 +202,19 @@ void boatSimulator::setTargetWPNum(uint8_t wp_num)
 	}
 
 	m_target_wp_num = wp_num;
-	m_cog = headingToWaypoint();
-
+	m_heading = headingToWaypoint();
 	m_arrived = false;
 	m_closest = CLOSEST_NONE;
-	calculateApparentWind();
+	calculate();
 
 	const waypoint_t *wp = &m_waypoints[wp_num];
 
-	display(0,"SET TARGET WP[%d] %s %s %s cog(%d)",
+	display(0,"SET TARGET WP[%d] %s %s %s heading(%d)",
 		wp_num,
 		wp->name,
 		strDegreeMinutes(wp->lat).c_str(),
 		strDegreeMinutes(wp->lon).c_str(),
-		(int) m_cog);
+		(int) m_heading);
 
 	sendBinaryBoatState(!m_running);
 }
@@ -231,7 +258,7 @@ void boatSimulator::setAutopilot(bool on)
 		m_autopilot = on;
 
 		if (on)
-			m_cog = headingToWaypoint();
+			m_heading = headingToWaypoint();
 		else if (m_routing)
 			setRouting(false);
 
@@ -267,10 +294,6 @@ void boatSimulator::setRouting(bool on)
 // implementation
 //-----------------------------------------------
 
-#define rad2deg(degrees)	((degrees) * M_PI / 180.0)
-#define deg2rad(radians)	((radians) * (180.0 / M_PI))
-
-
 void boatSimulator::run()
 	// Calculate and set new latitude and longitude
 	// based on cog, sog, and millis() since last call
@@ -284,13 +307,13 @@ void boatSimulator::run()
 
 	m_update_num++;
 	
-	display(dbg_sim,"boatSimulator::run lat(%s) lon(%s) cog(%d) sog(%d)",
+	display(dbg_sim,"boatSimulator::run lat(%s) lon(%s) heading(%d) s_water(%d)",
 		strDegreeMinutes(m_latitude).c_str(),
 		strDegreeMinutes(m_longitude).c_str(),
-		(int) m_cog,
-		(int) m_sog);
+		(int) m_heading,
+		(int) m_water_speed);
 	proc_entry();
-	display(dbg_sim,"year(%d) month(%d) day(%d) hour(%d) minute(%d) second(%d)",
+	display(dbg_sim+1,"year(%d) month(%d) day(%d) hour(%d) minute(%d) second(%d)",
 		getYear(),
 		getMonth(),
 		getDay(),
@@ -298,6 +321,8 @@ void boatSimulator::run()
 		getMinute(),
 		getSecond());
 
+	calculate(1);
+	
 	// set our new position
 
 	if (m_sog != 0)
@@ -305,11 +330,11 @@ void boatSimulator::run()
 		const double EARTH_RADIUS = 6371000; 	// in meters
 		const double KNOTS_TO_MPS = 0.514444;
 		double distance_m = m_sog * KNOTS_TO_MPS * elapsed_secs;
-		double cog_rad = rad2deg(m_cog);
+		double cog_rad = deg2rad(m_cog);
 		double delta_lat = (distance_m * cos(cog_rad)) / EARTH_RADIUS;
-		double delta_lon = (distance_m * sin(cog_rad)) / (EARTH_RADIUS * cos(rad2deg(m_latitude)));
-		double new_lat = m_latitude + deg2rad(delta_lat);
-		double new_lon = m_longitude + deg2rad(delta_lon);
+		double delta_lon = (distance_m * sin(cog_rad)) / (EARTH_RADIUS * cos(deg2rad(m_latitude)));
+		double new_lat = m_latitude + rad2deg(delta_lat);
+		double new_lon = m_longitude + rad2deg(delta_lon);
 
 		if (m_latitude != new_lat ||
 			m_longitude != new_lon)
@@ -322,85 +347,20 @@ void boatSimulator::run()
 		m_longitude = new_lon;
 	}
 
-	// adjust our heading if we're routing to a waypoint
+	// display m_heading and calculate() if it has changed
 
-	if (m_routing && !m_arrived)
+	static int last_heading = 0;
+	if (last_heading != (int) m_heading)
 	{
-		m_cog = headingToWaypoint();
-		static int last_cog = 0;
-		if (last_cog != (int) m_cog)
-		{
-			last_cog = (int) m_cog;
-			display(dbg_sim+1,"AP new cog(%d)",(int) m_cog);
-			calculateApparentWind();
-		}
+		last_heading = (int) m_heading;
+		display(dbg_sim+1,"new heading(%d)",(int) m_heading);
+		calculate(1);
 	}
 
 	// handle the autopilot
 
 	if (m_autopilot)
-	{
-		const float NM_TO_FEET = 6076.12;
-		uint32_t feet_to_wp = distanceToWaypoint() * NM_TO_FEET;
-		bool arr = feet_to_wp < 400 ? 1 : 0;
-		if (feet_to_wp < ((uint32_t) m_closest))
-			m_closest = feet_to_wp;
-
-		display(dbg_sim+1,"AP feet_to_wp(%d) arr(%d) m_arrived(%d) m_closest(%d)",
-			feet_to_wp,
-			arr,
-			m_arrived,
-			m_closest);
-	
-		// check for initial arrival
-
-		if (arr && !m_arrived)
-		{
-			display(dbg_sim,"INITIAL ARRIVAL",0);
-			// m_closest = feet_to_wp;
-			m_arrived = true;
-		}
-
-		// check for end of arrival
-
-		else if (m_arrived)
-		{
-			if (feet_to_wp <= m_closest)			// getting closeer
-				m_closest = feet_to_wp;
-			else  									// arrival finished
-			{
-				display(dbg_sim,"ARRIVAL COMPLETE",0);
-				if (m_routing)						// goto next waypoint or stop
-				{
-					if (m_target_wp_num < m_num_waypoints - 1)	// goto next waypoint
-					{
-						m_start_wp_num = m_target_wp_num;
-						// I don't call setTargetWPNum() because it
-						// is a command and I don't want the output
-						// setTargetWPNum(m_target_wp_num+1);
-						m_target_wp_num++;
-						m_arrived = false;
-						m_closest = CLOSEST_NONE;
-					}
-					else
-					{
-						display(dbg_sim,"ROUTE COMPLETE",0);
-						m_sog = 0;					    // stop the boat
-						// setRouting(false);			// turn off routing
-						m_routing = false;
-						m_autopilot = false;
-						m_arrived = false;
-						calculateApparentWind();
-					}
-				}
-				else
-				{
-					// setAutopilot(false);			// turn off autopilot after arrival
-					m_autopilot = false;
-				}
-			}
-		}	// already arrived
-	}	// m_autpilot
+		doAutopilot();
 
 	// set psudeo random engine and genset values
 
@@ -426,6 +386,228 @@ void boatSimulator::run()
 }	// run()
 
 
+//------------------------------------------------------------------------------------
+// autoPilot
+//------------------------------------------------------------------------------------
+
+
+void boatSimulator::doAutopilot()
+{
+	if (m_routing)
+		m_desired_heading = headingToWaypoint();
+		
+	display(dbg_ap,"AP routing(%d) desired_heading(%0.1f)",
+		m_routing, m_desired_heading);
+	proc_entry();
+
+	// check arrival state, possibly change to new m_desired_heading
+
+	if (m_routing)
+	{
+		const float NM_TO_FEET = 6076.12;
+		uint32_t feet_to_wp = distanceToWaypoint() * NM_TO_FEET;
+		bool arr = feet_to_wp < 400 ? 1 : 0;
+		if (feet_to_wp < ((uint32_t) m_closest))
+			m_closest = feet_to_wp;
+
+		display(dbg_ap,"ROUTING feet_to_wp(%d) arr(%d) m_arrived(%d) m_closest(%d)",
+			feet_to_wp,
+			arr,
+			m_arrived,
+			m_closest);
+		proc_entry();
+
+		// check for initial arrival
+
+		if (arr && !m_arrived)
+		{
+			display(dbg_ap,"INITIAL ARRIVAL",0);
+			m_arrived = true;
+		}
+
+		// check for end of arrival
+
+		else if (m_arrived)
+		{
+			if (feet_to_wp <= m_closest)							// getting closer
+				m_closest = feet_to_wp;
+			else                                                    // arrival finished
+			{
+				display(dbg_ap,"ARRIVAL COMPLETE",0);
+				if (m_target_wp_num < m_num_waypoints - 1)		// goto next waypoint
+				{
+					m_start_wp_num = m_target_wp_num;
+					m_target_wp_num++;
+					m_arrived = false;
+					m_closest = CLOSEST_NONE;
+					m_desired_heading = headingToWaypoint();
+					display(dbg_ap,"new target_wp_num($%d) desired_heading(%0.1f)",
+						m_target_wp_num,m_desired_heading);
+				}
+				else
+				{
+					display(dbg_ap,"ROUTE COMPLETE",0);
+					m_water_speed = 0;                          // stop the boat
+					m_rpm = 0;
+					m_routing = false;                          // turn off routing
+					m_autopilot = false;
+					m_arrived = false;
+					m_desired_heading = 0;
+					calculate(1);
+				}
+			}
+		}
+
+		// calculate XTE
+
+		calcuateCrossTrackError();
+		proc_leave();
+	}
+
+
+	//--------------------------------------------------------
+	// estimate current set and drift from boat motion
+	//--------------------------------------------------------
+
+	double heading_rad = deg2rad(90.0 - m_heading);
+	double cog_rad     = deg2rad(90.0 - m_cog);
+
+	double boat_vx = m_water_speed * cos(heading_rad);
+	double boat_vy = m_water_speed * sin(heading_rad);
+	double sog_vx = m_sog * cos(cog_rad);
+	double sog_vy = m_sog * sin(cog_rad);
+
+	double current_vx = sog_vx - boat_vx;
+	double current_vy = sog_vy - boat_vy;
+
+	// double estimated_set = fmod(rad2deg(atan2(current_vy, current_vx)) - 90, 360);
+	double estimated_set = fmod(450 - rad2deg(atan2(current_vy, current_vx)), 360);
+	double estimated_drift = sqrt(current_vx * current_vx + current_vy * current_vy);
+
+	display(dbg_ap,"m_heading(%0.1f) rad(%0.3f)  cog(%0.1f) rad(%0.3f)  water_speed(%0.3f)",
+		m_heading,
+		heading_rad,
+		m_cog,
+		m_cog,
+		m_water_speed);
+	proc_entry();
+
+	display(dbg_ap,"boat_vx(%0.3f) vy(%0.3f)   sog_vx(%0.3f) vy(%0.3f)   current_vx(%0.3f) vy(%0.3f)",
+		boat_vx,
+		boat_vy,
+		sog_vx,
+		sog_vy,
+		current_vx,
+		current_vy);
+
+	display(dbg_ap,"local (relative?) estimated_set(%0.3f) estimated_drift(%0.3f)",
+		estimated_set,
+		estimated_drift);
+
+
+	// low-pass filter to smooth it
+
+	double learn_rate = 0.1;
+		// will 'learn' current changes in learn_rate/1 of the current it sees
+		// or will learn the current in 10 seconds
+
+	m_estimated_set = (1.0 - learn_rate) * m_estimated_set + learn_rate * estimated_set;
+	m_estimated_drift = (1.0 - learn_rate) * m_estimated_drift + learn_rate * estimated_drift;
+
+	display(dbg_ap,"learn_rate(%0.3f) m_estimated_set(%0.3f) m_estimated_drift(%0.3f)",
+		learn_rate,
+		m_estimated_set,
+		m_estimated_drift);
+
+
+	//--------------------------------------------------------
+	// autopilot heading calculations
+	//--------------------------------------------------------
+	// with pid-like easing to the new heading
+
+	double turn_rate = 0.2;
+		// turn_rate is how fast the autopilot moves the rudder.
+		// In this case 20% of the difference between the current_heading
+		// and the compensated heading every second.  It moves
+		// the rudder over about a 5-7 second period.
+
+	double heading_error = m_desired_heading - m_cog;
+	if (heading_error > 180) heading_error -= 360;
+	if (heading_error < -180) heading_error += 360;
+
+	double adjustment = turn_rate * heading_error;
+	if (adjustment > 10.0) adjustment = 10.0;
+	if (adjustment < -10.0) adjustment = -10.0;
+
+	display(dbg_ap,"heading_error(%0.3f) = m_desired_heading(%0.3f) - m_cog(%0.3f)",
+		heading_error,
+		m_desired_heading,
+		m_cog);
+
+	display(dbg_ap,"adjustment(%0.3f) = turn_rate(%0.3f) * heading_error(%0.3f)",
+		adjustment,
+		turn_rate,
+		heading_error);
+
+	m_heading += adjustment;
+	if (m_heading < 0) m_heading += 360;
+	if (m_heading >= 360) m_heading -= 360;
+
+	display(dbg_ap,"FINAL m_heading(%0.3f) = previous m_heading + adjustment",
+		m_heading);
+	proc_leave();
+
+	// static int last_heading = -1;
+	// if ((int)m_heading != last_heading)
+	// {
+	// 	last_heading = (int)m_heading;
+	// 	display(dbg_ap,"AP adjusted heading(%d)", (int)m_heading);
+	// 	calculate(1);
+	// }
+	proc_leave();
+}
+
+
+
+void boatSimulator::calcuateCrossTrackError()
+{
+	// calculate track error from current position to line between start and target waypoint
+
+	const waypoint_t *start_wp = &m_waypoints[m_start_wp_num];
+	const waypoint_t *target_wp = &m_waypoints[m_target_wp_num];
+
+	double lat1 = start_wp->lat;
+	double lon1 = start_wp->lon;
+	double lat2 = target_wp->lat;
+	double lon2 = target_wp->lon;
+	double lat3 = m_latitude;
+	double lon3 = m_longitude;
+
+	double x13 = (lon3 - lon1) * cos(deg2rad((lat1 + lat3) / 2.0));
+	double y13 = lat3 - lat1;
+	double x12 = (lon2 - lon1) * cos(deg2rad((lat1 + lat2) / 2.0));
+	double y12 = lat2 - lat1;
+
+	double dot = x13 * x12 + y13 * y12;
+	double len_sq = x12 * x12 + y12 * y12;
+	double proj = dot / len_sq;
+
+	double x_proj = proj * x12;
+	double y_proj = proj * y12;
+
+	double x_err = x13 - x_proj;
+	double y_err = y13 - y_proj;
+
+	double err_nm = sqrt(x_err * x_err + y_err * y_err) * 60.0;
+	m_track_error = err_nm;
+}
+
+
+
+//---------------------------------------------------
+// lower level calculations
+//---------------------------------------------------
+
 
 float boatSimulator::headingToWaypoint()
 	// Returns heading in true degrees to given waypoint
@@ -434,11 +616,11 @@ float boatSimulator::headingToWaypoint()
 	const waypoint_t *wp = &m_waypoints[m_target_wp_num];
 
 	double delta_lon = wp->lon - m_longitude;
-	double y = sin(rad2deg(delta_lon)) * cos(rad2deg(wp->lat));
-	double x = cos(rad2deg(m_latitude)) * sin(rad2deg(wp->lat)) -
-		sin(rad2deg(m_latitude)) * cos(rad2deg(wp->lat)) * cos(rad2deg(delta_lon));
+	double y = sin(deg2rad(delta_lon)) * cos(deg2rad(wp->lat));
+	double x = cos(deg2rad(m_latitude)) * sin(deg2rad(wp->lat)) -
+		sin(deg2rad(m_latitude)) * cos(deg2rad(wp->lat)) * cos(deg2rad(delta_lon));
 	double heading_rad = atan2(y, x);
-	double heading_deg = deg2rad(heading_rad);
+	double heading_deg = rad2deg(heading_rad);
 	heading_deg = fmod((heading_deg + 360.0), 360.0);
 	return (float) heading_deg;
 }
@@ -451,10 +633,10 @@ float boatSimulator::distanceToWaypoint()
 	const waypoint_t *wp = &m_waypoints[m_target_wp_num];
 
 	const double EARTH_RADIUS_NM = 3440.065; 	// in nautical miles
-    double d_lat = rad2deg(wp->lat - m_latitude);
-    double d_lon = rad2deg(wp->lon - m_longitude);
+    double d_lat = deg2rad(wp->lat - m_latitude);
+    double d_lon = deg2rad(wp->lon - m_longitude);
     double a = sin(d_lat / 2) * sin(d_lat / 2) +
-        cos(rad2deg(m_latitude)) * cos(rad2deg(wp->lat)) *
+        cos(deg2rad(m_latitude)) * cos(deg2rad(wp->lat)) *
         sin(d_lon / 2) * sin(d_lon / 2);
     double c = 2 * std::atan2(std::sqrt(a), std::sqrt(1 - a));
     return (float) (EARTH_RADIUS_NM * c);
@@ -466,40 +648,75 @@ void boatSimulator::calculateApparentWind(bool quiet /*=true*/)
 	// based on cog, sog, wind_angle, and wind_epeed
 	// as degrees relative to the bow of the boat
 {
-	#define dbg_wind 	(dbg_sim + (quiet?2:0))
+	#define dbg_wind (dbg_sim + (quiet?2:0))
 
 	display(dbg_wind,"calculateApparentWind speed/angle boat(%0.3f,%0.3f) wind(%0.3f,%0.3f)",
 		m_sog,m_cog,m_wind_speed,m_wind_angle);
 
-	double wx = -m_wind_speed * cos(rad2deg(m_wind_angle));
-	double wy = -m_wind_speed * sin(rad2deg(m_wind_angle));
-	double bx = m_sog * cos(rad2deg(m_cog));
-	double by = m_sog * sin(rad2deg(m_cog));
-	double ax = wx - bx;
-	double ay = wy - by;
+	double wx = m_wind_speed * sin(deg2rad(m_wind_angle));
+	double wy = m_wind_speed * cos(deg2rad(m_wind_angle));
+	double bx = m_sog * sin(deg2rad(m_cog));
+	double by = m_sog * cos(deg2rad(m_cog));
+	double ax = wx + bx;
+	double ay = wy + by;
 
 	proc_entry();
 	display(dbg_wind+1,"wx(%0.3f) wy(%0.3f) bx(%0.3f) by(%0.3f) ax(%0.3f) ay(%0.3f)", wx,wy,bx,by,ax,ay);
 
 	m_app_wind_speed = sqrt(ax * ax + ay * ay);
-	m_app_wind_angle = deg2rad(atan2(ay, ax));
-	m_app_wind_angle += 180.0;
-	if (m_app_wind_angle >= 360.0)
-		m_app_wind_angle -= 360.0;
-	display(dbg_wind+1,"app_wind_speed(%0.3f) absolute angle(%0.3f)", m_app_wind_speed,m_app_wind_angle);
+	double awa_global = fmod(rad2deg(atan2(ax, ay)) + 360.0, 360.0);
+	m_app_wind_angle = fmod(awa_global - m_heading + 360.0, 360.0);
 
-	m_app_wind_angle -= m_cog;
-	display(dbg_wind+1,"relative angle(%0.3f)", m_app_wind_angle);
+	display(dbg_wind + 1, "app_wind_speed(%0.3f) absolute angle(%0.3f)", m_app_wind_speed, awa_global);
+	display(dbg_wind + 1, "relative angle(%0.3f)", m_app_wind_angle);
+	display(dbg_wind, "app_wind_speed(%0.3f) app_wind_angle(%0.3f)", m_app_wind_speed, m_app_wind_angle);
 
-	if (m_app_wind_angle < 0)
-	{
-		m_app_wind_angle += 360.0;
-		display(dbg_wind,"normalized angle(%0.3f)", m_app_wind_angle);
-	}
-
-	display(dbg_wind,"app_wind_speed(%0.3f) app_wind_angle(%0.3f)", m_app_wind_speed, m_app_wind_angle);
 	proc_leave();
 }
+
+
+
+
+void boatSimulator::calculateOverGround(bool quiet /*=true*/)
+	// Calculates and sets app_wind_angle and app_wind_speed
+	// based on cog, sog, wind_angle, and wind_epeed
+	// as degrees relative to the bow of the boat
+{
+	#define dbg_ground (dbg_sim + (quiet?2:0))
+
+	display(dbg_ground,"calculateOverGround heading(%0.3f) water_speed(%0.3f) current(%0.3f,%0.3f)",
+		m_heading,m_water_speed,m_current_drift,m_current_set);
+	proc_entry();
+
+	double use_current_angle = fmod(m_current_set + 180, 360);
+		// this routine, mostly written by coPilot, expects the
+		// direction the water is coming FROM, but Set in mariner's
+		// terms is the direction it's going TO, so we simply change it
+		// from Set(m_current_set) to From(use_current_angle),
+		// cuz I don't want to mess with the calcs below.
+
+	// Boat vector
+	double bx = m_water_speed * sin(deg2rad(m_heading));
+	double by = m_water_speed * cos(deg2rad(m_heading));
+
+	// Current vector (reverse direction)
+	double cx = m_current_drift * sin(deg2rad(use_current_angle + 180));
+	double cy = m_current_drift * cos(deg2rad(use_current_angle + 180));
+
+	// Sum vectors
+	double vx = bx + cx;
+	double vy = by + cy;
+
+	// Resultant vector
+	m_sog = sqrt(vx*vx + vy*vy);
+	m_cog = fmod(rad2deg(atan2(vx, vy)) + 360.0, 360.0);
+
+
+	display(dbg_ground+1,"bx(%0.3f) by(%0.3f) cx(%0.3f) cy(%0.3f) vx(%0.3f) vy(%0.3f)", bx,by,cx,cy,vx,vy);
+	display(dbg_ground,"returning sog(%0.3f) cog(%0.3f)",m_sog,m_cog);
+	proc_leave();
+}
+
 
 
 
@@ -554,17 +771,30 @@ void boatSimulator::sendBinaryBoatState(bool doit /*=1*/)
 	offset = binaryFixStr	(buf,offset,start_wp->name, MAX_WP_NAME);
 	offset = binaryUint8	(buf,offset,m_target_wp_num);
 	offset = binaryFixStr	(buf,offset,target_wp->name, MAX_WP_NAME);
+	offset = binaryFloat	(buf,offset,headingToWaypoint());
+	offset = binaryFloat  	(buf,offset,distanceToWaypoint());
 
+	offset = binaryFloat	(buf,offset,m_desired_heading);
+	
 	offset = binaryFloat	(buf,offset,m_depth);
-	offset = binaryFloat	(buf,offset,m_sog);
-	offset = binaryFloat	(buf,offset,m_cog);
+	offset = binaryFloat	(buf,offset,m_heading);
+	offset = binaryFloat	(buf,offset,m_water_speed);
+	offset = binaryFloat	(buf,offset,m_current_set);
+	offset = binaryFloat	(buf,offset,m_current_drift);
 	offset = binaryFloat	(buf,offset,m_wind_angle);
 	offset = binaryFloat	(buf,offset,m_wind_speed);
 	offset = binaryDouble	(buf,offset,m_latitude);
 	offset = binaryDouble	(buf,offset,m_longitude);
+
+	offset = binaryFloat	(buf,offset,m_sog);
+	offset = binaryFloat	(buf,offset,m_cog);
 	offset = binaryFloat	(buf,offset,m_app_wind_angle);
 	offset = binaryFloat	(buf,offset,m_app_wind_speed);
-
+	offset = binaryFloat	(buf,offset,m_estimated_set);
+	offset = binaryFloat	(buf,offset,m_estimated_drift);
+	offset = binaryFloat	(buf,offset,m_track_error);
+	offset = binaryUint16	(buf,offset,m_closest);
+	
 	offset = binaryUint16	(buf,offset,m_rpm);
 	offset = binaryUint16	(buf,offset,m_oil_pressure);
 	offset = binaryUint16	(buf,offset,m_oil_temp);
@@ -582,11 +812,7 @@ void boatSimulator::sendBinaryBoatState(bool doit /*=1*/)
 	offset = binaryUint8	(buf,offset,m_gen_freq);
 
 	offset = binaryUint32	(buf,offset,m_update_num);
-	offset = binaryUint16	(buf,offset,m_closest);
 	
-	offset = binaryFloat	(buf,offset,headingToWaypoint());
-	offset = binaryFloat  	(buf,offset,distanceToWaypoint());
-
 	char timebuf[20];
 	// 2025-09-14 12:13:14
 	sprintf(timebuf,"%04d-%02d-%02d %02d:%02d:%02d",

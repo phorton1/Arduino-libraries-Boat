@@ -11,26 +11,20 @@
 #define dbg_data 		(instruments.g_MON_OUT ? 0 : 1)
 
 
-#define SEND_OK			0
-#define SEND_BUSY 		1
-#define SEND_COLLISION	2
-#define SEND_ERROR		3
-
 #define IDLE_BUS_MS				10		// ms bus must be idle to send next datagram
 #define SEND_DELAY				50		// ms between each datagram
-#define NUM_RETRIES				6
+#define NUM_RETRIES				1
 
 uint32_t last_seatalk_receive_time;
 
 
 static uint16_t dg[MAX_ST_BUF];
-static int retry_num = 0;
 
 
-static int sendDatagram(const uint16_t *dg)
+static void sendDatagram(const uint16_t *dg)
 {
 	if (millis() - last_seatalk_receive_time < IDLE_BUS_MS)
-		return SEND_BUSY;	// bus busy
+		return;	// bus busy
 
 	#define WRITE_TIMEOUT	40
 
@@ -63,40 +57,37 @@ static int sendDatagram(const uint16_t *dg)
 		//		Serial.print(out_byte,HEX);
 		//	}
 
-		uint32_t sent_time = millis();
-		SERIAL_SEATALK.write9bit(out_byte);
-		while (!ok)
+		for (int retry_num=0; retry_num<NUM_RETRIES; retry_num++)
 		{
-			if (SERIAL_SEATALK.available())
+			uint32_t sent_time = millis();
+			SERIAL_SEATALK.write9bit(out_byte);
+			while (!ok)
 			{
-				int in_byte = SERIAL_SEATALK.read();
-				if (in_byte == out_byte)
+				if (SERIAL_SEATALK.available())
 				{
-					ok = true;
+					int in_byte = SERIAL_SEATALK.read();
+					if (in_byte == out_byte)
+					{
+						ok = true;
+					}
+					else
+					{
+						// if (show_output)
+						// 	Serial.println();
+						warning(0,"collision(%d)",retry_num);
+						delay(SEND_DELAY);
+					}
 				}
-				else
+				else if (millis() - sent_time >= WRITE_TIMEOUT)
 				{
 					// if (show_output)
 					// 	Serial.println();
-					warning(0,"collision(%d)",retry_num);
-					return SEND_COLLISION;
+					my_error("WRITE_TIMEOUT",0);
+					return;
 				}
 			}
-			else if (millis() - sent_time >= WRITE_TIMEOUT)
-			{
-				// if (show_output)
-				// 	Serial.println();
-				my_error("WRITE_TIMEOUT",0);
-				return SEND_ERROR;
-			}
-		}
+		}	// retry loop
 	}
-
-	// if (show_output)
-	// 	Serial.println();
-
-
-	return SEND_OK;
 }
 
 
@@ -109,6 +100,8 @@ static int sendDatagram(const uint16_t *dg)
 
 void depthInst::sendSeatalk()
 {
+	display(dbg_data,"stdepth(%0.1f)",boat.getDepth());
+
 	uint16_t d10;
 	if (boat.getDepth() > 999)
 		d10 = 9990;
@@ -124,19 +117,18 @@ void depthInst::sendSeatalk()
 	sendDatagram(dg);
 }
 
+
+
 void logInst::sendSeatalk()
 {
-	double speed = boat.getSOG();
+	double speed = boat.getWaterSpeed();
 	int ispeed = (speed+ 0.05) * 10;
-	display(dbg_data,"stWaterSpeed & stSOG(%0.1f)",speed);
+	display(dbg_data,"stWaterSpeed(%0.1f)",speed);
 
 	dg[0] = ST_WATER_SPEED;
 	dg[1] = 0x01;
 	dg[2] = ispeed & 0xff;
 	dg[3] = (ispeed >> 8) & 0xff;
-	sendDatagram(dg);
-
-	dg[0] = ST_SOG;
 	sendDatagram(dg);
 }
 
@@ -176,7 +168,11 @@ void compassInst::sendSeatalk()
 	// .... ........
 	// HH99   222222
 
-	double degrees = boat.getCOG();
+	double degrees = boat.getHeading();
+	degrees += boat.getMagneticVariance();
+	if (degrees > 360.0) degrees = degrees - 360.0;
+		// added to send 'proper' magnetic versiion via ST_HEADING
+
 	int idegrees = degrees;
 	int nineties = idegrees / 90;
 	idegrees = idegrees - (nineties * 90);
@@ -184,29 +180,28 @@ void compassInst::sendSeatalk()
 	idegrees = idegrees - (twos * 2);
 	int halfs = idegrees * 2;
 
-	display(dbg_data,"stCOG & stHeading(%0.1f) = nineties(%d) twos(%d) halfs(%d)",degrees,nineties,twos,halfs);
+	display(dbg_data,"stHeading(%0.1f) = nineties(%d) twos(%d) halfs(%d)",degrees,nineties,twos,halfs);
 
-	dg[0] = ST_COG;
-	dg[1] = 0 | (nineties << 4) | (halfs<<6);
-	dg[2] = twos;
-	sendDatagram(dg);
-
+	// The compass only sends out a Heading (magnetic)
+	// and does not know the COG
+	
 	dg[0] = ST_HEADING;
 	dg[1] = 2 | (nineties << 4) | (halfs<<6);
 	dg[2] = twos;
 	dg[3] = 0x00;	// unuaed by me at this time
 	dg[4] = 0x20;	// unuaed by me at this time
 	sendDatagram(dg);
-
 }
 
 
 
 void gpsInst::sendSeatalk()
 {
+
 	double lat = boat.getLat();
 	double lon = boat.getLon();
 	display(dbg_data,"stLatLon(%0.6f,%0.6f)",lat,lon);
+	proc_entry();
 
 	uint8_t Z1 = 0;
 	uint8_t Z2 = 0x20;
@@ -254,6 +249,10 @@ void gpsInst::sendSeatalk()
 	dg[7] = imin_lon & 0xff;
 	sendDatagram(dg);
 
+	//------------------------------------------------
+
+	display(dbg_data,"stSatInfo()",0);
+
 	dg[0] = ST_SAT_INFO;
 	dg[1] = 0x30;	// num_sats<<4
 	dg[2] = 0x02;	// hdop
@@ -268,6 +267,8 @@ void gpsInst::sendSeatalk()
 		// SAT_DETAIL (57)
 		// if the HDOP available flag is set it counts as the low order bit of num_sats
 
+		display(dbg_data,"stSatDetail(1)",0);
+
 		uint8_t num_sats = 3;
 		dg[0] = ST_SAT_DETAIL;
 		dg[1] = 0x57;			// fixed
@@ -281,6 +282,7 @@ void gpsInst::sendSeatalk()
 		dg[9] = 0x00;						 // DD=differential station id
 		sendDatagram(dg);
 
+		display(dbg_data,"stSatDetail(2)",0);
 
 		// SAT_DETAIL(0x74)  (satellite IDs)
 		dg[0] = ST_SAT_DETAIL;
@@ -293,11 +295,10 @@ void gpsInst::sendSeatalk()
 		sendDatagram(dg);
 	}
 
-
-
-
 	if (0)
 	{
+		display(dbg_data,"stSatDetail(0xXd)",0);
+
 		// SAT_DETAIL(0xXD)  (satellite IDs)
 		// Satellite 1 (PRN 07)
 		uint8_t sat1_az  = 48;   // Azimuth: 48° (low eastern sky)
@@ -349,12 +350,55 @@ void gpsInst::sendSeatalk()
 		dg[16] = ZZ;
 		sendDatagram(dg);
 	}
-}
+
+
+	//------------------------------------------
+
+	if (1)	// GPS Instrument sends out SOG/COG
+	{
+		double degrees = boat.getCOG();
+
+		degrees += boat.getMagneticVariance();
+		if (degrees > 360.0) degrees = degrees - 360.0;
+			// added to send 'proper' magnetic versiion via ST_HEADING
+
+		int idegrees = degrees;
+		int nineties = idegrees / 90;
+		idegrees = idegrees - (nineties * 90);
+		int twos = idegrees / 2;
+		idegrees = idegrees - (twos * 2);
+		int halfs = idegrees * 2;
+
+		display(0,"stCOG(%0.1f) = nineties(%d) twos(%d) halfs(%d)",degrees,nineties,twos,halfs);
+
+		dg[0] = ST_COG;
+		dg[1] = 0 | (nineties << 4) | (halfs<<6);
+		dg[2] = twos;
+		sendDatagram(dg);
+
+		//-----------------------
+
+		double speed = boat.getSOG();
+		int ispeed = (speed+ 0.05) * 10;
+		display(dbg_data,"stSOG & stSOG(%0.1f)",speed);
+
+		dg[0] = ST_SOG;
+		dg[1] = 0x01;
+		dg[2] = ispeed & 0xff;
+		dg[3] = (ispeed >> 8) & 0xff;
+		sendDatagram(dg);
+	}
+
+	proc_leave();
+
+}	// gpsInst()
+
 
 
 void aisInst::sendSeatalk()
 {
 }
+
 
 void autopilotInst::sendSeatalk()
 {
@@ -538,6 +582,8 @@ void autopilotInst::sendSeatalk()
 	}
 }
 
+
+
 void engineInst::sendSeatalk()
 {
 	// not really supported
@@ -553,6 +599,7 @@ void engineInst::sendSeatalk()
 	dg[5] = 0x08;	// default 8 degree pitch
 	sendDatagram(dg);
 }
+
 
 void gensetInst::sendSeatalk()
 {

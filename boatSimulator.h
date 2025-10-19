@@ -47,15 +47,27 @@ public:
 
 	// getters
 
-	bool	running()				{ return m_running; }		// true while simulator is running
+	bool	 running()				{ return m_running; }		// true while simulator is running
+
+	float    getMagneticVariance()	{ return 3.0; }				// in Bocas; On the E80; needed for ST_HEADING output calculations
 
 	float	 getDepth()				{ return m_depth; }				// feet below surface
-	float	 getSOG()				{ return m_sog; }				// knots
-	float	 getCOG()				{ return m_cog; }				// true
-	float	 getWindAngle() 		{ return m_wind_angle; }		// true
+
+	float	 getHeading()			{ return m_heading; }			// the true direction the boat is pointing
+	float	 getWaterSpeed()		{ return m_water_speed; }		// water relative to boat as measured by log instrument
+	float 	 getCurrentSet()		{ return m_current_set; }		// direction current is going to
+	float 	 getCurrentDrift()		{ return m_current_drift; }		// speed of the current
+
+	float	 getSOG()				{ return m_sog; }				// CALCULATED knots
+	float	 getCOG()				{ return m_cog; }				// CALCULATED true
+	float	 getWindAngle() 		{ return m_wind_angle; }		// true direction its COMING FROM
 	float	 getWindSpeed() 		{ return m_wind_speed; }		// knots
+
 	double	 getLat()				{ return m_latitude; }
 	double	 getLon()				{ return m_longitude; }
+
+	double	 getDesiredHeading()	{ return m_desired_heading; }	// for AP, separate from routing
+
 	uint16_t getRPM()				{ return m_rpm; }
 	uint16_t getOilPressure()		{ return m_oil_pressure; }		// psi
 	uint16_t getOilTemp()			{ return m_oil_temp; }			// farenheight
@@ -98,10 +110,17 @@ public:
 	// setters
 
 	void setDepth		(float depth);
-	void setSOG			(float sog);
-	void setCOG			(float cog);
+
+	void setHeading		(float heading);
+	void setWaterSpeed	(float speed);
+	void setCurrentSet	(float angle);		// angle the water is going TO
+	void setCurrentDrift(float speed);		// speed of the current
+	
 	void setWindAngle	(float angle);
 	void setWindSpeed 	(float speed);
+
+	void setDesiredHeading(float angle) 	{m_desired_heading = angle;}
+	
 	void setRPM			(uint16_t rpm);
 	void setGenset		(bool on);
 
@@ -159,9 +178,14 @@ private:
 	bool	 m_running;
 	bool	 m_autopilot;
 	bool	 m_routing;
-	bool	 m_arrived;
 
 	float	 m_depth;
+
+	float	 m_heading;
+	float	 m_water_speed;
+	float	 m_current_set;		// absolute angle the current is going TO
+	float	 m_current_drift;	// absolute speed of the current
+	
 	float	 m_sog;
 	float	 m_cog;
 	float	 m_wind_angle;
@@ -170,6 +194,13 @@ private:
 	double	 m_longitude;
 	float	 m_app_wind_angle;
 	float	 m_app_wind_speed;
+
+	float	 m_desired_heading;		// AP specific
+	float 	 m_estimated_set;
+	float	 m_estimated_drift;
+	bool	 m_arrived;				// ROUTING
+	uint16_t m_closest;				// integer feet
+	float 	 m_track_error;
 
 	uint16_t m_rpm;
 	uint16_t m_oil_pressure;
@@ -196,10 +227,18 @@ private:
 
 	uint32_t m_update_num;			// number of executed timeslices
 	uint32_t m_last_update_ms;		// ms since last update
-	uint16_t m_closest;				// integer feet
 
+	void doAutopilot();
+	void calcuateCrossTrackError();
+
+	void calculateOverGround(bool quiet=true);
 	void calculateApparentWind(bool quiet=true);
-
+	void calculate(bool quiet=true)
+	{
+		calculateOverGround(quiet);
+		calculateApparentWind(quiet);
+	}
+	
 	void sendBinaryBoatState(bool doit=1);
 	
 

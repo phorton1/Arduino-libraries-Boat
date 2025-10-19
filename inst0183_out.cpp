@@ -169,9 +169,15 @@ void logInst::send0183()
 	// 6) N = Knots
 	// 7) Kilometers (speed of vessel relative to the water)
 	// 8) K = Kilometres
-	//                       1     2 345     678
-	sprintf(nmea_buf,"$VWVHW,%0.1f,T,,,%0.1f,N,,",
-		boat.getCOG(),boat.getSOG());
+	//
+	// OLD:
+	//	                         1     2 345     678
+	//	sprintf(nmea_buf,"$VWVHW,%0.1f,T,,,%0.1f,N,,",
+
+	//                       12345     678
+	sprintf(nmea_buf,"$VWVHW,,,,,%0.1f,N,,",
+		// boat.getCOG(),	// log instrument does not send a heading!
+		boat.getWaterSpeed());
 	checksum();
 	display(show_0183,"logInst --> %s",nmea_buf);
 	sendNMEA0183();
@@ -180,8 +186,8 @@ void logInst::send0183()
 
 void windInst::send0183()
 {
-	double cog = boat.getCOG();
-	double bow_angle_true = boat.getWindAngle() - cog;
+	double heading = boat.getHeading();
+	double bow_angle_true = boat.getWindAngle() - heading;
 	if (bow_angle_true < 0) bow_angle_true += 360;
 	
 	// WI = Weather Instruments
@@ -219,6 +225,30 @@ void windInst::send0183()
 
 void compassInst::send0183()
 {
+	// Device = HC (heading compass)
+
+	if (1)
+	{
+		// HDT: $MCHDT,237.5,T*hh
+		//		237.5 = true heading
+		//		T = true
+		sprintf(nmea_buf,"$HCHDT,%0.1f,T",
+			boat.getHeading() );
+		checksum();
+		display(show_0183,"compassInst --> %s",nmea_buf);
+		sendNMEA0183();
+	}
+	if (0)
+	{
+		// HDM: $HCHDM,238.0,M*hh
+		// 		238.0 = magnetic heading
+		// 		M = magnetic
+		sprintf(nmea_buf,"$HCHDM,%0.1f,M",
+			boat.getHeading() );
+		checksum();
+		display(show_0183,"compassInst --> %s",nmea_buf);
+		sendNMEA0183();
+	}
 }
 
 
@@ -306,6 +336,9 @@ void gpsInst::send0183()
 
 	if (1)
 	{
+		// this overkill for a GPS instrument and
+		// causes the E80 to send out Navigation (DBNAV) information rapidly
+
 		// GP = GPS device
 		// RMC = Recommended Minimum Navigation Information 'C'
 		// "$GPRMC,092750.000,A,5321.6802,N,00630.3372,W,0.02,31.66,280511,,,A*43",
@@ -433,6 +466,40 @@ void autopilotInst::send0183()
 	// the E80 starts beeping, shows the Waypoint Arrival Dialog and
 	// the ACKNOWLEDGE button. When the user acknowledges, or we
 	// switch to 'V' it stops.
+
+	if (1)
+	{
+		// this overkill for a GPS instrument and
+		// causes the E80 to send out Navigation (DBNAV) information rapidly
+
+
+		// GP = GPS device
+		// RMC = Recommended Minimum Navigation Information 'C'
+		// "$GPRMC,092750.000,A,5321.6802,N,00630.3372,W,0.02,31.66,280511,,,A*43",
+		//
+		// 1) Time (UTC)
+		// 2) Status, A=valid, V=Navigation receiver warning
+		// 3) Latitude
+		// 4) N or S
+		// 5) Longitude
+		// 6) E or W
+		// 7) Speed over ground, knots
+		// 8) Track made good, degrees true
+		// 9) Date, ddmmyy
+		// 10) Magnetic Variation, degrees
+		// 11) E or W
+		//                       1  2 34 56 7     8     9 10&11 missing
+		sprintf(nmea_buf,"$GPRMC,%s,A,%s,%s,%0.1f,%0.1f,%s,,,",
+			standardTime(),
+			standardLat(boat.getLat()),
+			standardLon(boat.getLon()),
+			boat.getSOG(),
+			boat.getCOG(),
+			standardDate());
+		checksum();
+		display(show_0183,"gpsInst --> %s",nmea_buf);
+		sendNMEA0183();
+	}
 }
 
 

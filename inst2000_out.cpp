@@ -13,6 +13,7 @@
 #include "boatSimulator.h"
 #include <N2kMessages.h>
 #include <myDebug.h>
+#include <cmath>
 
 
 //--------------------------------------------------------
@@ -40,8 +41,8 @@ void logInst::send2000()
 
 	#if 1
 		// PGN_SPEED_WATER_REF
-		SetN2kPGN128259(msg, 255,		// msg, sid
-			KnotsToms(boat.getSOG()));	// meters per second
+		SetN2kPGN128259(msg, 255,				// msg, sid
+			KnotsToms(boat.getWaterSpeed()));	// meters per second
 		nmea2000.SendMsg(msg);
 	#endif
 
@@ -50,12 +51,12 @@ void logInst::send2000()
 		N2kDD025_Estimated,			// tN2kDataMode
 		N2khr_true,					// tN2kHeadingReference,
 		255,						// sid,
-		DegToRad(boat.getCOG()),	// COG in radians
-		KnotsToms(boat.getSOG()),	// SOG in m/s
-		DegToRad(boat.getCOG()),	// heading in radians
-		KnotsToms(boat.getSOG()),	// speed through water in m/s
-		0,							// Set
-		0);							// Drift
+		DegToRad(boat.getCOG()),		// COG in radians
+		KnotsToms(boat.getSOG()),			// SOG in m/s
+		DegToRad(boat.getHeading()),		// heading in radians
+		KnotsToms(boat.getWaterSpeed()),	// speed through water in m/s
+		KnotsToms(boat.getCurrentSet()),	// Set
+		KnotsToms(boat.getCurrentDrift()));	// Drift
 	nmea2000.SendMsg(msg);
 }
 
@@ -83,11 +84,11 @@ void compassInst::send2000()
 {
 	tN2kMsg msg;
 	// PGN_VESSEL_HEADING
-	SetN2kPGN127250(msg, 255,		// msg, sid
-		DegToRad(boat.getCOG()),	// heading is in radians
-		0.0, 						// Deviation
-		0.0, 						// Variation,
-		N2khr_true );				// tN2kHeadingReference(0)
+	SetN2kPGN127250(msg, 255,			// msg, sid
+		DegToRad(boat.getHeading()),	// heading is in radians
+		0.0, 							// Deviation
+		0.0, 							// Variation,
+		N2khr_true );					// tN2kHeadingReference(0)
 	nmea2000.SendMsg(msg);
 }
 
