@@ -51,6 +51,7 @@ gensetInst		i_genset;
 //----------------------------------------------------
 
 #define dbg_eeprom  0
+#define send_state  0
 
 #define INST_EEPROM_BASE 	512
 
@@ -115,19 +116,19 @@ void instSimulator::setAll(int port_num, bool on, bool no_echo)
 
 void instSimulator::sendBinaryState()
 {
-	display(0,"sendBinaryState()",0);
+	display(send_state,"sendBinaryState()",0);
 	proc_entry();
 	uint8_t buf[BINARY_HEADER_LEN + NUM_INSTRUMENTS];
 	int offset = startBinary(buf,BINARY_TYPE_PROG);
-	display(0,"offset after header=%d",offset);
+	display(send_state+1,"offset after header=%d",offset);
 	for (int i=0; i<NUM_INSTRUMENTS; i++)
 	{
 		uint8_t mask = m_inst[i]->getPorts();
-		display(0,"inst(%d) offset(%d) <= mask(%d)",i,offset,mask);
+		display(send_state+1,"inst(%d) offset(%d) <= mask(%d)",i,offset,mask);
 		offset = binaryUint8(buf,offset,mask);
 	}
 	endBinary(buf,offset);
-	display_bytes(0,"sending",buf,offset);
+	display_bytes(send_state+1,"sending",buf,offset);
 	proc_leave();
 	Serial.write(buf,offset);
 }
