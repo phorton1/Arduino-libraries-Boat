@@ -52,21 +52,22 @@ public:
 	float    getMagneticVariance()	{ return 3.0; }				// in Bocas; On the E80; needed for ST_HEADING output calculations
 
 	float	 getDepth()				{ return m_depth; }				// feet below surface
-
 	float	 getHeading()			{ return m_heading; }			// the true direction the boat is pointing
 	float	 getWaterSpeed()		{ return m_water_speed; }		// water relative to boat as measured by log instrument
 	float 	 getCurrentSet()		{ return m_current_set; }		// direction current is going to
 	float 	 getCurrentDrift()		{ return m_current_drift; }		// speed of the current
+	double	 getDesiredHeading()	{ return m_desired_heading; }	// for AP, separate from routing
 
 	float	 getSOG()				{ return m_sog; }				// CALCULATED knots
 	float	 getCOG()				{ return m_cog; }				// CALCULATED true
 	float	 getWindAngle() 		{ return m_wind_angle; }		// true direction its COMING FROM
 	float	 getWindSpeed() 		{ return m_wind_speed; }		// knots
-
 	double	 getLat()				{ return m_latitude; }
 	double	 getLon()				{ return m_longitude; }
-
-	double	 getDesiredHeading()	{ return m_desired_heading; }	// for AP, separate from routing
+	float	 getCrossTrackError()	{ return m_track_error; }		// NM
+	float 	 getLogTotal()			{ return 4321.0 + m_trip_distance; }	// NM
+	float 	 getTripDistance()		{ return m_trip_distance; }		// NM
+	bool 	 getTripOn()			{ return m_trip_on; }			// on or off
 
 	uint16_t getRPM()				{ return m_rpm; }
 	uint16_t getOilPressure()		{ return m_oil_pressure; }		// psi
@@ -110,16 +111,18 @@ public:
 	// setters
 
 	void setDepth		(float depth);
-
 	void setHeading		(float heading);
 	void setWaterSpeed	(float speed);
 	void setCurrentSet	(float angle);		// angle the water is going TO
 	void setCurrentDrift(float speed);		// speed of the current
-	
 	void setWindAngle	(float angle);
 	void setWindSpeed 	(float speed);
-
 	void setDesiredHeading(float angle) 	{m_desired_heading = angle;}
+
+	void setTripOn		(bool on)			{m_trip_on = on;}
+	void setTripDistance(float distance)	{m_trip_distance = distance;}
+
+		// NM, -1=off, 0 resets, or integer sets
 	
 	void setRPM			(uint16_t rpm);
 	void setGenset		(bool on);
@@ -168,10 +171,6 @@ public:
 
 	void setDateTime(int year, int month, int day, int hour, int minute, int second);		// HH:MM::SS   (24 hour clock);
 
-
-
-	
-
 private:
 
 	bool	 m_inited;
@@ -179,8 +178,10 @@ private:
 	bool	 m_autopilot;
 	bool	 m_routing;
 
-	float	 m_depth;
+	bool	 m_trip_on;			// on-off
+	float	 m_trip_distance;	// trip odometer
 
+	float	 m_depth;
 	float	 m_heading;
 	float	 m_water_speed;
 	float	 m_current_set;		// absolute angle the current is going TO
@@ -195,7 +196,7 @@ private:
 	float	 m_app_wind_angle;
 	float	 m_app_wind_speed;
 
-	float	 m_desired_heading;		// AP specific
+	float	 m_desired_heading;		// AP speicific
 	float 	 m_estimated_set;
 	float	 m_estimated_drift;
 	bool	 m_arrived;				// ROUTING

@@ -23,43 +23,48 @@ uint32_t g_last_st_receive_time;
 #define MAX_ST_NAME		12
 
 
+
+
 typedef struct
 {
 	uint16_t	st;
 	const char *name;
-	int out_inst;
-} st_info_type;
+	int 		out_inst;
+	int			standard;	// 0=opt_off, 1=opt_on; 2=standard
+} 	st_info_type;
 
 const st_info_type st_known[] =
 {
-	//                              name			out_inst		},	// sim0183	e80_idle	decoded
-	/* 0x100 */ { ST_DEPTH,			"DEPTH",		INST_DEPTH,		},	// 	  x
-	/* 0x105 */ { ST_RPM,			"RPM",			INST_ENGINE,    },	//
-	/* 0x110 */ { ST_WIND_ANGLE,	"WIND_ANGLE",	INST_WIND,		},	// 	  x
-	/* 0x111 */ { ST_WIND_SPEED,	"WIND_SPEED",	INST_WIND,		},	// 	  x
-	/* 0x120 */ { ST_WATER_SPEED,	"WATER_SPEED",	INST_LOG,		},	// 	  x
-	/* 0x126 */ { ST_LOG_SPEED,		"LOG_SPEED",	-1,				},	// 	  x
-	/* 0x150 */ { ST_LAT,			"LAT",			-1,				},	// 	  x
-	/* 0x151 */ { ST_LON,			"LON",			-1,				},	// 	  x
-	/* 0x152 */ { ST_SOG,			"SOG",			INST_LOG,		},	// 	  x
-	/* 0x153 */ { ST_COG,			"COG",			INST_COMPASS,	},	// 	  x
-	/* 0x154 */ { ST_TIME,			"TIME",			INST_GPS,		},	// 	  x
-	/* 0x156 */ { ST_DATE,			"DATE",			INST_GPS,		},	// 	  x
-	/* 0x157 */ { ST_SAT_INFO,		"SAT_INFO",		-1,				},	// 	  x
-	/* 0x158 */ { ST_LATLON,		"LATLON",		INST_GPS,		},	// 	  x
-	/* 0x159 */ { ST_59,			"59",			-1,				},	// 	  x		x
-	/* 0x161 */ { ST_E80_SIG,		"E80_SIG",		-1,				},	// 	  x		x
-	/* 0x182 */ { ST_TARGET_NAME,	"TARGET_NAME",	INST_AUTOPILOT,	},	// 	  x
-	/* 0x185 */ { ST_NAV_TO_WP,		"NAV_TO_WP",	INST_AUTOPILOT,	},	// 	  x
-	/* 0x189 */ { ST_HEADING,		"HEADING",		INST_COMPASS,	},	//    x
-	/* 0x199 */ { ST_COMPASS_VAR,	"COMPASS_VAR",	-1,				},	//    x		z
-	/* 0x1a2 */ { ST_ARRIVAL,		"ARRIVAL",		INST_AUTOPILOT,	},	//    x
-
-	/* 0x19E */	{ ST_WP_DEF,		"WP_DEF",		-1, 			},	// got it once, could be bogus bytes
-	/* 0z1A4 */	{ ST_DEV_QUERY,		"DEV_QUERY",	-1,				},	// we don't respond (yet)
-	/* 0z1A4 */	{ ST_SAT_DETAIL,	"SAT_DETAIL",	-1,				},
-	/* 0x1A7 */	{ ST_A7,			"A7",			-1,				},	// some kind of gps message
-	/* 0x1AD */	{ ST_AD,			"AD"			-1,				},	// unknown
+	//                              name			out_inst
+	/* 0x100 */ { ST_DEPTH,			"DEPTH",		INST_DEPTH,		2,	},
+	/* 0x105 */ { ST_RPM,			"RPM",			INST_ENGINE,    2,	},
+	/* 0x110 */ { ST_WIND_ANGLE,	"WIND_ANGLE",	INST_WIND,		2,	},
+	/* 0x111 */ { ST_WIND_SPEED,	"WIND_SPEED",	INST_WIND,		2,	},
+	/* 0x120 */ { ST_WATER_SPEED,	"WATER_SPEED",	INST_LOG,		2,	},
+	/* 0x121 */	{ ST_TRIP,			"TRIP",			INST_LOG,		0,	},
+	/* 0x121 */	{ ST_LOG_TOTAL,		"TOTAL",		INST_LOG,		0,	},
+	/* 0x125 */	{ ST_TRIP_TOTAL,	"TRIP_TOTAL",	INST_LOG,		1,	},
+	/* 0x126 */ { ST_LOG_SPEED,		"LOG_SPEED",	-1,				0,	},
+	/* 0x150 */ { ST_LAT,			"LAT",			-1,				0,	},
+	/* 0x151 */ { ST_LON,			"LON",			-1,				0,	},
+	/* 0x152 */ { ST_SOG,			"SOG",			INST_GPS,		1,	},
+	/* 0x153 */ { ST_COG,			"COG",			INST_GPS,		1,	},
+	/* 0x154 */ { ST_TIME,			"TIME",			-1,				0,	},
+	/* 0x156 */ { ST_DATE,			"DATE",			-1,				0,	},
+	/* 0x157 */ { ST_SAT_INFO,		"SAT_INFO",		INST_GPS,		2,	},
+	/* 0x158 */ { ST_LATLON,		"LATLON",		INST_GPS,		2,	},
+	/* 0x159 */ { ST_59,			"59",			-1,				0,	},
+	/* 0x161 */ { ST_E80_SIG,		"E80_SIG",		-1,				0,	},
+	/* 0x182 */ { ST_TARGET_NAME,	"TARGET_NAME",	INST_AUTOPILOT,	1,	},
+	/* 0x185 */ { ST_NAV_TO_WP,		"NAV_TO_WP",	INST_AUTOPILOT,	1,	},
+	/* 0x189 */ { ST_HEADING,		"HEADING",		INST_COMPASS,	2,	},
+	/* 0x199 */ { ST_COMPASS_VAR,	"COMPASS_VAR",	-1,				0,	},
+	/* 0x1a2 */ { ST_ARRIVAL,		"ARRIVAL",		INST_AUTOPILOT,	1,	},
+	/* 0x19E */	{ ST_WP_DEF,		"WP_DEF",		-1, 			0,	},
+	/* 0z1A4 */	{ ST_DEV_QUERY,		"DEV_QUERY",	-1,				0,	},
+	/* 0z1A4 */	{ ST_SAT_DETAIL,	"SAT_DETAIL",	INST_GPS,		0,	},
+	/* 0x1A7 */	{ ST_A7,			"A7",			-1,				0,	},
+	/* 0x1AD */	{ ST_AD,			"AD"			-1,				0,	},
 
 	0,
 };
@@ -69,7 +74,6 @@ const st_info_type st_known[] =
 static String decodeST(uint16_t st, const uint8_t *dg)
 {
 	String retval;
-
 
 	if (st == ST_DEPTH)		// 0x100
 	{
@@ -113,6 +117,54 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 		retval += "knots(";
 		retval += speed;
 		retval += ")";
+	}
+	else if (st == ST_TRIP)			// 0x121
+	{
+		uint32_t trip = dg[4]&0x0f;
+		trip <<= 16;
+		trip |= dg[3];
+		trip <<= 8;
+		trip |= dg[2];
+
+		float f_trip = trip;
+		f_trip /= 100;
+		char buf[20];
+		sprintf(buf,"trip(%0.2f)",f_trip);
+		retval = buf;
+	}
+	else if (st == ST_LOG_TOTAL)		// 0x122
+	{
+		uint32_t total = dg[2];
+		total <<= 8;
+		total |= dg[3];
+
+		float f_total = total;
+		f_total /= 10;
+		char buf[20];
+		sprintf(buf,"total(%0.2f)",f_total);
+		retval = buf;
+	}
+	else if (st == ST_TRIP_TOTAL)		// 0x125
+	{
+		uint32_t total = dg[1] & 0xf0;
+		total <<= 4;
+		total |= dg[3];
+		total <<= 8;
+		total |= dg[2];
+
+		uint32_t trip = dg[6] & 0x0f;
+		trip <<= 8;
+		trip |= dg[5];
+		trip <<= 8;
+		trip |= dg[4];
+
+		float f_total = total;
+		float f_trip = trip;
+		f_total /= 10;
+		f_trip /= 100;
+		char buf[40];
+		sprintf(buf,"total(%0.1f) trip(%0.2f)",f_total,f_trip);
+		retval = buf;
 	}
 	else if (st == ST_LOG_SPEED)	// 0x126
 	{
@@ -217,7 +269,7 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 		sprintf(buf,"date(%04d-%02d-%02d)",year,month,day);
 		retval = buf;
 	}
-	else if (st == ST_SAT_INFO)
+	else if (st == ST_SAT_INFO)		// 0x157
 	{
 		uint8_t num_sats = dg[1] >> 4;
 		retval = "num_sats(";
@@ -230,7 +282,6 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 			retval += prec;
 			retval += ")";
 		}
-
 	}
 	else if (st == ST_LATLON)		// 0x158
 	{
@@ -255,6 +306,22 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 		retval += strDegreeMinutes(lon);
 		retval += ")";
 	}
+	else if (st == ST_TARGET_NAME)	// 0x182
+	{
+		uint8_t XX = dg[2];
+		uint8_t YY = dg[4];
+		uint8_t ZZ = dg[6];
+		uint8_t char1 = XX & 0x3f;
+		uint8_t char2 = (YY & 0xf)*4 + (XX & 0xc0)/64;
+		uint8_t char3 = (ZZ & 0x3)*16 + (YY & 0xf0)/16;
+		uint8_t char4 = (ZZ & 0xfc)/4;
+		retval = "name(";
+		retval += (char) (char1 + 0x30);
+		retval += (char) (char2 + 0x30);
+		retval += (char) (char3 + 0x30);
+		retval += (char) (char4 + 0x30);
+		retval += ")";
+	}
 	else if (st == ST_NAV_TO_WP)	// 0x185
 	{
 		uint16_t XXX = dg[2];
@@ -267,7 +334,6 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 		uint8_t ZW = dg[4];
 		uint8_t ZZ = dg[5];
 		uint8_t YF = dg[6];
-
 
 		uint8_t WV = (ZW << 4) | (VU >> 4);
 		float part = WV;
@@ -314,22 +380,6 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 		retval += heading;
 		retval += ") magnetic";
 	}
-	else if (st == ST_TARGET_NAME)	// 0x182
-	{
-		uint8_t XX = dg[2];
-		uint8_t YY = dg[4];
-		uint8_t ZZ = dg[6];
-		uint8_t char1 = XX & 0x3f;
-		uint8_t char2 = (YY & 0xf)*4 + (XX & 0xc0)/64;
-		uint8_t char3 = (ZZ & 0x3)*16 + (YY & 0xf0)/16;
-		uint8_t char4 = (ZZ & 0xfc)/4;
-		retval = "name(";
-		retval += (char) (char1 + 0x30);
-		retval += (char) (char2 + 0x30);
-		retval += (char) (char3 + 0x30);
-		retval += (char) (char4 + 0x30);
-		retval += ")";
-	}
 	else if (st == ST_COMPASS_VAR)	// 0x199
 	{
 		char buf[20];
@@ -364,6 +414,9 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 		if (circ) retval += " circ";
 
 	}
+
+
+
 
 	return retval;
 }

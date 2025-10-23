@@ -155,11 +155,8 @@ void logInst::send0183()
 {
 	// VW = Velocity Sensor, Speed Log, Water, Mechanical
 	// VHW device
-	// The sentence expects the RELATIVE degrees as True or Magnetic !?!
-	// We only send the 'T' true degrees and speed in knots
-	// Our simulator currently assumes no current, so
-	// 		water speed = sog
-	// 		water_heading = cog, which may be off by 180, not sure
+	// We only send the speed through the water in knots
+	// log instrument does not send a heading!
 	//
 	// 1) Degress True
 	// 2) T = True
@@ -169,18 +166,36 @@ void logInst::send0183()
 	// 6) N = Knots
 	// 7) Kilometers (speed of vessel relative to the water)
 	// 8) K = Kilometres
-	//
-	// OLD:
-	//	                         1     2 345     678
-	//	sprintf(nmea_buf,"$VWVHW,%0.1f,T,,,%0.1f,N,,",
-
 	//                       12345     678
 	sprintf(nmea_buf,"$VWVHW,,,,,%0.1f,N,,",
-		// boat.getCOG(),	// log instrument does not send a heading!
+		// boat.getCOG(),
 		boat.getWaterSpeed());
 	checksum();
 	display(show_0183,"logInst --> %s",nmea_buf);
 	sendNMEA0183();
+
+
+	if (0)
+	{
+		// VLW = Distance Traveled through Water (or over ground in your case)
+		// The log instrument has the "trip distance" button.
+		// The ST50 log probably integrates the spinny wheel over time, but
+		// our simulator does better by integrating SOG over time.
+		// We don't have an odometer (Total Cumulative Distance)
+
+		// 1) Total cumulative distance (NM)
+		// 2) N = Nautical miles
+		// 3) Trip distance (NM)
+		// 4) N = Nautical miles
+		//                       1    2 3    4
+		sprintf(nmea_buf,"$GPVLW,%.2f,N,%.2f,N",
+			boat.getTripDistance(),
+			boat.getTripDistance());
+		checksum();
+		display(show_0183,"logInst --> %s", nmea_buf);
+		sendNMEA0183();
+	}
+
 }
 
 
@@ -413,7 +428,6 @@ void autopilotInst::send0183()
 	// 13) Arrival Status, A = Arrival Circle Entered; V=reset arrival alarm
 	// 14) Checksum
 
-	double xte = 0.12;	// something I can see in 1/100's of an NM (from ST)
 	char lr = 'R';
 	const char *arrive_char = boat.getArrived() ? "A" : "V";
 	const waypoint_t *start_wp = boat.getWaypoint(boat.getStartWPNum());
@@ -433,8 +447,8 @@ void autopilotInst::send0183()
 	}
 
 	//                       1 2     3  4  5  67 89 10    11    12    13
-	sprintf(nmea_buf,"$APRMB,A,%0.3f,%c,%s,%s,%s,%s,%0.3f,%0.1f,%0.1f,%s,",
-		xte,						// 2
+	sprintf(nmea_buf,"$APRMB,A,%0.3f,%c,%s,%s,%s,%s,%0.3f,%0.1f,%0.4f,%s,",
+		boat.getCrossTrackError(),	// 2
 		lr,							// 3
 		start_name.c_str(),			// 4
 		target_name.c_str(),		// 5
@@ -442,7 +456,7 @@ void autopilotInst::send0183()
 		standardLon(boat.getLon()),	// 89
 		boat.distanceToWaypoint(),	// 10
 		boat.headingToWaypoint(),	// 11
-		boat.getCOG(),				// 12
+		boat.getSOG(),				// 12
 		arrive_char);				// 13
 
 	// $APRMB,A,0.100,R,,Popa1,0920.0450,N,08214.5230,W,12.000,149.2,149.2,,*5a
@@ -497,8 +511,62 @@ void autopilotInst::send0183()
 			boat.getCOG(),
 			standardDate());
 		checksum();
-		display(show_0183,"gpsInst --> %s",nmea_buf);
+		display(show_0183,"apInst --> %s",nmea_buf);
 		sendNMEA0183();
+	}
+
+	if (1)
+	{
+		// Trying to get E80 to display "VMG Wpt" box
+		
+		// AP = Global Positioning System
+		// BWC = Bearing and Distance to Waypoint using Great Circle
+		//
+		//	1) UTC time
+		//	2) Waypoint latitude
+		//	3) N or S (North or South)
+		//	4) Waypoint longitude
+		//	5) E or W (East or West)
+		//	6) Bearing to waypoint (degrees True)
+		//	7) T = True
+		//	8) Bearing to waypoint (degrees Magnetic)
+		//	9) M = Magnetic
+		// 10) Nautical miles to waypoint
+		// 11) N = Nautical miles
+		// 12) Waypoint ID
+		// 13) Status A = Data valid, V = Data invalid
+		//                       1  23 45 6    789 10   11 12 13
+		sprintf(nmea_buf,"$APBWC,%s,%s,%s,%.1f,T,,,%.2f,N,%s,A",
+			standardTime(),
+			standardLat(target_wp->lat),
+			standardLon(target_wp->lon),
+			boat.headingToWaypoint(),
+			boat.distanceToWaypoint(),
+			target_wp->name);
+		checksum();
+		display(show_0183,"apInst --> %s",nmea_buf);
+		sendNMEA0183();
+	}
+
+	if (1)
+	{
+		// GP = Global Positioning System
+		// VTG = Velocity and Track over Ground
+		//
+		//	1) Course over ground (degrees True)
+		//	2) T = True
+		//	3) Course over ground (degrees Magnetic)
+		//	4) M = Magnetic
+		//	5) Speed over ground in knots
+		//	6) N = Knots
+		//	7) Speed over ground in km/h
+		//	8) K = Kilometers/hour
+		//                       1    2 34 5    6 78
+		sprintf(nmea_buf,"$APVTG,%.1f,T,,M,%.2f,N,,K",
+			boat.getCOG(),
+			boat.getSOG());     
+		checksum();
+		display(show_0183,"apInst --> %s",nmea_buf);
 	}
 }
 

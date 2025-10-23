@@ -212,6 +212,7 @@ void instSimulator::run()
 			boat.run();
 			if (boat.running())
 			{
+				clearSTQueue();
 				for (int i=0; i<NUM_INSTRUMENTS; i++)
 				{
 					delay(10);
@@ -259,10 +260,11 @@ void instSimulator::run()
 
 	#if 1	// listen for Seatalk data
 
+		static uint32_t last_st_in;
 		while (SERIAL_SEATALK.available())
 		{
 			int c = SERIAL_SEATALK.read();
-			g_last_st_receive_time = millis();
+			last_st_in = millis();
 
 			// the 9th bit is set on the first 'byte' of a sequence
 			// the low nibble of the 2nd byte + 3 is the total number
@@ -310,6 +312,23 @@ void instSimulator::run()
 			}
 
 		}	// receiving datagrams
+
+
+		// send one datagram from queue
+
+		#define IDLE_BUS_MS				10		// ms bus must be idle to send next datagram
+		#define SEND_INTERVAL			10
+
+		uint32_t now_st = millis();
+		static uint32_t last_st_out = 0;
+		if (now_st - last_st_in >= IDLE_BUS_MS &&
+			now_st - last_st_out > SEND_INTERVAL)
+		{
+			sendDatagram();
+			last_st_out = millis();
+		}
+
+
 	#endif
 
 }

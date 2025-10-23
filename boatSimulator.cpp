@@ -55,7 +55,12 @@ void boatSimulator::init()
 	proc_entry();
 
 	if (!m_inited)
+	{
 		setRoute(simulator_routes[0].name);
+		m_trip_on  = 1;
+		m_trip_distance = 0;
+	}
+
 
 	// state vars
 
@@ -85,7 +90,6 @@ void boatSimulator::init()
 
 	m_cog	= 0;
 	m_sog	= 0;
-
 	m_app_wind_angle = 0;
 	m_app_wind_speed = 0;
 
@@ -94,8 +98,6 @@ void boatSimulator::init()
 	m_estimated_set 	= 0;
 	m_estimated_drift 	= 0;
 	m_track_error 		= 0;
-	m_track_error 		= 0;
-
 
 	// artificial
 
@@ -278,8 +280,6 @@ void boatSimulator::setRouting(bool on)
 
 		if (on && !m_autopilot)
 			setAutopilot(true);
-		else if (!on && m_autopilot)
-			setAutopilot(false);
 
 		sendBinaryBoatState(!m_running);
 	}
@@ -323,6 +323,14 @@ void boatSimulator::run()
 
 	calculate(1);
 	
+	// integrate the trip distance
+
+	if (m_trip_on)
+	{
+		double delta_nm = m_sog * (elapsed_secs / 3600.0);  // NM
+		m_trip_distance += delta_nm;
+	}
+
 	// set our new position
 
 	if (m_sog != 0)
@@ -766,6 +774,10 @@ void boatSimulator::sendBinaryBoatState(bool doit /*=1*/)
 	offset = binaryBool		(buf,offset,m_autopilot);
 	offset = binaryBool		(buf,offset,m_routing);
 	offset = binaryBool		(buf,offset,m_arrived);
+
+	offset = binaryBool		(buf,offset,m_trip_on);
+	offset = binaryFloat	(buf,offset,m_trip_distance);
+	offset = binaryFloat	(buf,offset,getLogTotal());
 
 	offset = binaryUint8	(buf,offset,m_start_wp_num);
 	offset = binaryFixStr	(buf,offset,start_wp->name, MAX_WP_NAME);
