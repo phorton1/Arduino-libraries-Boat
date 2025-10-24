@@ -17,10 +17,12 @@ String strDegreeMinutes(double coord)
 }
 
 
-void pad(String &s, uint16_t len)
+String pad(const String s, uint16_t len)
 {
-	while (s.length() < len)
+	String retval(s);
+	while (retval.length() < len)
 	{
-		s += " ";
+		retval += " ";
 	}
+	return retval;
 }

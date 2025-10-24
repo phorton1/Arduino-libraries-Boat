@@ -8,5 +8,6 @@
 
 
 extern String strDegreeMinutes(double coord);
-extern void pad(String &s, uint16_t len);
+extern String pad(const String s, uint16_t len);
+
 

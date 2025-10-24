@@ -415,9 +415,6 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 
 	}
 
-
-
-
 	return retval;
 }
 
@@ -437,6 +434,8 @@ void showDatagram(bool out_direction, const uint8_t *dg)
 	in_counter++;
 
 	uint16_t st = dg[0] | 0x100;
+	String decode = decodeST(st,dg);
+
 	const st_info_type *found = 0;
 	const st_info_type *search = st_known;
 	while (!found && search->st)
@@ -451,10 +450,8 @@ void showDatagram(bool out_direction, const uint8_t *dg)
 
 	String st_name("ST_");
 	st_name += name;
-	pad(st_name,MAX_ST_NAME+3);
-
 	String out_inst(inst);
-	pad(out_inst,MAX_INST_NAME);
+	out_inst = out_inst.toLowerCase();
 
 	// fill out the hex buf
 
@@ -467,29 +464,36 @@ void showDatagram(bool out_direction, const uint8_t *dg)
 		sprintf(hex_buf,"%02x ",byte);
 		hex += hex_buf;
 	}
-	pad(hex,PAD_HEX);
 
-	String out(in_counter);
-	pad(out,7);
+	String arrow(out_direction ? "-->" : "<--");
 
-	out += out_direction ? "--> " : "<-- ";
-	out += st_name;
-	out += ' ';
-	out += hex;
-	out += ' ';
-	out += out_inst.toLowerCase();
-	out += ' ';
-	out += decodeST(st,dg);
+
 
 	if (g_MON_ST)
+	{
+		String out = pad(in_counter,7);
+		out += arrow;
+		out += " ";
+		out += pad(st_name,MAX_ST_NAME+3);
+		out += " ";
+		out += pad(hex,PAD_HEX);
+		out += pad(out_inst,MAX_INST_NAME);
+		out += " ";
+		out += decode;
 		Serial.println(out.c_str());
+	}
 
 	if (g_BINARY & BINARY_TYPE_ST)
 	{
 		#define MSG_BUF_SIZE 256
+		String bin =
+			arrow + "\t" +
+			st_name + "\t" +
+			hex + "\t" +
+			decode;
 		/*static*/ uint8_t binary_buf[BINARY_HEADER_LEN + MSG_BUF_SIZE];
 		int offset = startBinary(binary_buf,BINARY_TYPE_ST);
-		offset = binaryVarStr(binary_buf, offset, out.c_str(), MSG_BUF_SIZE);
+		offset = binaryVarStr(binary_buf, offset, bin.c_str(), MSG_BUF_SIZE);
 		endBinary(binary_buf,offset);
 		Serial.write(binary_buf,offset);
 	}
