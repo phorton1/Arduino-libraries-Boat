@@ -101,15 +101,15 @@ void boatSimulator::init()
 
 	// artificial
 
-	m_rpm 		 	= 0;
-
-	m_oil_pressure 	= 0;
-	m_oil_temp  	= 0;
-	m_coolant_temp 	= 0;
-	m_alt_voltage 	= 0;
-	m_fuel_rate 	= 0;
-	m_fuel_level1 	= 0;
-	m_fuel_level2 	= 0;
+	m_rpm 		 		= 0;
+	m_boost_pressure	= 0;
+	m_oil_pressure 		= 0;
+	m_oil_temp  		= 0;
+	m_coolant_temp 		= 0;
+	m_alt_voltage 		= 0;
+	m_fuel_rate 		= 0;
+	m_fuel_level1 		= 0.48;
+	m_fuel_level2 		= 0.52;
 
 	m_genset 			= false;
 	m_gen_rpm 			= 0;
@@ -138,8 +138,22 @@ void boatSimulator::init()
 
 void boatSimulator::setDepth(float depth)		{ m_depth = depth; 	sendBinaryBoatState(!m_running); }
 
-void boatSimulator::setHeading(float heading)	{ m_heading = heading; 		calculate(); sendBinaryBoatState(!m_running);}
-void boatSimulator::setWaterSpeed(float speed)	{ m_water_speed = speed; 	calculate(); m_rpm = m_sog ? 1800 : 0; sendBinaryBoatState(!m_running);}
+void boatSimulator::setHeading(float heading)	{ m_heading = heading; 	calculate(); sendBinaryBoatState(!m_running);}
+void boatSimulator::setWaterSpeed(float speed)
+{
+	m_water_speed = speed;
+	calculate();
+	if (speed == 0)
+	{
+		m_rpm = 0;
+	}
+	else
+	{
+		float new_rpm = 100 + (m_water_speed / 10.0) * 900;  // approx 900 rpm per 10 knots
+		m_rpm = new_rpm;
+	}
+	sendBinaryBoatState(!m_running);
+}
 void boatSimulator::setCurrentSet(float angle){ m_current_set = angle;	calculate(); sendBinaryBoatState(!m_running);}
 void boatSimulator::setCurrentDrift(float speed){ m_current_drift = speed;	calculate(); sendBinaryBoatState(!m_running);}
 
@@ -294,6 +308,26 @@ void boatSimulator::setRouting(bool on)
 // implementation
 //-----------------------------------------------
 
+
+
+static void useFuel(float *used, float *level, float capacity)
+{
+	float cur = *level * capacity;
+	if (*used > cur)
+	{
+		(*used) -= cur;
+		*level = 0;
+	}
+	else
+	{
+		cur -= *used;
+		*used = 0;
+		*level = cur / capacity;
+	}
+}
+
+
+
 void boatSimulator::run()
 	// Calculate and set new latitude and longitude
 	// based on cog, sog, and millis() since last call
@@ -372,26 +406,64 @@ void boatSimulator::run()
 
 	// set psudeo random engine and genset values
 
-	m_oil_pressure = 	m_rpm == 0 ? 0 : 50 + random(-30,30); 		// psi
-	m_oil_temp = 		m_rpm == 0 ? 0 : 180 + random(-40,40);   	// farenheight
-	m_coolant_temp =	m_rpm == 0 ? 0 : 180 + random(-40,40);   	// farenheight
-	m_alt_voltage = 	m_rpm == 0 ? 0 : 12.0 + (((float)random(-300,300)) / 100.0);
-	m_fuel_rate = 		m_rpm == 0 ? 0 : 1.5 + (((float) random(-100,100)) / 100.0);  // gph
-	m_fuel_level1 = 	(500.0 + ((double) random(-100,100)))/10.0; 	// 0..1
-	m_fuel_level2 = 	(500.0 + ((double) random(-100,100)))/10.0; 	// 0..1
+	if (1)
+	{
+		#define ACCELERATED_USE   10
 
-	m_gen_rpm = 		m_genset ? 3600 + random(-100,100) : 0;
-	m_gen_oil_pressure=	m_genset ? 50 + random(-30,30) : 0; 	// psi
-	m_gen_cool_temp	=	m_genset ? 180 + random(-40,40) : 0; 	// farenheight
-	m_gen_voltage = 	m_genset ? 120 + random(-10,10) : 0;
-	m_gen_freq =		m_genset ? 60 + random(-5,5) : 0;
+		m_oil_pressure = 	m_rpm == 0 ? 0 : 5    + (m_rpm / 900) * 20.0; 	// psi
+		m_boost_pressure = 	m_rpm == 0 ? 0 : 0    + (m_rpm / 900) * 10.0; 	// psi
+		m_oil_temp = 		m_rpm == 0 ? 0 : 120  + (m_rpm / 900) * 20.0;   // farenheight
+		m_coolant_temp =	m_rpm == 0 ? 0 : 90   + (m_rpm / 900) * 20.0;  	// farenheight
+		m_alt_voltage = 	m_rpm == 0 ? 0 : 10.0 + (m_rpm / 900) * 1.0;
+		m_fuel_rate = 		m_rpm == 0 ? 0 : 0.1  + (m_rpm / 900) * 1.0;  	// gph
 
+		if (m_rpm && ACCELERATED_USE)
+			m_fuel_rate *= ACCELERATED_USE;
+
+		if (m_rpm)	// use tank1 first
+		{
+			float used = (elapsed_secs / 3600) * m_fuel_rate;
+			if (m_fuel_level1 > 0)
+				useFuel(&used, &m_fuel_level1, TANK1_CAPACITY);
+			if (used > 0 && m_fuel_level2 > 0)
+				useFuel(&used, &m_fuel_level2, TANK2_CAPACITY);
+		}
+
+		m_gen_rpm = 		m_genset ? 3600 + random(-100,100) : 0;
+		m_gen_oil_pressure=	m_genset ? 50 + random(-30,30) : 0; 	// psi
+		m_gen_cool_temp	=	m_genset ? 180 + random(-40,40) : 0; 	// farenheight
+		m_gen_voltage = 	m_genset ? 120 + random(-10,10) : 0;
+		m_gen_freq =		m_genset ? 60 + random(-5,5) : 0;
+	}
+	else	// fixed values to help in debugging
+	{
+		static int counter;
+		counter++;
+
+		int level1 = (counter/1) % 100;
+		int level2 = (counter/2) % 100;
+
+		m_oil_pressure = 	m_rpm == 0 ? 0 : 50.7; 		// psi
+		m_oil_temp = 		m_rpm == 0 ? 0 : 180.3;   	// farenheight
+		m_coolant_temp =	m_rpm == 0 ? 0 : 165.2;   	// farenheight
+		m_alt_voltage = 	m_rpm == 0 ? 0 : 12.34;
+		m_fuel_rate = 		m_rpm == 0 ? 0 : 1.123;  	// gph
+		m_fuel_level1 = 	m_rpm == 0 ? ((float) level1) / 100.0 : 0.33; 	// 0..1
+		m_fuel_level2 = 	m_rpm == 0 ? ((float) level2) / 100.0 : 0.66; 	// 0..1
+		m_gen_rpm = 		m_genset ? 3600 : 0;
+		m_gen_oil_pressure=	m_genset ? 50 : 0; 			// psi
+		m_gen_cool_temp	=	m_genset ? 182 : 0; 		// farenheight
+		m_gen_voltage = 	m_genset ? 13.45 : 0;
+		m_gen_freq =		m_genset ? 60: 0;
+	}
+	
 	sendBinaryBoatState(1);
 
 	proc_leave();
 	
 
 }	// run()
+
 
 
 //------------------------------------------------------------------------------------
@@ -808,18 +880,19 @@ void boatSimulator::sendBinaryBoatState(bool doit /*=1*/)
 	offset = binaryUint16	(buf,offset,m_closest);
 	
 	offset = binaryUint16	(buf,offset,m_rpm);
-	offset = binaryUint16	(buf,offset,m_oil_pressure);
-	offset = binaryUint16	(buf,offset,m_oil_temp);
-	offset = binaryUint16	(buf,offset,m_coolant_temp);
+	offset = binaryFloat    (buf,offset,m_boost_pressure);
+	offset = binaryFloat    (buf,offset,m_oil_pressure);
+	offset = binaryFloat    (buf,offset,m_oil_temp);
+	offset = binaryFloat    (buf,offset,m_coolant_temp);
 	offset = binaryFloat	(buf,offset,m_alt_voltage);
 	offset = binaryFloat	(buf,offset,m_fuel_rate);
 	offset = binaryFloat	(buf,offset,m_fuel_level1);
 	offset = binaryFloat	(buf,offset,m_fuel_level2);
 
 	offset = binaryBool		(buf,offset,m_genset);
-	offset = binaryUint16	(buf,offset,m_gen_rpm);
-	offset = binaryUint16	(buf,offset,m_gen_oil_pressure);
-	offset = binaryUint16	(buf,offset,m_gen_cool_temp);
+	offset = binaryFloat	(buf,offset,m_gen_rpm);
+	offset = binaryFloat	(buf,offset,m_gen_oil_pressure);
+	offset = binaryFloat	(buf,offset,m_gen_cool_temp);
 	offset = binaryFloat	(buf,offset,m_gen_voltage);
 	offset = binaryUint8	(buf,offset,m_gen_freq);
 

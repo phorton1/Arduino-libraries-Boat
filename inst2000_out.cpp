@@ -58,6 +58,17 @@ void logInst::send2000()
 		KnotsToms(boat.getCurrentSet()),	// Set
 		KnotsToms(boat.getCurrentDrift()));	// Drift
 	nmea2000.SendMsg(msg);
+
+	#if 1
+
+		SetN2kPGN128275(msg,
+			0,	// DaysSince1970
+			0,	// SecondsSinceMidnight
+			boat.getLogTotal() * NM_TO_METERS,
+			boat.getTripDistance() * NM_TO_METERS);
+		nmea2000.SendMsg(msg);
+
+	#endif
 }
 
 
@@ -226,10 +237,10 @@ void engineInst::send2000()
 
 	SetN2kPGN127488(
 			msg,
-			0,					// EngineInstance
-			boat.getRPM(),		// EngineSpeed
-			N2kDoubleNA,		// EngineBoostPressure
-			N2kUInt8NA);		// EngineTiltTrim
+			0,							// EngineInstance
+			boat.getRPM(),				// EngineSpeed
+			boat.getBoostPressure()  * PSI_TO_PASCAL,	// EngineBoostPressure
+			N2kUInt8NA);				// EngineTiltTrim
 	nmea2000.SendMsg(msg);
 
 	// PGN_ENGINE_DYNAMIC
@@ -247,24 +258,26 @@ void engineInst::send2000()
 		N2kDoubleNA,								// EngineHours         in seconds
 		N2kDoubleNA,								// EngineCoolantPress  in Pascal
 		N2kDoubleNA,								// EngineFuelPress     in Pascal
-		0,											// EngineLoad          in %
+		100 * boat.getRPM() / 7200,					// EngineLoad          in %
 		0,											// EngineTorque        in %
 		status1,									// Status1             Engine Discrete Status 1
 		status2);									// Status2             Engine Discrete Status 2
 	nmea2000.SendMsg(msg);
 
-	// PGN_FLUID_LEVEL
-
-	double capacity = 72 * GALLON_TO_LITRE;
-	double level0 = boat.getFuelLevel(0);
-	double level1 = boat.getFuelLevel(1);
-
 	tN2kFluidType fluid_type = N2kft_Fuel;
 
-	SetN2kPGN127505(msg, 0, fluid_type, level0, capacity);
+	// levels are *100 because apparently the E80
+	// predates the N2K specificatiion and that's
+	// how THEY implemented it
+	
+	SetN2kPGN127505(msg, 0, fluid_type,
+		boat.getFuelLevel(0) * 100,
+		boat.getTankCapacity(0) * GALLON_TO_LITRE);
 	nmea2000.SendMsg(msg);
 
-	SetN2kPGN127505(msg, 1, fluid_type, level1, capacity);
+	SetN2kPGN127505(msg, 1, fluid_type,
+		boat.getFuelLevel(1) * 100,
+		boat.getTankCapacity(1) * GALLON_TO_LITRE);
 	nmea2000.SendMsg(msg);
 }
 

@@ -33,6 +33,8 @@ extern const int simulator_num_routes __attribute__((weak));
 	// they can be overriden by your application as desired.
 
 
+#define TANK1_CAPACITY  72.0
+#define TANK2_CAPACITY  72.0
 
 	
 class boatSimulator {
@@ -70,16 +72,19 @@ public:
 	bool 	 getTripOn()			{ return m_trip_on; }			// on or off
 
 	uint16_t getRPM()				{ return m_rpm; }
-	uint16_t getOilPressure()		{ return m_oil_pressure; }		// psi
-	uint16_t getOilTemp()			{ return m_oil_temp; }			// farenheight
-	uint16_t getCoolantTemp()		{ return m_coolant_temp; }		// farenheight
+	float 	 getOilPressure()		{ return m_oil_pressure; }		// psi
+	float	 getBoostPressure()		{ return m_boost_pressure; }	// psi
+	float    getOilTemp()			{ return m_oil_temp; }			// farenheight
+	float    getCoolantTemp()		{ return m_coolant_temp; }		// farenheight
 	float 	 getAltVoltage()		{ return m_alt_voltage; }		// volts
 	float 	 getFuelRate()			{ return m_fuel_rate; }			// gph
 	float	 getFuelLevel(int tank) { return tank ? m_fuel_level2 : m_fuel_level1; }	// 0..1
+	float 	 getTankCapacity(int tank) { return tank ? TANK1_CAPACITY : TANK2_CAPACITY; }
+	
 	bool     getGenset()			{ return m_genset; }
 	uint16_t getGenRPM()			{ return m_gen_rpm; }
-	uint16_t getGenOilPressure()	{ return m_gen_oil_pressure; }	// psi
-	uint16_t getGenCoolTemp()		{ return m_gen_cool_temp; }		// farenheight
+	float 	 getGenOilPressure()	{ return m_gen_oil_pressure; }	// psi
+	float 	 getGenCoolTemp()		{ return m_gen_cool_temp; }		// farenheight
 	float    getGenVoltage()		{ return m_gen_voltage; }		// volts
 	uint8_t  getGenFreq()			{ return m_gen_freq; }
 
@@ -204,18 +209,19 @@ private:
 	float 	 m_track_error;
 
 	uint16_t m_rpm;
-	uint16_t m_oil_pressure;
-	uint16_t m_oil_temp;
-	uint16_t m_coolant_temp;
+	float	 m_boost_pressure;
+	float 	 m_oil_pressure;
+	float 	 m_oil_temp;
+	float 	 m_coolant_temp;
 	float	 m_alt_voltage;
 	float	 m_fuel_rate;
 	float	 m_fuel_level1;
 	float	 m_fuel_level2;
 
 	bool  	 m_genset;
-	uint16_t m_gen_rpm;
-	uint16_t m_gen_oil_pressure;
-	uint16_t m_gen_cool_temp;
+	float 	 m_gen_rpm;
+	float    m_gen_oil_pressure;
+	float 	 m_gen_cool_temp;
 	float	 m_gen_voltage;
 	uint8_t	 m_gen_freq;
 

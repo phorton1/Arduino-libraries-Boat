@@ -174,28 +174,25 @@ void logInst::send0183()
 	display(show_0183,"logInst --> %s",nmea_buf);
 	sendNMEA0183();
 
-
-	if (0)
+	if (1)	// The E80 is not seeing this message
 	{
 		// VLW = Distance Traveled through Water (or over ground in your case)
 		// The log instrument has the "trip distance" button.
 		// The ST50 log probably integrates the spinny wheel over time, but
 		// our simulator does better by integrating SOG over time.
-		// We don't have an odometer (Total Cumulative Distance)
 
 		// 1) Total cumulative distance (NM)
 		// 2) N = Nautical miles
 		// 3) Trip distance (NM)
 		// 4) N = Nautical miles
 		//                       1    2 3    4
-		sprintf(nmea_buf,"$GPVLW,%.2f,N,%.2f,N",
-			boat.getTripDistance(),
+		sprintf(nmea_buf,"$VWVLW,%.2f,N,%.2f,N",
+			boat.getLogTotal(),
 			boat.getTripDistance());
 		checksum();
 		display(show_0183,"logInst --> %s", nmea_buf);
 		sendNMEA0183();
 	}
-
 }
 
 
