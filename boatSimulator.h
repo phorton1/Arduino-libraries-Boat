@@ -92,6 +92,8 @@ public:
 	uint8_t  getStartWPNum()		{ return m_start_wp_num; }
 	uint8_t  getTargetWPNum() 		{ return m_target_wp_num; }		// return the "current waypoint" number
 
+	const char *getRouteName()		{ return m_route_name; };
+
 	const waypoint_t *getWaypoint(uint8_t wp_num)				// get a waypoing structure by index
 	{
 		if (wp_num >= 0 && wp_num < m_num_waypoints)
@@ -176,12 +178,17 @@ public:
 
 	void setDateTime(int year, int month, int day, int hour, int minute, int second);		// HH:MM::SS   (24 hour clock);
 
+	float headingTo(float lat, float lon, const waypoint_t *wp);
+	float distanceTo(float lat, float lon, const waypoint_t *wp);
+
+
 private:
 
 	bool	 m_inited;
 	bool	 m_running;
 	bool	 m_autopilot;
 	bool	 m_routing;
+	const char *m_route_name;
 
 	bool	 m_trip_on;			// on-off
 	float	 m_trip_distance;	// trip odometer

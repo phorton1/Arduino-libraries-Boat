@@ -49,25 +49,33 @@ static const unsigned long TransmitMessages[] = {
 	PGN_DEVICE_CONFIG,
 #endif
 
-	PGN_VESSEL_HEADING,			// sent by compass instrument
-	PGN_ENGINE_RAPID, 			// sent by engine instrument
-	PGN_ENGINE_DYNAMIC, 		// sent by engine instrument
-	PGN_FLUID_LEVEL, 			// sent by engine instrument
-	PGN_SPEED_WATER_REF,		// sent by log instrument
-	PGN_WATER_DEPTH,			// sent by depth instrument
-	// PGN_DISTANCE_LOG,
-	// PGN_POSITION_RAPID_UPDATE,
-	// PGN_COG_SOG_RAPID_UPDATE,
-	PGN_GNSS_POSITION_DATA,		// sent by gps instrument
-	PGN_LOCAL_TIME_OFFSET,
-	// PGN_DATUM,
-	// PGN_CROSS_TRACK_ERROR,
-	PGN_NAVIGATION_DATA,		// sent by autopilot instrument
-	// PGN_SET_AND_DRIFT,
-	// PGN_GNSS_SATS_IN_VIEW,
-	PGN_WIND_DATA,				// sent by wind instrument
-	// PGN_ENV_PARAMETERS,
-	PGN_DIRECTION_DATA,			// sent by log instrument
+	PGN_VESSEL_HEADING			,	// x = sent by compass instrument
+	PGN_HEADING_TRACK_CONTROL	,	// x = sent by autopilot instrument
+	PGN_ENGINE_RAPID 			,	// x = sent by engine instrument
+	PGN_ENGINE_DYNAMIC 			,	// x = sent by engine instrument
+	PGN_FLUID_LEVEL 			,	// x+x = sent by engine instrument
+	PGN_AGS_CONFIG_STATUS		,	// generator messages (not sent yet)
+	//PGN_AGS_STATUS				,
+	PGN_SPEED_WATER_REF			,	// 1 = sent by log instrument
+	PGN_WATER_DEPTH				,	// x = sent by depth instrument
+	PGN_DISTANCE_LOG			,	// 1 = sent by log instrument
+	//PGN_POSITION_RAPID_UPDATE	,
+	//PGN_COG_SOG_RAPID_UPDATE	,
+	PGN_GNSS_POSITION_DATA		,	// x = sent by gps instrument
+	//PGN_LOCAL_TIME_OFFSET		,
+	//PGN_AIS_CLASS_B_POSITION	,
+	//PGN_DATUM					,
+	PGN_CROSS_TRACK_ERROR		,	// x = sent by autopilot(routing) instrument
+	PGN_NAVIGATION_DATA			,	// x = sent by autopilot(routing) instrument
+	//PGN_SET_AND_DRIFT			,
+	//PGN_GNSS_SATS_IN_VIEW		,
+	//PGN_AIS_STATIC_B_PART_A		,
+	//PGN_AIS_STATIC_B_PART_B		,
+	PGN_WIND_DATA				,	// x+0 = sent by wind instrument
+	//PGN_ENV_PARAMETERS			,
+	//PGN_TEMPERATURE    			,
+	PGN_DIRECTION_DATA			,	// 1 = sent by gps instrument
+
 	0
 };
 

@@ -6,6 +6,7 @@
 #include "instST.h"
 #include "instSimulator.h"
 #include "boatSimulator.h"
+#include "timeLib.h"
 #include <myDebug.h>
 
 #define dbg_data 		(instruments.g_MON_OUT ? 0 : 1)
@@ -434,6 +435,40 @@ void gpsInst::sendSeatalk()
 		queueDatagram(dg);
 	}
 
+
+	if (1)	// GPS instrument sends date and time
+	{
+		int y = year() % 100;
+		int m = month();
+		int d = day();
+
+		display(dbg_data,"stDate(%02d/%02d/%02d)",y,m,d);
+		dg[0] = ST_DATE;
+		dg[1] = 0x01 | (m << 4);
+		dg[2] = d;
+		dg[3] = y;
+		queueDatagram(dg);
+
+		// RST is 12 bits (6 bits for minute, 6 bits for second)
+		// T is four bits (low order four bits of second)
+		// RS is eight bits (6 bits of minute followed by 2 bits of second)
+
+		int s = second();
+		int h = hour();
+		int mm = minute();
+
+		uint16_t RST = (mm << 6) | s;
+		uint16_t T = RST & 0xf;
+		uint16_t RS = RST >> 4;
+
+		display(dbg_data,"stDate(%02d:%02d:%02d)",h,mm,s);
+		dg[0] = ST_TIME;
+		dg[1] = 0x01 | (T << 4);
+		dg[2] = RS;
+		dg[3] = h;
+		queueDatagram(dg);
+	}
+
 	proc_leave();
 
 }	// gpsInst()
@@ -652,55 +687,6 @@ void gensetInst::sendSeatalk()
 }
 
 
-// INST_CLOCK
-//
-
-//	void stTime(uint16_t *dg)	// GMT
-//	{
-//		uint32_t elapsed = millis() - time_init;
-//		int hour_counter = (loop_counter / 10) % 24;
-//			// every 10 seconds we increment the hour
-//			// to help find all time bytes in raynet.pm
-//
-//		int secs = elapsed/1000  + hour_counter * 3600;
-//		int hour = secs / 3600;
-//		int minute = (secs - hour * 3600) / 60;
-//		secs = secs % 60;
-//
-//		if (hour > 23)
-//			hour = 0;
-//
-//		// RST is 12 bits (6 bits for minute, 6 bits for second)
-//		// T is four bits (low order four bits of second)
-//		// RS is eight bits (6 bits of minute followed by 2 bits of second)
-//
-//		uint16_t RST = (minute << 6) | secs;
-//		uint16_t T = RST & 0xf;
-//		uint16_t RS = RST >> 4;
-//
-//		dg[0] = ST_TIME;
-//		dg[1] = 0x01 | (T << 4);
-//		dg[2] = RS;
-//		dg[3] = hour;
-//	}
-//
-//
-//	void stDate(uint16_t *dg)
-//	{
-//		int year = time_year;
-//		int month = time_month;
-//		int day = time_day;
-//
-//		display(dbg_data,"stDate(%02d/%02d/%02d)",month,day,year);
-//		dg[0] = ST_DATE;
-//		dg[1] = 0x01 | (month << 4);
-//		dg[2] = day;
-//		dg[3] = year;
-//
-//		// if (loop_counter && loop_counter % 10 == 0)
-//		//	time_day = time_day == 1 ? 2 : 1;
-//
-//	}
 
 
 // end of instST_out.cpp

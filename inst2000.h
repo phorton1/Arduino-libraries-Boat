@@ -61,31 +61,32 @@
 #define PGN_PRODUCT_INFO			126996L
 #define PGN_DEVICE_CONFIG			126998L
 
-#define PGN_VESSEL_HEADING			127250L		// sent by compass instrument
-#define PGN_ENGINE_RAPID 			127488L		// sent by engine instrument
-#define PGN_ENGINE_DYNAMIC 			127489L		// sent by engine instrument
-#define PGN_FLUID_LEVEL 			127505L		// sent by engine instrument
+#define PGN_VESSEL_HEADING			127250L		// x = sent by compass instrument
+#define PGN_HEADING_TRACK_CONTROL	127237L		// x = sent by autopilot instrument
+#define PGN_ENGINE_RAPID 			127488L		// x = sent by engine instrument
+#define PGN_ENGINE_DYNAMIC 			127489L		// x = sent by engine instrument
+#define PGN_FLUID_LEVEL 			127505L		// x+x = sent by engine instrument
 #define PGN_AGS_CONFIG_STATUS		127512L		// generator messages (not sent yet)
 #define PGN_AGS_STATUS				127514L
-#define PGN_SPEED_WATER_REF			128259L		// sent by log instrument
-#define PGN_WATER_DEPTH				128267L		// sent by depth instrument
-#define PGN_DISTANCE_LOG			128275L
+#define PGN_SPEED_WATER_REF			128259L		// 1 = sent by log instrument
+#define PGN_WATER_DEPTH				128267L		// x = sent by depth instrument
+#define PGN_DISTANCE_LOG			128275L		// 1 = sent by log instrument
 #define PGN_POSITION_RAPID_UPDATE	129025L
 #define PGN_COG_SOG_RAPID_UPDATE	129026L
-#define PGN_GNSS_POSITION_DATA		129029L		// sent by gps instrument
+#define PGN_GNSS_POSITION_DATA		129029L		// x = sent by gps instrument
 #define PGN_LOCAL_TIME_OFFSET		129033L
 #define PGN_AIS_CLASS_B_POSITION	129039L
 #define PGN_DATUM					129044L
-#define PGN_CROSS_TRACK_ERROR		129283L
-#define PGN_NAVIGATION_DATA			129284L		// sent by autopilot instrument
+#define PGN_CROSS_TRACK_ERROR		129283L		// x = sent by autopilot(routing) instrument
+#define PGN_NAVIGATION_DATA			129284L		// x = sent by autopilot(routing) instrument
 #define PGN_SET_AND_DRIFT			129291L
 #define PGN_GNSS_SATS_IN_VIEW		129540L
 #define PGN_AIS_STATIC_B_PART_A		129809L
 #define PGN_AIS_STATIC_B_PART_B		129810L
-#define PGN_WIND_DATA				130306L		// sent by wind instrument
+#define PGN_WIND_DATA				130306L		// x+0 = sent by wind instrument
 #define PGN_ENV_PARAMETERS			130310L
 #define PGN_TEMPERATURE    			130316L
-#define PGN_DIRECTION_DATA			130577L		// sent by log instrument
+#define PGN_DIRECTION_DATA			130577L		// 1 = sent by gps instrument
 
 // proprietary messages from E80
 #define PGN_PROP_B_65311			65311L		// proprietary
@@ -117,7 +118,6 @@ public:
 	void broadcastNMEA2000Info();
 	void sendDeviceQuery();
 	void listDevices();
-
 
 	static bool m_MON_SENSORS;	// decode and show known sensor messages
 	static bool m_MON_GPS;		// decode and show known gps/satellite messages

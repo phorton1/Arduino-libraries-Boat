@@ -56,6 +56,7 @@ void boatSimulator::init()
 
 	if (!m_inited)
 	{
+		m_route_name = "";
 		setRoute(simulator_routes[0].name);
 		m_trip_on  = 1;
 		m_trip_distance = 0;
@@ -194,6 +195,7 @@ void boatSimulator::setRoute(const char *name)
 
 	const route_t *found = getRoute(name);
 	if (!found) return;
+	m_route_name = name;
 
 	m_start_wp_num = 0;
 	m_target_wp_num = 1;
@@ -689,20 +691,38 @@ void boatSimulator::calcuateCrossTrackError()
 //---------------------------------------------------
 
 
+float boatSimulator::headingTo(float lat, float lon, const waypoint_t *wp)
+{
+	double delta_lon = wp->lon - lon;
+	double y = sin(deg2rad(delta_lon)) * cos(deg2rad(wp->lat));
+	double x = cos(deg2rad(lat)) * sin(deg2rad(wp->lat)) -
+		sin(deg2rad(lat)) * cos(deg2rad(wp->lat)) * cos(deg2rad(delta_lon));
+	double heading_rad = atan2(y, x);
+	double heading_deg = rad2deg(heading_rad);
+	heading_deg = fmod((heading_deg + 360.0), 360.0);
+	return (float) heading_deg;
+}
+
+	
+float boatSimulator::distanceTo(float lat, float lon, const waypoint_t *wp)
+{
+	const double EARTH_RADIUS_NM = 3440.065; 	// in nautical miles
+    double d_lat = deg2rad(wp->lat - lat);
+    double d_lon = deg2rad(wp->lon - lon);
+    double a = sin(d_lat / 2) * sin(d_lat / 2) +
+        cos(deg2rad(lat)) * cos(deg2rad(wp->lat)) *
+        sin(d_lon / 2) * sin(d_lon / 2);
+    double c = 2 * std::atan2(std::sqrt(a), std::sqrt(1 - a));
+    return (float) (EARTH_RADIUS_NM * c);
+}
+
+
 float boatSimulator::headingToWaypoint()
 	// Returns heading in true degrees to given waypoint
 	// from current latitute and longitude
 {
 	const waypoint_t *wp = &m_waypoints[m_target_wp_num];
-
-	double delta_lon = wp->lon - m_longitude;
-	double y = sin(deg2rad(delta_lon)) * cos(deg2rad(wp->lat));
-	double x = cos(deg2rad(m_latitude)) * sin(deg2rad(wp->lat)) -
-		sin(deg2rad(m_latitude)) * cos(deg2rad(wp->lat)) * cos(deg2rad(delta_lon));
-	double heading_rad = atan2(y, x);
-	double heading_deg = rad2deg(heading_rad);
-	heading_deg = fmod((heading_deg + 360.0), 360.0);
-	return (float) heading_deg;
+	return headingTo(m_latitude,m_longitude,wp);
 }
 
 
@@ -711,15 +731,7 @@ float boatSimulator::distanceToWaypoint()
 	// from current latitute and longitude
 {
 	const waypoint_t *wp = &m_waypoints[m_target_wp_num];
-
-	const double EARTH_RADIUS_NM = 3440.065; 	// in nautical miles
-    double d_lat = deg2rad(wp->lat - m_latitude);
-    double d_lon = deg2rad(wp->lon - m_longitude);
-    double a = sin(d_lat / 2) * sin(d_lat / 2) +
-        cos(deg2rad(m_latitude)) * cos(deg2rad(wp->lat)) *
-        sin(d_lon / 2) * sin(d_lon / 2);
-    double c = 2 * std::atan2(std::sqrt(a), std::sqrt(1 - a));
-    return (float) (EARTH_RADIUS_NM * c);
+	return distanceTo(m_latitude,m_longitude,wp);
 }
 
 
@@ -835,7 +847,7 @@ void boatSimulator::sendBinaryBoatState(bool doit /*=1*/)
 
 	// display(0,"sendBinaryBoatState(%d)",doit);
 
-	uint8_t buf[sizeof(boatSimulator) + BINARY_HEADER_LEN + 2 * (MAX_WP_NAME + 1) + DATE_SIZE + 2];		// guaranteed to be big enough
+	uint8_t buf[sizeof(boatSimulator) + BINARY_HEADER_LEN + 16+1 + 2 * (MAX_WP_NAME + 1) + DATE_SIZE + 2];		// guaranteed to be big enough
 
 	const waypoint_t *start_wp = getWaypoint(m_start_wp_num);
 	const waypoint_t *target_wp = getWaypoint(m_target_wp_num);
@@ -846,6 +858,7 @@ void boatSimulator::sendBinaryBoatState(bool doit /*=1*/)
 	offset = binaryBool		(buf,offset,m_autopilot);
 	offset = binaryBool		(buf,offset,m_routing);
 	offset = binaryBool		(buf,offset,m_arrived);
+	offset = binaryFixStr	(buf,offset,m_route_name, 16);
 
 	offset = binaryBool		(buf,offset,m_trip_on);
 	offset = binaryFloat	(buf,offset,m_trip_distance);

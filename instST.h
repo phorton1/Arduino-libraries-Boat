@@ -26,8 +26,8 @@
 #define ST_LON			0x151		// 							recd
 #define ST_SOG			0x152		// instGPS(1)				recd
 #define ST_COG			0x153		// instGPS(1)				recd
-#define ST_TIME			0x154		//  						recd
-#define ST_DATE			0x156		//  						recd
+#define ST_TIME			0x154		// instGPS(1)				recd
+#define ST_DATE			0x156		// instGPS(1)				recd 						
 #define ST_SAT_INFO		0x157		// instGPS(x)				recd
 #define ST_LATLON		0x158		// instGPS(x)				recd
 #define ST_59			0x159		// 					o		recd

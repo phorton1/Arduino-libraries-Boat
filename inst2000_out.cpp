@@ -46,21 +46,8 @@ void logInst::send2000()
 		nmea2000.SendMsg(msg);
 	#endif
 
-	// PGN_DIRECTION_DATA
-	SetN2kPGN130577(msg, 			// msg
-		N2kDD025_Estimated,			// tN2kDataMode
-		N2khr_true,					// tN2kHeadingReference,
-		255,						// sid,
-		DegToRad(boat.getCOG()),		// COG in radians
-		KnotsToms(boat.getSOG()),			// SOG in m/s
-		DegToRad(boat.getHeading()),		// heading in radians
-		KnotsToms(boat.getWaterSpeed()),	// speed through water in m/s
-		KnotsToms(boat.getCurrentSet()),	// Set
-		KnotsToms(boat.getCurrentDrift()));	// Drift
-	nmea2000.SendMsg(msg);
-
 	#if 1
-
+		// PGN_DISTANCE_LOG
 		SetN2kPGN128275(msg,
 			0,	// DaysSince1970
 			0,	// SecondsSinceMidnight
@@ -133,6 +120,22 @@ void gpsInst::send2000()
 	// but we probably eventually will want to send PGN_GNSS_SATS_IN_VIEW (129540) calling
 	// SetN2kPGN129540() and AppendN2kPGN129540() every so often to spoof the satellilte
 	// display and/or the VHF
+
+	#if 1
+		// PGN_DIRECTION_DATA
+		SetN2kPGN130577(msg, 			// msg
+			N2kDD025_Estimated,			// tN2kDataMode
+			N2khr_true,					// tN2kHeadingReference,
+			255,						// sid,
+			DegToRad(boat.getCOG()),		// COG in radians
+			KnotsToms(boat.getSOG()),			// SOG in m/s
+			DegToRad(boat.getHeading()),		// heading in radians
+			KnotsToms(boat.getWaterSpeed()),	// speed through water in m/s
+			KnotsToms(boat.getCurrentSet()),	// Set
+			KnotsToms(boat.getCurrentDrift()));	// Drift
+		nmea2000.SendMsg(msg);
+	#endif
+
 }
 
 
@@ -146,87 +149,140 @@ void autopilotInst::send2000()
 	// With NMEA2000 I have not been able to get the waypoint name to show up on the E80,
 	// nor to get the arrival alarm to beep when I get to a waypoint.
 {
+	// PGN_HEADING_TRACK_CONTROL
 
-	if (boat.getAutopilot())
+	tN2kMsg msg;
+	SetN2kPGN127237(
+	  msg,
+	  N2kOnOff_Unavailable,           // RudderLimitExceeded
+	  N2kOnOff_Unavailable,           // OffHeadingLimitExceeded
+	  N2kOnOff_Unavailable,           // OffTrackLimitExceeded
+	  boat.getAutopilot() ? N2kOnOff_On : N2kOnOff_Off, // Override (used here to indicate autopilot state)
+	  N2kSM_HeadingControl,             // SteeringMode
+	  N2kTM_RudderLimitControlled,    // TurnMode (safe default)
+	  N2khr_true,                 	  // HeadingReference
+	  N2kRDO_NoDirectionOrder,        // CommandedRudderDirection
+	  N2kDoubleNA,                    // CommandedRudderAngle
+	  DegToRad(boat.getDesiredHeading()),		  // HeadingToSteerCourse
+	  N2kDoubleNA,                    // Track
+	  N2kDoubleNA,                    // RudderLimit
+	  N2kDoubleNA,                    // OffHeadingLimit
+	  N2kDoubleNA,                    // RadiusOfTurnOrder
+	  N2kDoubleNA,                    // RateOfTurnOrder
+	  N2kDoubleNA,                    // OffTrackLimit
+	  N2kDoubleNA                     // VesselHeading
+	);
+	nmea2000.SendMsg(msg);
+
+	static bool last_routing = false;
+	static int last_route_id = 1;
+	static int last_target = -1;
+	static const char *last_route = "";
+
+	bool routing = boat.getRouting();
+
+	if (last_routing && !routing)
 	{
-		uint32_t wp_num = boat.getTargetWPNum();
-		const waypoint_t *wp = boat.getWaypoint(wp_num);
-		double dist = boat.distanceToWaypoint();
-		bool arrived = boat.getArrived();
+		last_routing = routing;
+		display(0, "inst2000 routing turned off",0);
+		last_route_id = 1;
+		last_target = -1;
+		last_route = "";
+	}
+	else if (routing)
+	{
+		if (!last_routing)
+			display(0, "Inst2000 routing turned on",0);
+		last_routing = routing;
 
-		tN2kMsg msg;
+		int target_num = boat.getTargetWPNum();
+		if (last_target != target_num || strcmp(last_route, boat.getRouteName()))
+		{
+			last_route_id++;
+			last_target = target_num;
+			last_route = boat.getRouteName();
+			display(0, "Inst2000 Routing Sending Waypoints for Route(%s)", last_route);
+
+			const uint16_t db_id = 237;
+			const uint16_t route_id = last_route_id;
+			const tN2kNavigationDirection direction = N2kdir_forward;
+			const tN2kGenericStatusPair supplementary = N2kDD002_No;
+
+			tN2kMsg msg;
+			SetN2kPGN129285(msg, 0, db_id, route_id, direction, last_route, supplementary);
+			for (int i = 0; i < boat.getNumWaypoints(); i++)
+			{
+				const waypoint_t *rte_pt = boat.getWaypoint(i);
+				display(0, "   adding wpt(%d,%s)", i, rte_pt->name);
+				if (!AppendN2kPGN129285(msg, i, rte_pt->name, rte_pt->lat, rte_pt->lon))
+				{
+					// Message full — send and start a new one
+					// Start a new message with same route header
+					nmea2000.SendMsg(msg);
+					SetN2kPGN129285(msg, 0, db_id, route_id, direction, last_route, supplementary);
+					if (!AppendN2kPGN129285(msg, i, rte_pt->name, rte_pt->lat, rte_pt->lon))
+					{
+						warning(0, "Waypoint too large to fit in empty PGN at i=%d", i);
+						break;
+					}
+				}
+			}
+
+			// Send final message if it has any waypoints
+			if (msg.DataLen > 0)
+				nmea2000.SendMsg(msg);
+
+		}	// sending route
+
+
+		int start_num = boat.getStartWPNum();
+		const waypoint_t *start_wp = boat.getWaypoint(start_num);
+		const waypoint_t *target_wp = boat.getWaypoint(target_num);
+
+		bool arrived = boat.getArrived();
+		double wp_dist = boat.distanceToWaypoint();
+		double wp_bearing = boat.headingToWaypoint();
+		double rte_heading = boat.headingTo(start_wp->lat,start_wp->lon,target_wp);
+
 		// PGN_NAVIGATION_DATA,
 		// Note that unlike NMEA0183, the waypoint name is not included and does not
 			// show up on the E80 ...
 
+		time_t now = time(NULL);
+		uint16_t eta_date = (now / 86400);  // Days since Jan 1, 1970
+
+
 		SetN2kPGN129284(msg, 255,		// msg, sid
-			dist * NM_TO_METERS,		// double DistanceToWaypoint (undocumented: IN METERS!!)
+			wp_dist * NM_TO_METERS,		// double DistanceToWaypoint (undocumented: IN METERS!!)
 			N2khr_true,					// tN2kHeadingReference BearingReference
 			false, 						// bool PerpendicularCrossed
 			arrived,					// bool ArrivalCircleEntered
-			N2kdct_GreatCircle,			// tN2kDistanceCalculationType CalculationType
-			0.0,						// double BearingOriginToDestinationWaypoint
-			0.0,						// double ETATime	// The E80 calculates the time to the waypoint as hh:mm:ss
-			0,							// int16_t ETADate
-			DegToRad(boat.headingToWaypoint()),	 // double BearingPositionToDestinationWaypoint (I assume this is true radians)
-			wp_num-1,					// uint32_t OriginWaypointNumber
-			wp_num,						// uint32_t DestinationWaypointNumber,
-			wp->lat,					// double DestinationLatitude,
-			wp->lon,					// double DestinationLongitude,
-			KnotsToms(boat.getCOG()));	// double WaypointClosingVelocity);
+			N2kdct_GreatCircle,			// tN2kDistanceCalculationType CalculationTyp
+			N2kDoubleNA,				// double ETATime	// The E80 calculates the time to the waypoint as hh:mm:ss
+			eta_date,					// made up NA variable; was 0, int16_t ETADate
+			DegToRad(rte_heading),		// double BearingOriginToDestinationWaypoint
+			DegToRad(wp_bearing),	 	// double BearingPositionToDestinationWaypoint (I assume this is true radians)
+			start_num,					// uint32_t OriginWaypointNumber
+			target_num,					// uint32_t DestinationWaypointNumber,
+			target_wp->lat,				// double DestinationLatitude,
+			target_wp->lon,				// double DestinationLongitude,
+			N2kDoubleNA);				// KnotsToms(boat.getCOG()));	// double WaypointClosingVelocity);
 		nmea2000.SendMsg(msg);
 
-		// no joy trying to get alarm to beep or E80 start "following::
-		// or show the waypoint names (like I CAN do with NMEA0183)
+		// PGN_CROSS_TRACK_ERROR
 
-		#if 0
-			SetN2kPGN129283(
-				msg,
-				255,                      // SID (sequence ID, arbitrary or 0xff)
-				N2kxtem_Estimated,   	  // tN2kXTEMode
-				false,                    // NavigationTerminated
-				5.0 );					  // XTE in meters
-			nmea2000.SendMsg(msg);
+		SetN2kPGN129283(
+			msg,
+			255,                      // SID (sequence ID, arbitrary or 0xff)
+			N2kxtem_Estimated,   	  // tN2kXTEMode
+			false,                    // NavigationTerminated
+			boat.getCrossTrackError() * NM_TO_METERS);	// XTE in meters
+		nmea2000.SendMsg(msg);
 
-			// try sending a route to the E80
 
-			static bool one_time = true;
-			if (one_time)
-			{
-				display(0,"adding route",0);
+	}	// Routing
+}	// instAutopilot
 
-				one_time = false;
-				SetN2kPGN129285(msg,
-					0,				// uint16_t id of the first waypoint
-					237,			// uint16_t id of the database Database,
-					0,				// uint16_t id of the Route
-					N2kdir_forward,	// tN2kNavigationDirection(0),
-					"POPA",			// const char* RouteName,
-					N2kDD002_No);	// tN2kGenericStatusPair SupplementaryData=N2kDD002_No);
-
-				for (int i=0; i<boat.getNumWaypoints(); i++)
-				{
-					const waypoint_t *rte_pt = boat.getWaypoint(i);
-					display(0,"adding wpt(%d,%s)",i,rte_pt->name);
-
-					if (!AppendN2kPGN129285(msg,
-											i,				// uint16_t WPID,
-											rte_pt->name,	// const char* WPName,
-											rte_pt->lat,	// double Latitude,
-											rte_pt->lon))	// double Longitude
-					{
-						warning(0,"ran out of room for route at i=%d",i);
-						i = boat.getNumWaypoints();
-						break;
-					}
-				}
-				nmea2000.SendMsg(msg);
-			}	// if (one_time)
-
-		#endif
-
-	}	// autopilot engaged
-}
 
 
 void engineInst::send2000()
