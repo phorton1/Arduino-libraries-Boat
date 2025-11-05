@@ -10,7 +10,7 @@
 #include <TimeLib.h>
 
 #define dbg_sim	 (1 - boat.g_MON_SIM)
-#define dbg_ap  1
+#define dbg_ap  0
 
 #define SIMULATION_INTERVAL		1000	// ms
 #define CLOSEST_NONE			65535	// exact
@@ -112,7 +112,7 @@ void boatSimulator::init()
 	m_fuel_level1 		= 0.48;
 	m_fuel_level2 		= 0.52;
 
-	m_genset 			= false;
+	m_genset 			= 1;	// false;
 	m_gen_rpm 			= 0;
 	m_gen_oil_pressure	= 0;
 	m_gen_cool_temp		= 0;
@@ -412,12 +412,12 @@ void boatSimulator::run()
 	{
 		#define ACCELERATED_USE   10
 
-		m_oil_pressure = 	m_rpm == 0 ? 0 : 5    + (m_rpm / 900) * 20.0; 	// psi
-		m_boost_pressure = 	m_rpm == 0 ? 0 : 0    + (m_rpm / 900) * 10.0; 	// psi
-		m_oil_temp = 		m_rpm == 0 ? 0 : 120  + (m_rpm / 900) * 20.0;   // farenheight
-		m_coolant_temp =	m_rpm == 0 ? 0 : 90   + (m_rpm / 900) * 20.0;  	// farenheight
-		m_alt_voltage = 	m_rpm == 0 ? 0 : 10.0 + (m_rpm / 900) * 1.0;
-		m_fuel_rate = 		m_rpm == 0 ? 0 : 0.1  + (m_rpm / 900) * 1.0;  	// gph
+		m_oil_pressure = 	m_rpm == 0 ? 0 : 5    + (((float)m_rpm) / 900) * 20.0; 	// psi
+		m_boost_pressure = 	m_rpm == 0 ? 0 : 0    + (((float)m_rpm) / 900) * 10.0; 	// psi
+		m_oil_temp = 		m_rpm == 0 ? 0 : 120  + (((float)m_rpm) / 900) * 20.0;   // farenheight
+		m_coolant_temp =	m_rpm == 0 ? 0 : 90   + (((float)m_rpm) / 900) * 20.0;  	// farenheight
+		m_alt_voltage = 	m_rpm == 0 ? 0 : 10.0 + (((float)m_rpm) / 900) * 1.0;
+		m_fuel_rate = 		m_rpm == 0 ? 0 : 0.1  + (((float)m_rpm) / 900) * 1.0;  	// gph
 
 		if (m_rpm && ACCELERATED_USE)
 			m_fuel_rate *= ACCELERATED_USE;
@@ -478,7 +478,7 @@ void boatSimulator::doAutopilot()
 	if (m_routing)
 		m_desired_heading = headingToWaypoint();
 		
-	display(dbg_ap,"AP routing(%d) desired_heading(%0.1f)",
+	display(dbg_ap+1,"AP routing(%d) desired_heading(%0.1f)",
 		m_routing, m_desired_heading);
 	proc_entry();
 
@@ -492,7 +492,7 @@ void boatSimulator::doAutopilot()
 		if (feet_to_wp < ((uint32_t) m_closest))
 			m_closest = feet_to_wp;
 
-		display(dbg_ap,"ROUTING feet_to_wp(%d) arr(%d) m_arrived(%d) m_closest(%d)",
+		display(dbg_ap+1,"ROUTING feet_to_wp(%d) arr(%d) m_arrived(%d) m_closest(%d)",
 			feet_to_wp,
 			arr,
 			m_arrived,
@@ -523,7 +523,7 @@ void boatSimulator::doAutopilot()
 					m_arrived = false;
 					m_closest = CLOSEST_NONE;
 					m_desired_heading = headingToWaypoint();
-					display(dbg_ap,"new target_wp_num($%d) desired_heading(%0.1f)",
+					display(dbg_ap+1,"new target_wp_num($%d) desired_heading(%0.1f)",
 						m_target_wp_num,m_desired_heading);
 				}
 				else
@@ -566,7 +566,7 @@ void boatSimulator::doAutopilot()
 	double estimated_set = fmod(450 - rad2deg(atan2(current_vy, current_vx)), 360);
 	double estimated_drift = sqrt(current_vx * current_vx + current_vy * current_vy);
 
-	display(dbg_ap,"m_heading(%0.1f) rad(%0.3f)  cog(%0.1f) rad(%0.3f)  water_speed(%0.3f)",
+	display(dbg_ap+2,"m_heading(%0.1f) rad(%0.3f)  cog(%0.1f) rad(%0.3f)  water_speed(%0.3f)",
 		m_heading,
 		heading_rad,
 		m_cog,
@@ -574,7 +574,7 @@ void boatSimulator::doAutopilot()
 		m_water_speed);
 	proc_entry();
 
-	display(dbg_ap,"boat_vx(%0.3f) vy(%0.3f)   sog_vx(%0.3f) vy(%0.3f)   current_vx(%0.3f) vy(%0.3f)",
+	display(dbg_ap+2,"boat_vx(%0.3f) vy(%0.3f)   sog_vx(%0.3f) vy(%0.3f)   current_vx(%0.3f) vy(%0.3f)",
 		boat_vx,
 		boat_vy,
 		sog_vx,
@@ -582,7 +582,7 @@ void boatSimulator::doAutopilot()
 		current_vx,
 		current_vy);
 
-	display(dbg_ap,"local (relative?) estimated_set(%0.3f) estimated_drift(%0.3f)",
+	display(dbg_ap+2,"local (relative?) estimated_set(%0.3f) estimated_drift(%0.3f)",
 		estimated_set,
 		estimated_drift);
 
@@ -596,7 +596,7 @@ void boatSimulator::doAutopilot()
 	m_estimated_set = (1.0 - learn_rate) * m_estimated_set + learn_rate * estimated_set;
 	m_estimated_drift = (1.0 - learn_rate) * m_estimated_drift + learn_rate * estimated_drift;
 
-	display(dbg_ap,"learn_rate(%0.3f) m_estimated_set(%0.3f) m_estimated_drift(%0.3f)",
+	display(dbg_ap+2,"learn_rate(%0.3f) m_estimated_set(%0.3f) m_estimated_drift(%0.3f)",
 		learn_rate,
 		m_estimated_set,
 		m_estimated_drift);
@@ -621,12 +621,12 @@ void boatSimulator::doAutopilot()
 	if (adjustment > 10.0) adjustment = 10.0;
 	if (adjustment < -10.0) adjustment = -10.0;
 
-	display(dbg_ap,"heading_error(%0.3f) = m_desired_heading(%0.3f) - m_cog(%0.3f)",
+	display(dbg_ap+2,"heading_error(%0.3f) = m_desired_heading(%0.3f) - m_cog(%0.3f)",
 		heading_error,
 		m_desired_heading,
 		m_cog);
 
-	display(dbg_ap,"adjustment(%0.3f) = turn_rate(%0.3f) * heading_error(%0.3f)",
+	display(dbg_ap+2,"adjustment(%0.3f) = turn_rate(%0.3f) * heading_error(%0.3f)",
 		adjustment,
 		turn_rate,
 		heading_error);
@@ -635,7 +635,7 @@ void boatSimulator::doAutopilot()
 	if (m_heading < 0) m_heading += 360;
 	if (m_heading >= 360) m_heading -= 360;
 
-	display(dbg_ap,"FINAL m_heading(%0.3f) = previous m_heading + adjustment",
+	display(dbg_ap+2,"FINAL m_heading(%0.3f) = previous m_heading + adjustment",
 		m_heading);
 	proc_leave();
 
@@ -653,6 +653,17 @@ void boatSimulator::doAutopilot()
 
 void boatSimulator::calcuateCrossTrackError()
 {
+
+	if (0)
+	{
+		static float xte = 3.0;
+		xte -= 0.01;
+		if (xte <= 0) xte = 3.0;
+		display(0,"xte=%0.3f",xte);
+		m_track_error = xte;
+		return;
+	}
+
 	// calculate track error from current position to line between start and target waypoint
 
 	const waypoint_t *start_wp = &m_waypoints[m_start_wp_num];

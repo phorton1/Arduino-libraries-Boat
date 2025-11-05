@@ -76,6 +76,17 @@ static const unsigned long TransmitMessages[] = {
 	//PGN_TEMPERATURE    			,
 	PGN_DIRECTION_DATA			,	// 1 = sent by gps instrument
 
+#if 1
+	65026L,
+	65027L,
+	65029L,
+	65030L,
+	65288L,         // Raymarine proprietary PGN
+	127505L,         // PGN for AC Output Status
+	127504L,
+#endif
+
+
 	0
 };
 
@@ -94,22 +105,45 @@ void inst2000::init()
 	// set device information
 	// I am not currently calling SetDeviceInstance() but it's working "ok"
 
-	SetProductInformation(
-		"prh_model_1000",            // Manufacturer's Model serial code
-		1000,                        // Manufacturer's uint8_t product code
-		"teensyBoat multi-interface",       // Manufacturer's Model ID
-		"prh_sw_100.0",             // Manufacturer's Software version code
-		"prh_mv_100.0",             // Manufacturer's uint8_t Model version
-		3,                          // LoadEquivalency uint8_t 3=150ma; Default=1. x * 50 mA
-		2101,                       // N2kVersion Default=2101
-		1,                          // CertificationLevel Default=1
-		0                           // iDev (int) index of the device on \ref Devices
+	if (0)
+	{
+		SetProductInformation(
+			"RayGen_1000",               // Manufacturer's Model serial code (Raymarine-style prefix)
+			1000,                        // Manufacturer's product code
+			"Raymarine Genset Interface",// Manufacturer's Model ID (clear Raymarine branding)
+			"RG_SW_1.0.0",               // Software version code (Raymarine-style prefix)
+			"RG_HW_1.0.0",               // Model version (Raymarine-style prefix)
+			3,                           // LoadEquivalency (3 × 50 mA = 150 mA)
+			2101,                        // NMEA 2000 version
+			1,                           // Certification level
+			0                            // Device index
 		);
-	SetConfigurationInformation(
-		"prhSystems",           // ManufacturerInformation
-		"MonitorInstall1",      // InstallationDescription1
-		"MonitorInstall2"       // InstallationDescription2
+
+		SetConfigurationInformation(
+			"Raymarine Ltd.",            // ManufacturerInformation (official branding)
+			"RayGenSim Install 1",       // InstallationDescription1 (Raymarine-style naming)
+			"RayGenSim Install 2"        // InstallationDescription2
 		);
+	}
+	else
+	{
+		SetProductInformation(
+			"prh_model_1000",            // Manufacturer's Model serial code
+			1000,                        // Manufacturer's uint8_t product code
+			"teensyBoat multi-interface",       // Manufacturer's Model ID
+			"prh_sw_100.0",             // Manufacturer's Software version code
+			"prh_mv_100.0",             // Manufacturer's uint8_t Model version
+			3,                          // LoadEquivalency uint8_t 3=150ma; Default=1. x * 50 mA
+			2101,                       // N2kVersion Default=2101
+			1,                          // CertificationLevel Default=1
+			0                           // iDev (int) index of the device on \ref Devices
+			);
+		SetConfigurationInformation(
+			"prhSystems",           // ManufacturerInformation
+			"MonitorInstall1",      // InstallationDescription1
+			"MonitorInstall2"       // InstallationDescription2
+			);
+	}
 
 	// for device class and functions see
 	//		docs/ref/nmea_2000/20120726_nmea_2000_class_&_function_codes_v_2.00-1 obtained from the wayback machine at:
@@ -118,12 +152,24 @@ void inst2000::init()
 	//		docs/ref/nmea2000/20121020_nmea_2000_registration_list.pdf obtained from wayback machine at
 	//		https://web.archive.org/web/20190529161431/http://www.nmea.org/Assets/20121020%20nmea%202000%20registration%20list.pdf
 
-	SetDeviceInformation(
-		123456,  // uint32_t Unique number, i.e. Serial number.
-		130,     // uint8_t  Device function = Analog to NMEA 2000 Gateway
-		25,      // uint8_t  Device class = Inter/Intranetwork Device
-		2046     // uint16_t Registration/Company) ID // 2046 does not exist; choosen arbitrarily
+	if (0)
+	{
+		SetDeviceInformation(
+			123456,  // Unique number (serial)
+			10,       // Device function = AC Generator (or try 15)  (0=generic)
+			30,      // Device class = Electrical Generation
+			1851     // Manufacturer ID (can remain arbitrary if not claiming a known brand)
 		);
+	}
+	else
+	{
+		SetDeviceInformation(
+			123456,  // uint32_t Unique number, i.e. Serial number.
+			130,     // uint8_t  Device function = Analog to NMEA 2000 Gateway
+			25,      // uint8_t  Device class = Inter/Intranetwork Device
+			2046     // uint16_t Registration/Company) ID // 2046 does not exist; choosen arbitrarily
+			);
+	}
 
 	// set Device Mode and it's address(99)
 
@@ -189,16 +235,25 @@ void inst2000::init()
 
 void inst2000::broadcastNMEA2000Info()
 {
-	#define NUM_INFOS		4
-	#define MSG_SEND_TIME	2000
+	#define NUM_INFOS			4
+	#define MSG_SEND_INTERVAL	2000
+	#define MSG_SEND_TIME		30000
+
 	static int info_sent;
 	static uint32_t last_send_time;
 
 	uint32_t now = millis();
-	if (info_sent < NUM_INFOS && now - last_send_time > MSG_SEND_TIME)
+	if (info_sent >= NUM_INFOS && now - last_send_time > MSG_SEND_TIME)
+	{
+		info_sent = 0;
+		last_send_time = now;
+	}
+	else if (info_sent < NUM_INFOS && now - last_send_time > MSG_SEND_INTERVAL)
 	{
 		last_send_time = now;
 		ParseMessages(); // Keep parsing messages
+
+		display(0,"Sending NMEA2000Info(%d)",info_sent);
 
 		// at this time I have not figured out the actisense reader, and how to
 		// get the whole system to work so that when it asks for device configuration(s)

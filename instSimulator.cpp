@@ -30,6 +30,9 @@
 
 #define UPDATE_MILLIS	1000
 
+#define BROADCAST_NMEA2000_INFO   1
+
+
 bool instSimulator::g_MON_OUT = 0;
 
 instSimulator instruments;
@@ -231,6 +234,10 @@ void instSimulator::run()
 
 	#if 1	// listen for NMEA2000 data
 		nmea2000.ParseMessages(); // Keep parsing messages
+	#endif
+
+	#if BROADCAST_NMEA2000_INFO
+		nmea2000.broadcastNMEA2000Info();
 	#endif
 
 	#if 1	// listen for NMEA0183 data

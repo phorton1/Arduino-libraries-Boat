@@ -145,6 +145,19 @@ void aisInst::send2000()
 }
 
 
+
+static void fillName(int fullbufsize, char *buf, const char *name)
+{
+	int bufsize = fullbufsize-1;
+	int len = strlen(name);
+	if (len > bufsize)
+		len = bufsize;
+	memset(buf,' ',fullbufsize);
+	memcpy(buf,name,len);
+	// buf[bufsize] = 0;
+}
+
+
 void autopilotInst::send2000()
 	// With NMEA2000 I have not been able to get the waypoint name to show up on the E80,
 	// nor to get the arrival alarm to beep when I get to a waypoint.
@@ -178,6 +191,15 @@ void autopilotInst::send2000()
 	static int last_route_id = 1;
 	static int last_target = -1;
 	static const char *last_route = "";
+	int start_num = boat.getStartWPNum();
+	int target_num = boat.getTargetWPNum();
+	const waypoint_t *start_wp = boat.getWaypoint(start_num);
+	const waypoint_t *target_wp = boat.getWaypoint(target_num);
+
+	bool arrived = boat.getArrived();
+	double wp_dist = boat.distanceToWaypoint();
+	double wp_bearing = boat.headingToWaypoint();
+	double rte_heading = boat.headingTo(start_wp->lat,start_wp->lon,target_wp);
 
 	bool routing = boat.getRouting();
 
@@ -195,8 +217,38 @@ void autopilotInst::send2000()
 			display(0, "Inst2000 routing turned on",0);
 		last_routing = routing;
 
-		int target_num = boat.getTargetWPNum();
-		if (last_target != target_num || strcmp(last_route, boat.getRouteName()))
+		if (1)
+		{
+			// proprietary PGN 130918 - Seatalk Route Information
+			// found on https://github.com/canboat/canboat/blob/master/analyzer/pgn.h
+
+			char startName[16];
+			char targetName[16];
+			fillName(16,startName,start_wp->name);
+			fillName(16,targetName,target_wp->name);
+			
+			msg.SetPGN(130918L);
+			msg.Priority = 7;  					// Raymarine uses priority 7 for route info
+			msg.Add2ByteUInt(1851);				// Company ID (1851 == raymarine)
+			//msg.AddByte(0xFF);  				// SID (optional, often 0xFF)
+			msg.Add2ByteUInt(target_num);		// Next waypoint sequence number
+			msg.AddStr(targetName, 16);			// Next waypoint name (fixed 16 bytes, padded with nulls)
+			msg.Add2ByteUInt(start_num);		// Current waypoint sequence number
+			msg.AddStr(startName, 16);			// Current waypoint name (fixed 16 bytes, padded with nulls)
+			msg.AddByte(0);  					// Assume True; Unknown byte (possibly direction reference: 0 = True, 1 = Magnetic)
+			msg.Add4ByteUDouble(boat.distanceToWaypoint(), 1.0);				// Distance to next waypoint (meters, scaled as UFIX32)
+			msg.Add2ByteUDouble(DegToRad(boat.headingToWaypoint()), 0.0001);	// Bearing from current position to next waypoint (True, scaled as 0.0001 rad)
+			msg.Add2ByteUDouble(DegToRad(boat.headingTo(						// Bearing from current WP to next WP (True, scaled as 0.0001 rad)
+				start_wp->lat,
+				start_wp->lon,
+				target_wp)), 0.0001);
+			nmea2000.SendMsg(msg);
+		}
+
+
+		// didn't work
+
+		if (0 && last_target != target_num || strcmp(last_route, boat.getRouteName()))
 		{
 			last_route_id++;
 			last_target = target_num;
@@ -235,14 +287,7 @@ void autopilotInst::send2000()
 		}	// sending route
 
 
-		int start_num = boat.getStartWPNum();
-		const waypoint_t *start_wp = boat.getWaypoint(start_num);
-		const waypoint_t *target_wp = boat.getWaypoint(target_num);
 
-		bool arrived = boat.getArrived();
-		double wp_dist = boat.distanceToWaypoint();
-		double wp_bearing = boat.headingToWaypoint();
-		double rte_heading = boat.headingTo(start_wp->lat,start_wp->lon,target_wp);
 
 		// PGN_NAVIGATION_DATA,
 		// Note that unlike NMEA0183, the waypoint name is not included and does not
@@ -251,11 +296,10 @@ void autopilotInst::send2000()
 		time_t now = time(NULL);
 		uint16_t eta_date = (now / 86400);  // Days since Jan 1, 1970
 
-
 		SetN2kPGN129284(msg, 255,		// msg, sid
 			wp_dist * NM_TO_METERS,		// double DistanceToWaypoint (undocumented: IN METERS!!)
 			N2khr_true,					// tN2kHeadingReference BearingReference
-			false, 						// bool PerpendicularCrossed
+			arrived, 					// bool PerpendicularCrossed
 			arrived,					// bool ArrivalCircleEntered
 			N2kdct_GreatCircle,			// tN2kDistanceCalculationType CalculationTyp
 			N2kDoubleNA,				// double ETATime	// The E80 calculates the time to the waypoint as hh:mm:ss
@@ -340,13 +384,99 @@ void engineInst::send2000()
 
 
 
+
 void gensetInst::send2000()
 {
-#if 0	// nothing worked
+
+	display(0,"genset2000",0);
 
 	tN2kMsg msg;
 
-	// PGN 127504: AC Input Status
+#if 1
+	// PGN 65288 – Raymarine proprietary engine/genset data
+	msg.SetPGN(65288L);
+	msg.Priority = 3;
+	msg.AddByte(0x10);				// Engine Instance (0x10 = genset)
+	msg.Add2ByteUInt(3000);			// RPM (3000 * 0.25 = 750 RPM)
+	msg.Add2ByteUInt(12000);		// Voltage (120.00 V)
+	msg.Add2ByteUInt(100);			// Current (10.0 A)
+	msg.AddByte(0x01);				// Status Flags (e.g., running)
+	msg.Add2ByteUInt(500);			// Load % (50.0%)
+	msg.Add2ByteUInt(80);			// Fuel Rate (8.0 L/h)
+	msg.Add2ByteUInt(0);			// Reserved or temp
+	nmea2000.SendMsg(msg);
+#endif
+
+
+#if 1
+	// PGN 65026 – Generator Phase A AC Power
+	msg.SetPGN(65026L);
+	msg.Priority = 3;
+	msg.Add4ByteUInt(400);		// Real Power (Watts), signed 32-bit
+	msg.Add4ByteUInt(500);		// Apparent Power (VA), signed 32-bit
+	nmea2000.SendMsg(msg);
+#endif
+
+#if 1
+	// PGN 65027 – Generator Phase A Basic AC Quantities
+	msg.SetPGN(65027L);
+	msg.Priority = 3;
+	msg.Add2ByteUDouble(120.0, 0.01);   		// Line-Line Voltage (V)
+	msg.Add2ByteUDouble(120.0, 0.01);   		// Line-Neutral Voltage (V)
+	msg.Add2ByteUDouble(60.0, 1.0/128.0); 		// Frequency (Hz)
+	msg.Add2ByteUDouble(10.0, 0.1);     		// RMS Current (A)
+	nmea2000.SendMsg(msg);
+#endif
+
+
+#if 1
+	// PGN 65029 – Total AC Power
+	msg.SetPGN(65029L);
+	msg.Priority = 3;
+	msg.Add4ByteUInt(1200);		// Real Power (Watts), ie 1200, signed 32-bit with offset
+	msg.Add4ByteUInt(1500);		// Apparent Power (VA), ie 1500, signed 32-bit with offset
+	nmea2000.SendMsg(msg);
+#endif
+
+#if 1
+	// PGN 65030 – Average AC Quantities
+	msg.SetPGN(65030L);
+	msg.Priority = 3;
+	msg.Add2ByteUDouble(120.0, 0.01);   	// Line-Line Voltage
+	msg.Add2ByteUDouble(120.0, 0.01);   	// Line-Neutral Voltage
+	msg.Add2ByteUDouble(60.0, 1.0/128.0); 	// Frequency
+	msg.Add2ByteUDouble(10.0, 0.1);     	// RMS Current
+	nmea2000.SendMsg(msg);
+#endif
+
+
+#if 1
+
+	msg.SetPGN(65288L);          // Raymarine proprietary PGN
+	msg.Priority = 3;
+	msg.AddByte(0xFF);           // SID (optional)
+	msg.AddByte(1);              // EngineInstance (1 = genset)
+	msg.Add2ByteUDouble(1800.0, 0.25);   // RPM (scaled by 0.25)
+	msg.Add2ByteUDouble(120.0, 0.01);    // Voltage (scaled by 0.01)
+	msg.Add2ByteUDouble(5.0, 0.1);       // Current (scaled by 0.1)
+	msg.Add2ByteUDouble(2.5, 0.1);       // Load (scaled by 0.1)
+	msg.Add2ByteUDouble(1.2, 0.1);       // Fuel Rate (scaled by 0.1)
+	msg.AddByte(0);              // Status byte (0 = OK)
+
+	nmea2000.SendMsg(msg);
+
+
+	// PGN 127505: AC Output Status
+
+	msg.SetPGN(127505L);         // PGN for AC Output Status
+	msg.Priority = 3;
+	msg.AddByte(0xFF);           // SID (Sequence ID, optional)
+	msg.AddByte(0);              // AC Instance (0 = first output channel)
+	msg.Add2ByteUDouble(120.0, 0.01);   // Line Voltage in Volts (resolution 0.01 V)
+	msg.Add2ByteUDouble(60.0, 0.001);   // Line Frequency in Hz (resolution 0.001 Hz)
+	msg.Add2ByteUDouble(10.0, 0.1);     // Current in Amps (resolution 0.1 A)
+	msg.Add2ByteUDouble(1.0, 0.001);    // Power Factor (1.0 = unity)
+	msg.AddByte(0);              // Reserved
 
 	msg.SetPGN(127504L);
 	msg.Priority = 3;
@@ -358,11 +488,17 @@ void gensetInst::send2000()
 	msg.AddByte(0);                  // Reserved
 	nmea2000.SendMsg(msg);
 
+#endif
+
+#if 1	// nothing worked
+
 	// PGN_ENGINE_RAPID
+
+	int instance = 0x01;
 
 	SetN2kPGN127488(
 			msg,
-			1,					// EngineInstance
+			instance,					// EngineInstance
 			boat.getGenRPM(),	// EngineSpeed
 			N2kDoubleNA,		// EngineBoostPressure
 			N2kUInt8NA);		// EngineTiltTrim
@@ -374,7 +510,7 @@ void gensetInst::send2000()
 	static tN2kEngineDiscreteStatus2 status2;		// filled with zeros
 
 	SetN2kPGN127489(msg,
-		1,											// EngineInstance
+		instance,											// EngineInstance
 		boat.getGenOilPressure() * PSI_TO_PASCAL,	// EngineOilPress      in Pascal
 		FToKelvin(boat.getOilTemp()),								// EngineOilTemp       in Kelvin
 		FToKelvin(boat.getGenCoolTemp()),			// EngineCoolantTemp   in Kelvin
