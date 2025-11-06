@@ -8,10 +8,10 @@
 #define BREADBOARD	1
 
 #if BREADBOARD
-	#define SERIAL_0183 	Serial4
-	#define SERIAL_SEATALK	Serial3
+	#define SERIAL_0183 	Serial3		// NMEA0183-1
+	#define SERIAL_SEATALK	Serial2
 #else
-	#define SERIAL_0183 	Serial3
+	#define SERIAL_0183 	Serial3		// NMEA0183-1
 	#define SERIAL_SEATALK	Serial4
 #endif
 
