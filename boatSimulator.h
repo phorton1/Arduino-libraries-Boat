@@ -55,7 +55,7 @@ public:
 
 	float	 getDepth()				{ return m_depth; }				// feet below surface
 	float	 getHeading()			{ return m_heading; }			// the true direction the boat is pointing
-	float	 getWaterSpeed()		{ return m_water_speed; }		// water relative to boat as measured by log instrument
+	float	 getWaterSpeed()		{ return m_water_speed; }		// water relative to boat as measured by logInst
 	float 	 getCurrentSet()		{ return m_current_set; }		// direction current is going to
 	float 	 getCurrentDrift()		{ return m_current_drift; }		// speed of the current
 	double	 getDesiredHeading()	{ return m_desired_heading; }	// for AP, separate from routing

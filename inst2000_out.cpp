@@ -167,7 +167,7 @@ static void fillName(int fullbufsize, char *buf, const char *name)
 }
 
 
-void autopilotInst::send2000()
+void apInst::send2000()
 	// With NMEA2000 I have not been able to get the waypoint name to show up on the E80,
 	// nor to get the arrival alarm to beep when I get to a waypoint.
 {
@@ -333,7 +333,7 @@ void autopilotInst::send2000()
 
 
 
-void engineInst::send2000()
+void engInst::send2000()
 {
 	tN2kMsg msg;
 
@@ -385,7 +385,7 @@ void engineInst::send2000()
 
 
 
-void gensetInst::send2000()
+void genInst::send2000()
 {
 
 	display(1,"genset2000",0);

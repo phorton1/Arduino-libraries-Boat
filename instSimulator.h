@@ -26,6 +26,8 @@
 // 16 - RX4
 // 17 - TX4
 
+#define MAX_INST_NAME		10
+
 #define INST_DEPTH			0
 #define INST_LOG			1
 #define INST_WIND			2
@@ -38,7 +40,6 @@
 #define NUM_INSTRUMENTS 	9
 
 
-#define NUM_BOAT_PORTS		3
 #define PORT_SEATALK		0
 #define PORT_0183			1
 #define PORT_2000			2
@@ -58,6 +59,7 @@
 #define SECONDS_PER_DAY		86400
 
 
+
 //-------------------------------
 // instBase
 //-------------------------------
@@ -69,7 +71,7 @@ public:
 	instBase(uint8_t supported) :
 		m_supported(supported)
 	{
-		m_ports = 0;	// supported;	// 0;
+		m_ports = 0;	
 	}
 
 	virtual const char *getName() = 0;
@@ -93,7 +95,7 @@ protected:
 
 };	// class instBase
 
-#define MAX_INST_NAME	10		// for display purposes
+
 
 //--------------------------------
 // instruments
@@ -110,15 +112,15 @@ protected:
 		virtual void send2000() override; \
 	};
 
-DEFINE_INST_CLASS(depthInst,      "DEPTH",		PORT_MASK_ALL)
-DEFINE_INST_CLASS(logInst,        "LOG",		PORT_MASK_ALL)
-DEFINE_INST_CLASS(windInst,       "WIND",		PORT_MASK_ALL)
-DEFINE_INST_CLASS(compassInst,    "COMPASS",	PORT_MASK_ALL)
-DEFINE_INST_CLASS(gpsInst,        "GPS",		PORT_MASK_ALL)
-DEFINE_INST_CLASS(aisInst,        "AIS",		PORT_MASK_0183 | PORT_MASK_2000)
-DEFINE_INST_CLASS(autopilotInst,  "AUTOPILOT",	PORT_MASK_ALL)
-DEFINE_INST_CLASS(engineInst,     "ENGINE",		PORT_MASK_ALL)
-DEFINE_INST_CLASS(gensetInst,     "GENSET",		PORT_MASK_0183 | PORT_MASK_2000)
+DEFINE_INST_CLASS(depthInst,    "DEPTH",		PORT_MASK_ALL)
+DEFINE_INST_CLASS(logInst,      "LOG",			PORT_MASK_ALL)
+DEFINE_INST_CLASS(windInst,     "WIND",			PORT_MASK_ALL)
+DEFINE_INST_CLASS(compassInst,  "COMPASS",		PORT_MASK_ALL)
+DEFINE_INST_CLASS(gpsInst,      "GPS",			PORT_MASK_ALL)
+DEFINE_INST_CLASS(aisInst,      "AIS",			PORT_MASK_0183 | PORT_MASK_2000)
+DEFINE_INST_CLASS(apInst,  		"AUTOPILOT",	PORT_MASK_ALL)
+DEFINE_INST_CLASS(engInst,		"ENGINE",		PORT_MASK_ALL)
+DEFINE_INST_CLASS(genInst,		"GENSET",		PORT_MASK_0183 | PORT_MASK_2000)
 
 
 

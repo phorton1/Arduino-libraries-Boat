@@ -480,7 +480,7 @@ void aisInst::sendSeatalk()
 }
 
 
-void autopilotInst::sendSeatalk()
+void apInst::sendSeatalk()
 {
 	// as somewhat expected, as with NMEA2000, these messages
 	// don't seem to affect the E80's notion of "following" or XTE values.
@@ -664,7 +664,7 @@ void autopilotInst::sendSeatalk()
 
 
 
-void engineInst::sendSeatalk()
+void engInst::sendSeatalk()
 {
 	// not really supported
 	int rpm = boat.getRPM();
@@ -681,7 +681,7 @@ void engineInst::sendSeatalk()
 }
 
 
-void gensetInst::sendSeatalk()
+void genInst::sendSeatalk()
 {
 	// not supported
 }

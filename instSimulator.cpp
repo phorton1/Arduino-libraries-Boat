@@ -44,9 +44,9 @@ windInst		i_wind;
 compassInst		i_compass;
 gpsInst			i_gps;
 aisInst			i_ais;
-autopilotInst	i_autopilot;
-engineInst		i_engine;
-gensetInst		i_genset;
+apInst	i_autopilot;
+engInst		i_engine;
+genInst		i_genset;
 
 
 //----------------------------------------------------

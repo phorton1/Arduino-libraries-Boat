@@ -156,7 +156,7 @@ void logInst::send0183()
 	// VW = Velocity Sensor, Speed Log, Water, Mechanical
 	// VHW device
 	// We only send the speed through the water in knots
-	// log instrument does not send a heading!
+	// logInst does not send a heading!
 	//
 	// 1) Degress True
 	// 2) T = True
@@ -177,7 +177,7 @@ void logInst::send0183()
 	if (1)	// The E80 is not seeing this message
 	{
 		// VLW = Distance Traveled through Water (or over ground in your case)
-		// The log instrument has the "trip distance" button.
+		// The logInst has the "trip distance" button.
 		// The ST50 log probably integrates the spinny wheel over time, but
 		// our simulator does better by integrating SOG over time.
 
@@ -408,7 +408,7 @@ void aisInst::send0183()
 }
 
 
-void autopilotInst::send0183()
+void apInst::send0183()
 {
 	char lr = 'R';
 	const char *arrive_char = boat.getArrived() ? "A" : "V";
@@ -531,12 +531,12 @@ void autopilotInst::send0183()
 }
 
 
-void engineInst::send0183()
+void engInst::send0183()
 {
 }
 
 
-void gensetInst::send0183()
+void genInst::send0183()
 {
 }
 
