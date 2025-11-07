@@ -410,21 +410,6 @@ void aisInst::send0183()
 
 void autopilotInst::send0183()
 {
-	// 1) Status, V = Navigation receiver warning
-	// 2) Cross Track error - nautical miles
-	// 3) Direction to Steer, Left or Right
-	// 4) E80 unused FROM Waypoint ID
-	// 5) E80 TO Waypoint ID (reversed from spec)
-	// 6) Destination Waypoint Latitude
-	// 7) N or S
-	// 8) Destination Waypoint Longitude
-	// 9) E or W
-	// 10) Range to destination in nautical miles
-	// 11) Bearing to destination in degrees True
-	// 12) Destination closing velocity in knots
-	// 13) Arrival Status, A = Arrival Circle Entered; V=reset arrival alarm
-	// 14) Checksum
-
 	char lr = 'R';
 	const char *arrive_char = boat.getArrived() ? "A" : "V";
 	const waypoint_t *start_wp = boat.getWaypoint(boat.getStartWPNum());
@@ -432,93 +417,90 @@ void autopilotInst::send0183()
 	String start_name(start_wp->name);
 	String target_name(target_wp->name);
 
-	if (0)
-	{
-		// a vain attempt to get the E80 to echo a meaningful
-		// waypoint name back to the ST_ARRIVAL message
-		
-		start_name.toUpperCase();
-		target_name.toUpperCase();
-		start_name = start_name.substring(2,6);
-		target_name = target_name.substring(2,6);
-	}
+	// AP = Autopilot device
+	// VTG = Velocity and Track over Ground
+	//
+	//	1) Course over ground (degrees True)
+	//	2) T = True
+	//	3) Course over ground (degrees Magnetic)
+	//	4) M = Magnetic
+	//	5) Speed over ground in knots
+	//	6) N = Knots
+	//	7) Speed over ground in km/h
+	//	8) K = Kilometers/hour
+	//                       1    2 34 5    6 78
+	sprintf(nmea_buf,"$APVTG,%.1f,T,,M,%.2f,N,,K",
+		boat.getCOG(),		// 1
+		boat.getSOG());		// 3
+	checksum();
+	display(show_0183,"apInst --> %s",nmea_buf);
 
-	//                       1 2     3  4  5  67 89 10    11    12    13
-	sprintf(nmea_buf,"$APRMB,A,%0.3f,%c,%s,%s,%s,%s,%0.3f,%0.1f,%0.4f,%s,",
-		boat.getCrossTrackError(),	// 2
-		lr,							// 3
-		start_name.c_str(),			// 4
-		target_name.c_str(),		// 5
-		standardLat(boat.getLat()),	// 67
-		standardLon(boat.getLon()),	// 89
-		boat.distanceToWaypoint(),	// 10
-		boat.headingToWaypoint(),	// 11
-		boat.getSOG(),				// 12
-		arrive_char);				// 13
-
-	// $APRMB,A,0.100,R,,Popa1,0920.0450,N,08214.5230,W,12.000,149.2,149.2,,*5a
-
+	// RMC = Recommended Minimum Navigation Information 'C'
+	// "$GPRMC,092750.000,A,5321.6802,N,00630.3372,W,0.02,31.66,280511,,,A*43",
+	//
+	// 1) Time (UTC)
+	// 2) Status, A=valid, V=Navigation receiver warning
+	// 3) Latitude
+	// 4) N or S
+	// 5) Longitude
+	// 6) E or W
+	// 7) Speed over ground, knots
+	// 8) Track made good, degrees true
+	// 9) Date, ddmmyy
+	// 10) Magnetic Variation, degrees
+	// 11) E or W
+	//                       1  2 34 56 7     8     9 10&11 missing
+	sprintf(nmea_buf,"$APRMC,%s,A,%s,%s,%0.1f,%0.1f,%s,,,",
+		standardTime(),
+		standardLat(boat.getLat()),		// 3,4
+		standardLon(boat.getLon()),		// 5,6
+		boat.getSOG(),					// 7
+		boat.getCOG(),					// 8
+		standardDate());				// 9
 	checksum();
 	display(show_0183,"apInst --> %s",nmea_buf);
 	sendNMEA0183();
 
-	// E80 lights up a waypoint,
-	// shows xte, name, bearing, and distance to waypoint,
-	// and shows the time to waypoint if the boat is moving,
-	// along with showing the WPT STOP_GOTO and RESTART_XTE buttons
-	// and starts sending out these messages:
-	//
-	// $ECAPB,A,A,0.010,R,N,V,V,,,Popa1,000.0,T,,,A*67
-	// $ECBWC,120044.49,0926.245,N,08214.523,W,000.0,T,000.0,M,6.20,N,Popa1,A*6A
-	// $ECBWR,120044.49,0926.245,N,08214.523,W,000.0,T,000.0,M,6.20,N,Popa1,A*7B
-	// $ECRMB,A,0.010,R,,Popa1,0926.245,N,08214.523,W,6.20,000.0,,V,A*7E
-	//
-	// When we start sending the "A" arrival letter at dist=0.064nm
-	// the E80 starts beeping, shows the Waypoint Arrival Dialog and
-	// the ACKNOWLEDGE button. When the user acknowledges, or we
-	// switch to 'V' it stops.
 
-	if (1)
+	if (boat.getRouting())
 	{
-		// this overkill for a GPS instrument and
-		// causes the E80 to send out Navigation (DBNAV) information rapidly
+		// RMB = Recommended Minimum Navigation Information 'B'
+		// 1) Status, V = Navigation receiver warning
+		// 2) Cross Track error - nautical miles
+		// 3) Direction to Steer, Left or Right
+		// 4) E80 unused FROM Waypoint ID
+		// 5) E80 TO Waypoint ID (reversed from spec)
+		// 6) Destination Waypoint Latitude
+		// 7) N or S
+		// 8) Destination Waypoint Longitude
+		// 9) E or W
+		// 10) Range to destination in nautical miles
+		// 11) Bearing to destination in degrees True
+		// 12) Destination closing velocity in knots
+		// 13) Arrival Status, A = Arrival Circle Entered; V=reset arrival alarm
+		// 14) Checksum
 
+		// NOTE - E80 VMG databox does not show
+		// The ECRMB message is echoed back to us without field(12) VMG
 
-		// GP = GPS device
-		// RMC = Recommended Minimum Navigation Information 'C'
-		// "$GPRMC,092750.000,A,5321.6802,N,00630.3372,W,0.02,31.66,280511,,,A*43",
-		//
-		// 1) Time (UTC)
-		// 2) Status, A=valid, V=Navigation receiver warning
-		// 3) Latitude
-		// 4) N or S
-		// 5) Longitude
-		// 6) E or W
-		// 7) Speed over ground, knots
-		// 8) Track made good, degrees true
-		// 9) Date, ddmmyy
-		// 10) Magnetic Variation, degrees
-		// 11) E or W
-		//                       1  2 34 56 7     8     9 10&11 missing
-		sprintf(nmea_buf,"$GPRMC,%s,A,%s,%s,%0.1f,%0.1f,%s,,,",
-			standardTime(),
-			standardLat(boat.getLat()),
-			standardLon(boat.getLon()),
-			boat.getSOG(),
-			boat.getCOG(),
-			standardDate());
+		//                       1 2     3  4  5  67 89 10    11    12    13
+		sprintf(nmea_buf,"$APRMB,A,%0.3f,%c,%s,%s,%s,%s,%0.3f,%0.1f,%0.4f,%s,",
+			boat.getCrossTrackError(),	// 2
+			lr,							// 3
+			start_name.c_str(),			// 4
+			target_name.c_str(),		// 5
+			standardLat(boat.getLat()),	// 67
+			standardLon(boat.getLon()),	// 89
+			boat.distanceToWaypoint(),	// 10
+			boat.headingToWaypoint(),	// 11
+			boat.getSOG(),				// 12
+			arrive_char);				// 13
+
 		checksum();
 		display(show_0183,"apInst --> %s",nmea_buf);
 		sendNMEA0183();
-	}
-
-	if (1)
-	{
-		// Trying to get E80 to display "VMG Wpt" box
 		
-		// AP = Global Positioning System
 		// BWC = Bearing and Distance to Waypoint using Great Circle
-		//
 		//	1) UTC time
 		//	2) Waypoint latitude
 		//	3) N or S (North or South)
@@ -534,37 +516,18 @@ void autopilotInst::send0183()
 		// 13) Status A = Data valid, V = Data invalid
 		//                       1  23 45 6    789 10   11 12 13
 		sprintf(nmea_buf,"$APBWC,%s,%s,%s,%.1f,T,,,%.2f,N,%s,A",
-			standardTime(),
-			standardLat(target_wp->lat),
-			standardLon(target_wp->lon),
-			boat.headingToWaypoint(),
-			boat.distanceToWaypoint(),
-			target_wp->name);
+			standardTime(),					// 1
+			standardLat(target_wp->lat),	// 23
+			standardLon(target_wp->lon),	// 45
+			boat.headingToWaypoint(),		// 6
+			boat.distanceToWaypoint(),		// 10
+			target_wp->name);				// 12
 		checksum();
 		display(show_0183,"apInst --> %s",nmea_buf);
 		sendNMEA0183();
 	}
 
-	if (1)
-	{
-		// GP = Global Positioning System
-		// VTG = Velocity and Track over Ground
-		//
-		//	1) Course over ground (degrees True)
-		//	2) T = True
-		//	3) Course over ground (degrees Magnetic)
-		//	4) M = Magnetic
-		//	5) Speed over ground in knots
-		//	6) N = Knots
-		//	7) Speed over ground in km/h
-		//	8) K = Kilometers/hour
-		//                       1    2 34 5    6 78
-		sprintf(nmea_buf,"$APVTG,%.1f,T,,M,%.2f,N,,K",
-			boat.getCOG(),
-			boat.getSOG());     
-		checksum();
-		display(show_0183,"apInst --> %s",nmea_buf);
-	}
+
 }
 
 
@@ -579,8 +542,10 @@ void gensetInst::send0183()
 
 
 //--------------------------------------------------------
-// experiment
+// sendNMEA0183Route
 //--------------------------------------------------------
+// The E80 does not accept routes via Seatalk/NMEA messages
+//
 // The declared maximum length of an NMEA0183 sentence is 82 bytes
 // which includes everything from the leading $ to the *hh checksum
 // and <cr><lf> that follows it.  We use println() to send the messages
@@ -600,7 +565,6 @@ void sendNMEA0183Route(String route_name)
 {
 	const route_t *found = boat.getRoute(route_name.c_str());
 	if (!found) return;
-	const char *name = found->name;
 	const int num_wpts = found->num_wpts;
 	const waypoint_t *wpts = found->wpts;
 

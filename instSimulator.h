@@ -55,7 +55,7 @@
 #define NM_TO_METERS		1852.0
 #define GALLON_TO_LITRE		3.785
 #define PSI_TO_PASCAL		6895.0
-
+#define SECONDS_PER_DAY		86400
 
 
 //-------------------------------

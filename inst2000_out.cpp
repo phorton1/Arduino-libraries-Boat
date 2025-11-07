@@ -136,6 +136,15 @@ void gpsInst::send2000()
 		nmea2000.SendMsg(msg);
 	#endif
 
+
+	#if 1
+		// PGN_SYSTEM_DATE_TIME
+		time_t now = time(NULL);
+		uint32_t date = (now / SECONDS_PER_DAY);  // Days since Jan 1, 1970
+		uint32_t secs = now - date * SECONDS_PER_DAY;
+		SetN2kPGN126992(msg, 255, date, secs, N2ktimes_GPS);
+		nmea2000.SendMsg(msg);
+	#endif
 }
 
 
@@ -162,28 +171,26 @@ void autopilotInst::send2000()
 	// With NMEA2000 I have not been able to get the waypoint name to show up on the E80,
 	// nor to get the arrival alarm to beep when I get to a waypoint.
 {
-	// PGN_HEADING_TRACK_CONTROL
-
 	tN2kMsg msg;
-	SetN2kPGN127237(
-	  msg,
-	  N2kOnOff_Unavailable,           // RudderLimitExceeded
-	  N2kOnOff_Unavailable,           // OffHeadingLimitExceeded
-	  N2kOnOff_Unavailable,           // OffTrackLimitExceeded
-	  boat.getAutopilot() ? N2kOnOff_On : N2kOnOff_Off, // Override (used here to indicate autopilot state)
-	  N2kSM_HeadingControl,             // SteeringMode
-	  N2kTM_RudderLimitControlled,    // TurnMode (safe default)
-	  N2khr_true,                 	  // HeadingReference
-	  N2kRDO_NoDirectionOrder,        // CommandedRudderDirection
-	  N2kDoubleNA,                    // CommandedRudderAngle
-	  DegToRad(boat.getDesiredHeading()),		  // HeadingToSteerCourse
-	  N2kDoubleNA,                    // Track
-	  N2kDoubleNA,                    // RudderLimit
-	  N2kDoubleNA,                    // OffHeadingLimit
-	  N2kDoubleNA,                    // RadiusOfTurnOrder
-	  N2kDoubleNA,                    // RateOfTurnOrder
-	  N2kDoubleNA,                    // OffTrackLimit
-	  N2kDoubleNA                     // VesselHeading
+	SetN2kPGN127237(		// PGN_HEADING_TRACK_CONTROL
+		msg,
+		N2kOnOff_Unavailable,           // RudderLimitExceeded
+		N2kOnOff_Unavailable,           // OffHeadingLimitExceeded
+		N2kOnOff_Unavailable,           // OffTrackLimitExceeded
+		boat.getAutopilot() ? N2kOnOff_On : N2kOnOff_Off, // Override (used here to indicate autopilot state)
+		N2kSM_HeadingControl,           // SteeringMode
+		N2kTM_RudderLimitControlled,    // TurnMode (safe default)
+		N2khr_true,                 	// HeadingReference
+		N2kRDO_NoDirectionOrder,        // CommandedRudderDirection
+		N2kDoubleNA,                    // CommandedRudderAngle
+		DegToRad(boat.getDesiredHeading()),		  // HeadingToSteerCourse
+		N2kDoubleNA,                    // Track
+		N2kDoubleNA,                    // RudderLimit
+		N2kDoubleNA,                    // OffHeadingLimit
+		N2kDoubleNA,                    // RadiusOfTurnOrder
+		N2kDoubleNA,                    // RateOfTurnOrder
+		N2kDoubleNA,                    // OffTrackLimit
+		N2kDoubleNA                     // VesselHeading
 	);
 	nmea2000.SendMsg(msg);
 
@@ -230,7 +237,6 @@ void autopilotInst::send2000()
 			msg.SetPGN(130918L);
 			msg.Priority = 7;  					// Raymarine uses priority 7 for route info
 			msg.Add2ByteUInt(1851);				// Company ID (1851 == raymarine)
-			//msg.AddByte(0xFF);  				// SID (optional, often 0xFF)
 			msg.Add2ByteUInt(target_num);		// Next waypoint sequence number
 			msg.AddStr(targetName, 16);			// Next waypoint name (fixed 16 bytes, padded with nulls)
 			msg.Add2ByteUInt(start_num);		// Current waypoint sequence number
@@ -250,6 +256,8 @@ void autopilotInst::send2000()
 
 		if (0 && last_target != target_num || strcmp(last_route, boat.getRouteName()))
 		{
+			// PGN_ROUTE_WP_INFO
+
 			last_route_id++;
 			last_target = target_num;
 			last_route = boat.getRouteName();
@@ -260,7 +268,6 @@ void autopilotInst::send2000()
 			const tN2kNavigationDirection direction = N2kdir_forward;
 			const tN2kGenericStatusPair supplementary = N2kDD002_No;
 
-			tN2kMsg msg;
 			SetN2kPGN129285(msg, 0, db_id, route_id, direction, last_route, supplementary);
 			for (int i = 0; i < boat.getNumWaypoints(); i++)
 			{
@@ -287,14 +294,11 @@ void autopilotInst::send2000()
 		}	// sending route
 
 
-
-
 		// PGN_NAVIGATION_DATA,
-		// Note that unlike NMEA0183, the waypoint name is not included and does not
-			// show up on the E80 ...
+		// Note that unlike NMEA0183, the waypoint name is not included.
 
 		time_t now = time(NULL);
-		uint16_t eta_date = (now / 86400);  // Days since Jan 1, 1970
+		uint16_t eta_date = (now / SECONDS_PER_DAY);  // Days since Jan 1, 1970
 
 		SetN2kPGN129284(msg, 255,		// msg, sid
 			wp_dist * NM_TO_METERS,		// double DistanceToWaypoint (undocumented: IN METERS!!)
@@ -333,9 +337,7 @@ void engineInst::send2000()
 {
 	tN2kMsg msg;
 
-	// PGN_ENGINE_RAPID
-
-	SetN2kPGN127488(
+	SetN2kPGN127488(			// PGN_ENGINE_RAPID
 			msg,
 			0,							// EngineInstance
 			boat.getRPM(),				// EngineSpeed
@@ -343,12 +345,10 @@ void engineInst::send2000()
 			N2kUInt8NA);				// EngineTiltTrim
 	nmea2000.SendMsg(msg);
 
-	// PGN_ENGINE_DYNAMIC
-
 	static tN2kEngineDiscreteStatus1 status1;		// filled with zeros
 	static tN2kEngineDiscreteStatus2 status2;		// filled with zeros
 
-	SetN2kPGN127489(msg,
+	SetN2kPGN127489(msg,		// PGN_ENGINE_DYNAMIC
 		0,											// EngineInstance
 		boat.getOilPressure() * PSI_TO_PASCAL,		// EngineOilPress      in Pascal
 		FToKelvin(boat.getOilTemp()),				// EngineOilTemp       in Kelvin
@@ -388,29 +388,26 @@ void engineInst::send2000()
 void gensetInst::send2000()
 {
 
-	display(0,"genset2000",0);
+	display(1,"genset2000",0);
 
 	tN2kMsg msg;
 
 #if 1
-	// PGN 65288 – Raymarine proprietary engine/genset data
-	msg.SetPGN(65288L);
+	msg.SetPGN(65288L);			// PGN_SEATALK_GEN_INFO
 	msg.Priority = 3;
-	msg.AddByte(0x10);				// Engine Instance (0x10 = genset)
-	msg.Add2ByteUInt(3000);			// RPM (3000 * 0.25 = 750 RPM)
-	msg.Add2ByteUInt(12000);		// Voltage (120.00 V)
-	msg.Add2ByteUInt(100);			// Current (10.0 A)
-	msg.AddByte(0x01);				// Status Flags (e.g., running)
-	msg.Add2ByteUInt(500);			// Load % (50.0%)
-	msg.Add2ByteUInt(80);			// Fuel Rate (8.0 L/h)
-	msg.Add2ByteUInt(0);			// Reserved or temp
+	msg.AddByte(0x10);			// Engine Instance (0x10 = genset)
+	msg.Add2ByteUInt(3000);		// RPM (3000 * 0.25 = 750 RPM)
+	msg.Add2ByteUInt(12000);	// Voltage (120.00 V)
+	msg.Add2ByteUInt(100);		// Current (10.0 A)
+	msg.AddByte(0x01);			// Status Flags (e.g., running)
+	msg.Add2ByteUInt(500);		// Load % (50.0%)
+	msg.Add2ByteUInt(80);		// Fuel Rate (8.0 L/h)
+	msg.Add2ByteUInt(0);		// Reserved or temp
 	nmea2000.SendMsg(msg);
 #endif
 
-
 #if 1
-	// PGN 65026 – Generator Phase A AC Power
-	msg.SetPGN(65026L);
+	msg.SetPGN(65026L);			// PGN_GEN_PHASE_A_AC_POWER
 	msg.Priority = 3;
 	msg.Add4ByteUInt(400);		// Real Power (Watts), signed 32-bit
 	msg.Add4ByteUInt(500);		// Apparent Power (VA), signed 32-bit
@@ -418,20 +415,18 @@ void gensetInst::send2000()
 #endif
 
 #if 1
-	// PGN 65027 – Generator Phase A Basic AC Quantities
-	msg.SetPGN(65027L);
+
+	msg.SetPGN(65027L);			// PGN_GEN_PHASE_A_BASIC_AC
 	msg.Priority = 3;
-	msg.Add2ByteUDouble(120.0, 0.01);   		// Line-Line Voltage (V)
-	msg.Add2ByteUDouble(120.0, 0.01);   		// Line-Neutral Voltage (V)
-	msg.Add2ByteUDouble(60.0, 1.0/128.0); 		// Frequency (Hz)
-	msg.Add2ByteUDouble(10.0, 0.1);     		// RMS Current (A)
+	msg.Add2ByteUDouble(120.0, 0.01);   	// Line-Line Voltage (V)
+	msg.Add2ByteUDouble(120.0, 0.01);   	// Line-Neutral Voltage (V)
+	msg.Add2ByteUDouble(60.0, 1.0/128.0); 	// Frequency (Hz)
+	msg.Add2ByteUDouble(10.0, 0.1);     	// RMS Current (A)
 	nmea2000.SendMsg(msg);
 #endif
 
-
 #if 1
-	// PGN 65029 – Total AC Power
-	msg.SetPGN(65029L);
+	msg.SetPGN(65029L);			// PGN_TOTAL_AC_POWER
 	msg.Priority = 3;
 	msg.Add4ByteUInt(1200);		// Real Power (Watts), ie 1200, signed 32-bit with offset
 	msg.Add4ByteUInt(1500);		// Apparent Power (VA), ie 1500, signed 32-bit with offset
@@ -439,8 +434,7 @@ void gensetInst::send2000()
 #endif
 
 #if 1
-	// PGN 65030 – Average AC Quantities
-	msg.SetPGN(65030L);
+	msg.SetPGN(65030L);			// PGN_AVERAGE_AC_QUANTITIES
 	msg.Priority = 3;
 	msg.Add2ByteUDouble(120.0, 0.01);   	// Line-Line Voltage
 	msg.Add2ByteUDouble(120.0, 0.01);   	// Line-Neutral Voltage
@@ -449,70 +443,60 @@ void gensetInst::send2000()
 	nmea2000.SendMsg(msg);
 #endif
 
-
 #if 1
-
-	msg.SetPGN(65288L);          // Raymarine proprietary PGN
+	msg.SetPGN(65288L);          // PGN_SEATALK_GEN_INFO Raymarine proprietary PGN
 	msg.Priority = 3;
-	msg.AddByte(0xFF);           // SID (optional)
-	msg.AddByte(1);              // EngineInstance (1 = genset)
-	msg.Add2ByteUDouble(1800.0, 0.25);   // RPM (scaled by 0.25)
-	msg.Add2ByteUDouble(120.0, 0.01);    // Voltage (scaled by 0.01)
-	msg.Add2ByteUDouble(5.0, 0.1);       // Current (scaled by 0.1)
-	msg.Add2ByteUDouble(2.5, 0.1);       // Load (scaled by 0.1)
-	msg.Add2ByteUDouble(1.2, 0.1);       // Fuel Rate (scaled by 0.1)
-	msg.AddByte(0);              // Status byte (0 = OK)
-
+	msg.AddByte(0xFF);           		// SID (optional)
+	msg.AddByte(1);              		// EngineInstance (1 = genset)
+	msg.Add2ByteUDouble(1800.0, 0.25); 	// RPM (scaled by 0.25)
+	msg.Add2ByteUDouble(120.0, 0.01);  	// Voltage (scaled by 0.01)
+	msg.Add2ByteUDouble(5.0, 0.1);     	// Current (scaled by 0.1)
+	msg.Add2ByteUDouble(2.5, 0.1);     	// Load (scaled by 0.1)
+	msg.Add2ByteUDouble(1.2, 0.1);    	// Fuel Rate (scaled by 0.1)
+	msg.AddByte(0);              		// Status byte (0 = OK)
 	nmea2000.SendMsg(msg);
 
-
-	// PGN 127505: AC Output Status
-
-	msg.SetPGN(127505L);         // PGN for AC Output Status
+	msg.SetPGN(127503L);         // PGN_AC_INPUT_STATUS
 	msg.Priority = 3;
-	msg.AddByte(0xFF);           // SID (Sequence ID, optional)
-	msg.AddByte(0);              // AC Instance (0 = first output channel)
+	msg.AddByte(0xFF);           		// SID (Sequence ID, optional)
+	msg.AddByte(0);              		// AC Instance (0 = first output channel)
 	msg.Add2ByteUDouble(120.0, 0.01);   // Line Voltage in Volts (resolution 0.01 V)
 	msg.Add2ByteUDouble(60.0, 0.001);   // Line Frequency in Hz (resolution 0.001 Hz)
 	msg.Add2ByteUDouble(10.0, 0.1);     // Current in Amps (resolution 0.1 A)
 	msg.Add2ByteUDouble(1.0, 0.001);    // Power Factor (1.0 = unity)
-	msg.AddByte(0);              // Reserved
+	msg.AddByte(0);              		// Reserved
 
-	msg.SetPGN(127504L);
+	msg.SetPGN(127504L);		// PGN_AC_OUTPUT_STATUS
 	msg.Priority = 3;
-	msg.AddByte(0xFF);               // SID
-	msg.AddByte(0);                  // AC Instance
-	msg.Add2ByteUDouble(120.0, 0.01); // Line Voltage (120V)
-	msg.Add2ByteUDouble(60.0, 0.001); // Line Frequency (60Hz)
-	msg.Add2ByteUDouble(0.0, 0.1);    // Current (optional, set to 0)
-	msg.AddByte(0);                  // Reserved
+	msg.AddByte(0xFF);           		// SID (Sequence ID, optional)
+	msg.AddByte(0);              		// AC Instance (0 = first output channel)
+	msg.Add2ByteUDouble(120.0, 0.01);   // Line Voltage in Volts (resolution 0.01 V)
+	msg.Add2ByteUDouble(60.0, 0.001);   // Line Frequency in Hz (resolution 0.001 Hz)
+	msg.Add2ByteUDouble(10.0, 0.1);     // Current in Amps (resolution 0.1 A)
+	msg.Add2ByteUDouble(1.0, 0.001);    // Power Factor (1.0 = unity)
+	msg.AddByte(0);                  	// Reserved
 	nmea2000.SendMsg(msg);
-
 #endif
 
 #if 1	// nothing worked
 
-	// PGN_ENGINE_RAPID
-
 	int instance = 0x01;
 
-	SetN2kPGN127488(
+	SetN2kPGN127488(			// PGN_ENGINE_RAPID
 			msg,
-			instance,					// EngineInstance
+			instance,			// EngineInstance
 			boat.getGenRPM(),	// EngineSpeed
 			N2kDoubleNA,		// EngineBoostPressure
 			N2kUInt8NA);		// EngineTiltTrim
 	nmea2000.SendMsg(msg);
 
-	// PGN_ENGINE_DYNAMIC
-
 	static tN2kEngineDiscreteStatus1 status1;		// filled with zeros
 	static tN2kEngineDiscreteStatus2 status2;		// filled with zeros
 
-	SetN2kPGN127489(msg,
-		instance,											// EngineInstance
+	SetN2kPGN127489(msg,		// PGN_ENGINE_DYNAMIC
+		instance,									// EngineInstance
 		boat.getGenOilPressure() * PSI_TO_PASCAL,	// EngineOilPress      in Pascal
-		FToKelvin(boat.getOilTemp()),								// EngineOilTemp       in Kelvin
+		FToKelvin(boat.getOilTemp()),				// EngineOilTemp       in Kelvin
 		FToKelvin(boat.getGenCoolTemp()),			// EngineCoolantTemp   in Kelvin
 		boat.getAltVoltage(),						// AltenatorVoltage    in Voltage
 		boat.getFuelRate() * GALLON_TO_LITRE,		// FuelRate            in litres/hour
@@ -527,5 +511,6 @@ void gensetInst::send2000()
 
 #endif	// nothing worked
 }
+
 
 // end of inst2000_out.cpp

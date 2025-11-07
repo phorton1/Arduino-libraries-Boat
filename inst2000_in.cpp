@@ -92,59 +92,6 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			else
 				my_error("Parsing PGN_HEADING(128267)",0);
 		}
-		else if (msg.PGN == PGN_SPEED_WATER_REF)
-		{
-			// speed is in meters/second
-			tN2kSpeedWaterReferenceType SWRT;
-			if (ParseN2kPGN128259(msg, sid, d1, d2, SWRT))
-			{
-				msg_handled = true;
-				if (m_MON_SENSORS)
-					display(0,"%3d(%d) speed    : %0.3f kts",msg.Source,msg_counter,msToKnots(d1));
-			}
-			else
-				my_error("Parsing PGN_SPEED(128267)",0);
-		}
-		else if (msg.PGN == PGN_WATER_DEPTH)
-		{
-			// depth is in meters
-			if (ParseN2kPGN128267(msg,sid,d1,d2,d3))
-			{
-				msg_handled = true;
-				if (m_MON_SENSORS)
-					display(0,"%3d(%d) depth    : %0.3f meters",msg.Source,msg_counter,d1);
-			}
-			else
-				my_error("Parsing PGN_DEPTH(128267)",0);
-		}
-		else if (msg.PGN == PGN_POSITION_RAPID_UPDATE)
-		{
-			double lat;
-			double lon;
-			if (ParseN2kPGN129025(msg,lat,lon))
-			{
-				msg_handled = true;
-				if (m_MON_SENSORS)
-					display(0,"%3d(%d) position : lat(%0.6f) lon(%0.6f)",msg.Source,msg_counter,lat,lon);
-			}
-			else
-				my_error("Parsing PGN_TEMPERATURE(130316)",0);
-		}
-		else if (msg.PGN == PGN_TEMPERATURE)
-		{
-			// temperature is in kelvin
-			uint8_t instance;
-			tN2kTempSource source;
-
-			if (ParseN2kPGN130316(msg,sid,instance,source,d1,d2))
-			{
-				msg_handled = true;
-				if (m_MON_SENSORS)
-					display(0,"%3d(%d) temp     : %0.3fC",msg.Source,msg_counter,KelvinToC(d1));
-			}
-			else
-				my_error("Parsing PGN_TEMPERATURE(130316)",0);
-		}
 		else if (msg.PGN == PGN_ENGINE_RAPID)
 		{
 			unsigned char engine_num;
@@ -226,7 +173,44 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			else
 				my_error("Parsing PGN_FLUID_LEVEL",0);
 		}
-
+		else if (msg.PGN == PGN_SPEED_WATER_REF)
+		{
+			// speed is in meters/second
+			tN2kSpeedWaterReferenceType SWRT;
+			if (ParseN2kPGN128259(msg, sid, d1, d2, SWRT))
+			{
+				msg_handled = true;
+				if (m_MON_SENSORS)
+					display(0,"%3d(%d) speed    : %0.3f kts",msg.Source,msg_counter,msToKnots(d1));
+			}
+			else
+				my_error("Parsing PGN_SPEED(128267)",0);
+		}
+		else if (msg.PGN == PGN_WATER_DEPTH)
+		{
+			// depth is in meters
+			if (ParseN2kPGN128267(msg,sid,d1,d2,d3))
+			{
+				msg_handled = true;
+				if (m_MON_SENSORS)
+					display(0,"%3d(%d) depth    : %0.3f meters",msg.Source,msg_counter,d1);
+			}
+			else
+				my_error("Parsing PGN_DEPTH(128267)",0);
+		}
+		else if (msg.PGN == PGN_POSITION_RAPID_UPDATE)
+		{
+			double lat;
+			double lon;
+			if (ParseN2kPGN129025(msg,lat,lon))
+			{
+				msg_handled = true;
+				if (m_MON_SENSORS)
+					display(0,"%3d(%d) position : lat(%0.6f) lon(%0.6f)",msg.Source,msg_counter,lat,lon);
+			}
+			else
+				my_error("Parsing PGN_TEMPERATURE(130316)",0);
+		}
 		else if (msg.PGN == PGN_GNSS_POSITION_DATA)
 		{
 			uint16_t days_since_1970;
@@ -257,28 +241,6 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			else
 				my_error("Parsing PGN_GNSS_POSITION_DATA",0);
 		}
-		else if (msg.PGN == PGN_GNSS_SATS_IN_VIEW)
-		{
-			uint8_t sat_index = 0;
-			tSatelliteInfo sat_info;
-
-			if (ParseN2kPGN129540(msg, sat_index, sat_info))
-			{
-				msg_handled = true;
-				if (m_MON_GPS)
-					display(0,"%3d(%d) sat_view : index(%d) PRN(%d) elev(%0.3f) azimuth(%0.3f) SNR(%0.1f)",
-						msg.Source,
-						msg_counter,
-						sat_index,
-						sat_info.PRN,
-						sat_info.Elevation,
-						sat_info.Azimuth,
-						sat_info.SNR);
-			}
-			else
-				my_error("Parsing PGN_GNSS_SATS_IN_VIEW",0);
-		}
-
 		else if (msg.PGN == PGN_AIS_CLASS_B_POSITION)
 		{
 			uint8_t msg_id;
@@ -312,6 +274,27 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			}
 			else
 				my_error("Parsing PGN_AIS_CLASS_B_POSITION",0);
+		}
+		else if (msg.PGN == PGN_GNSS_SATS_IN_VIEW)
+		{
+			uint8_t sat_index = 0;
+			tSatelliteInfo sat_info;
+
+			if (ParseN2kPGN129540(msg, sat_index, sat_info))
+			{
+				msg_handled = true;
+				if (m_MON_GPS)
+					display(0,"%3d(%d) sat_view : index(%d) PRN(%d) elev(%0.3f) azimuth(%0.3f) SNR(%0.1f)",
+						msg.Source,
+						msg_counter,
+						sat_index,
+						sat_info.PRN,
+						sat_info.Elevation,
+						sat_info.Azimuth,
+						sat_info.SNR);
+			}
+			else
+				my_error("Parsing PGN_GNSS_SATS_IN_VIEW",0);
 		}
 		else if (msg.PGN == PGN_AIS_STATIC_B_PART_A)
 		{
@@ -373,6 +356,21 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			}
 			else
 				my_error("Parsing PGN_AIS_STATIC_B_PART_B",0);
+		}
+		else if (msg.PGN == PGN_TEMPERATURE)
+		{
+			// temperature is in kelvin
+			uint8_t instance;
+			tN2kTempSource source;
+
+			if (ParseN2kPGN130316(msg,sid,instance,source,d1,d2))
+			{
+				msg_handled = true;
+				if (m_MON_SENSORS)
+					display(0,"%3d(%d) temp     : %0.3fC",msg.Source,msg_counter,KelvinToC(d1));
+			}
+			else
+				my_error("Parsing PGN_TEMPERATURE(130316)",0);
 		}
 
 

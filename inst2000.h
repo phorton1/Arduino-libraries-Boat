@@ -61,34 +61,54 @@
 #define PGN_PRODUCT_INFO			126996L
 #define PGN_DEVICE_CONFIG			126998L
 
-#define PGN_VESSEL_HEADING			127250L		// x = sent by compass instrument
-#define PGN_HEADING_TRACK_CONTROL	127237L		// x = sent by autopilot instrument
-#define PGN_ENGINE_RAPID 			127488L		// x = sent by engine instrument
-#define PGN_ENGINE_DYNAMIC 			127489L		// x = sent by engine instrument
-#define PGN_FLUID_LEVEL 			127505L		// x+x = sent by engine instrument
-#define PGN_AGS_CONFIG_STATUS		127512L		// generator messages (not sent yet)
-#define PGN_AGS_STATUS				127514L
-#define PGN_SPEED_WATER_REF			128259L		// 1 = sent by log instrument
-#define PGN_WATER_DEPTH				128267L		// x = sent by depth instrument
-#define PGN_DISTANCE_LOG			128275L		// 1 = sent by log instrument
-#define PGN_POSITION_RAPID_UPDATE	129025L
-#define PGN_COG_SOG_RAPID_UPDATE	129026L
-#define PGN_GNSS_POSITION_DATA		129029L		// x = sent by gps instrument
-#define PGN_LOCAL_TIME_OFFSET		129033L
-#define PGN_AIS_CLASS_B_POSITION	129039L
-#define PGN_DATUM					129044L
-#define PGN_CROSS_TRACK_ERROR		129283L		// x = sent by autopilot(routing) instrument
-#define PGN_NAVIGATION_DATA			129284L		// x = sent by autopilot(routing) instrument
-#define PGN_SET_AND_DRIFT			129291L
-#define PGN_GNSS_SATS_IN_VIEW		129540L
-#define PGN_AIS_STATIC_B_PART_A		129809L
-#define PGN_AIS_STATIC_B_PART_B		129810L
-#define PGN_WIND_DATA				130306L		// x+0 = sent by wind instrument
-#define PGN_ENV_PARAMETERS			130310L
-#define PGN_TEMPERATURE    			130316L
-#define PGN_DIRECTION_DATA			130577L		// 1 = sent by gps instrument
+// D = decoded, x=sent invariantly, 0/1 sent with ifdef
+
+
+#define PGN_SYSTEM_DATE_TIME		126992L		//		1 = gps instrument
+#define PGN_VESSEL_HEADING			127250L		// D 	x = compass instrument
+#define PGN_HEADING_TRACK_CONTROL	127237L		// 		x = autopilot instrument
+#define PGN_ENGINE_RAPID 			127488L		// D	x = engine instrument
+#define PGN_ENGINE_DYNAMIC 			127489L		// D	x = engine instrument
+#define PGN_AC_INPUT_STATUS			127503L		// 		1 = genset instrument
+#define PGN_AC_OUTPUT_STATUS		127504L		// 		1 = genset instrument
+#define PGN_FLUID_LEVEL 			127505L		// D	x+x = engine instrument
+#define PGN_AGS_CONFIG_STATUS		127512L		//
+#define PGN_AGS_STATUS				127514L		//
+#define PGN_SPEED_WATER_REF			128259L		// D	1 = log instrument
+#define PGN_WATER_DEPTH				128267L		// D	x = depth instrument
+#define PGN_DISTANCE_LOG			128275L		// 		1 = log instrument
+#define PGN_POSITION_RAPID_UPDATE	129025L		// D
+#define PGN_COG_SOG_RAPID_UPDATE	129026L		//
+#define PGN_GNSS_POSITION_DATA		129029L		// D	x = gps instrument
+#define PGN_LOCAL_TIME_OFFSET		129033L		//
+#define PGN_AIS_CLASS_B_POSITION	129039L		// D
+#define PGN_DATUM					129044L		//
+#define PGN_CROSS_TRACK_ERROR		129283L		// 		x = autopilot(routing) instrument
+#define PGN_NAVIGATION_DATA			129284L		// 		x = autopilot(routing) instrument
+#define PGN_ROUTE_WP_INFO			129285L		// 		0 = autopilot(routing) instrument
+#define PGN_SET_AND_DRIFT			129291L		//
+#define PGN_GNSS_SATS_IN_VIEW		129540L		// D
+#define PGN_AIS_STATIC_B_PART_A		129809L		// D
+#define PGN_AIS_STATIC_B_PART_B		129810L		// D
+#define PGN_WIND_DATA				130306L		// 		x+0 = wind instrument
+#define PGN_ENV_PARAMETERS			130310L		//
+#define PGN_TEMPERATURE    			130316L		// D
+#define PGN_DIRECTION_DATA			130577L		// 		1 = gps instrument
+
+
+// Raymarine/Proprietary
+// found on https://github.com/canboat/canboat/blob/master/analyzer/pgn.h
+
+#define PGN_SEATALK_ROUTE_INFO		130918L		// 1 = autopilot(routine) instrument
+
+#define PGN_GEN_PHASE_A_AC_POWER	65026L      // 1 = genset instrument
+#define PGN_GEN_PHASE_A_BASIC_AC	65027L      // 1 = genset instrument
+#define PGN_TOTAL_AC_POWER			65029L      // 1 = genset instrument
+#define PGN_AVERAGE_AC_QUANTITIES	65030L      // 1 = genset instrument
+#define PGN_SEATALK_GEN_INFO		65288L      // 1 = genset instrument
 
 // proprietary messages from E80
+
 #define PGN_PROP_B_65311			65311L		// proprietary
 #define PGN_PROP_B_65362			65362L		// proprietary
 #define PGN_PROP_B_130846			130846L		// proprietary

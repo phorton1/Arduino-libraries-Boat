@@ -49,43 +49,44 @@ static const unsigned long TransmitMessages[] = {
 	PGN_DEVICE_CONFIG,
 #endif
 
-	PGN_VESSEL_HEADING			,	// x = sent by compass instrument
-	PGN_HEADING_TRACK_CONTROL	,	// x = sent by autopilot instrument
-	PGN_ENGINE_RAPID 			,	// x = sent by engine instrument
-	PGN_ENGINE_DYNAMIC 			,	// x = sent by engine instrument
-	PGN_FLUID_LEVEL 			,	// x+x = sent by engine instrument
-	PGN_AGS_CONFIG_STATUS		,	// generator messages (not sent yet)
-	//PGN_AGS_STATUS				,
-	PGN_SPEED_WATER_REF			,	// 1 = sent by log instrument
-	PGN_WATER_DEPTH				,	// x = sent by depth instrument
-	PGN_DISTANCE_LOG			,	// 1 = sent by log instrument
-	//PGN_POSITION_RAPID_UPDATE	,
-	//PGN_COG_SOG_RAPID_UPDATE	,
-	PGN_GNSS_POSITION_DATA		,	// x = sent by gps instrument
-	//PGN_LOCAL_TIME_OFFSET		,
-	//PGN_AIS_CLASS_B_POSITION	,
-	//PGN_DATUM					,
-	PGN_CROSS_TRACK_ERROR		,	// x = sent by autopilot(routing) instrument
-	PGN_NAVIGATION_DATA			,	// x = sent by autopilot(routing) instrument
-	//PGN_SET_AND_DRIFT			,
-	//PGN_GNSS_SATS_IN_VIEW		,
-	//PGN_AIS_STATIC_B_PART_A		,
-	//PGN_AIS_STATIC_B_PART_B		,
-	PGN_WIND_DATA				,	// x+0 = sent by wind instrument
-	//PGN_ENV_PARAMETERS			,
-	//PGN_TEMPERATURE    			,
-	PGN_DIRECTION_DATA			,	// 1 = sent by gps instrument
+	PGN_SYSTEM_DATE_TIME,
+	PGN_VESSEL_HEADING,
+	PGN_HEADING_TRACK_CONTROL,
+	PGN_ENGINE_RAPID,
+	PGN_ENGINE_DYNAMIC,
+	PGN_AC_INPUT_STATUS,
+    PGN_AC_OUTPUT_STATUS,
+	PGN_FLUID_LEVEL,
+	PGN_AGS_CONFIG_STATUS,
+	//PGN_AGS_STATUS,
+	PGN_SPEED_WATER_REF,
+	PGN_WATER_DEPTH,
+	PGN_DISTANCE_LOG,
+	//PGN_POSITION_RAPID_UPDATE,
+	//PGN_COG_SOG_RAPID_UPDATE,
+	PGN_GNSS_POSITION_DATA,
+	//PGN_LOCAL_TIME_OFFSET,
+	//PGN_AIS_CLASS_B_POSITION,
+	//PGN_DATUM,
+	PGN_CROSS_TRACK_ERROR,
+	PGN_NAVIGATION_DATA,
+	//PGN_ROUTE_WP_INFO,
+	//PGN_SET_AND_DRIFT,
+	//PGN_GNSS_SATS_IN_VIEW,
+	//PGN_AIS_STATIC_B_PART_A,
+	//PGN_AIS_STATIC_B_PART_B.
+	PGN_WIND_DATA,
+	//PGN_ENV_PARAMETERS,
+	//PGN_TEMPERATURE,
+	PGN_DIRECTION_DATA,
+	PGN_SEATALK_ROUTE_INFO,
 
-#if 1
-	65026L,
-	65027L,
-	65029L,
-	65030L,
-	65288L,         // Raymarine proprietary PGN
-	127505L,         // PGN for AC Output Status
-	127504L,
-#endif
-
+	PGN_SEATALK_ROUTE_INFO,
+	PGN_GEN_PHASE_A_AC_POWER,
+	PGN_GEN_PHASE_A_BASIC_AC,
+	PGN_TOTAL_AC_POWER,
+	PGN_AVERAGE_AC_QUANTITIES,
+	PGN_SEATALK_GEN_INFO,
 
 	0
 };
@@ -101,32 +102,16 @@ void inst2000::init()
 	//--------------------------------------
 	// nmea setup
 	//--------------------------------------
-
-	// set device information
+	// for device class and functions see
+	//		docs/ref/nmea_2000/20120726_nmea_2000_class_&_function_codes_v_2.00-1 obtained from the wayback machine at:
+	//		https://web.archive.org/web/20190531120557/https://www.nmea.org/Assets/20120726%20nmea%202000%20class%20&%20function%20codes%20v%202.00.pdf
+	// for registration/company id's see
+	//		docs/ref/nmea2000/20121020_nmea_2000_registration_list.pdf obtained from wayback machine at
+	//		https://web.archive.org/web/20190529161431/http://www.nmea.org/Assets/20121020%20nmea%202000%20registration%20list.pdf
 	// I am not currently calling SetDeviceInstance() but it's working "ok"
 
-	if (0)
-	{
-		SetProductInformation(
-			"RayGen_1000",               // Manufacturer's Model serial code (Raymarine-style prefix)
-			1000,                        // Manufacturer's product code
-			"Raymarine Genset Interface",// Manufacturer's Model ID (clear Raymarine branding)
-			"RG_SW_1.0.0",               // Software version code (Raymarine-style prefix)
-			"RG_HW_1.0.0",               // Model version (Raymarine-style prefix)
-			3,                           // LoadEquivalency (3 × 50 mA = 150 mA)
-			2101,                        // NMEA 2000 version
-			1,                           // Certification level
-			0                            // Device index
-		);
+	#if 1
 
-		SetConfigurationInformation(
-			"Raymarine Ltd.",            // ManufacturerInformation (official branding)
-			"RayGenSim Install 1",       // InstallationDescription1 (Raymarine-style naming)
-			"RayGenSim Install 2"        // InstallationDescription2
-		);
-	}
-	else
-	{
 		SetProductInformation(
 			"prh_model_1000",            // Manufacturer's Model serial code
 			1000,                        // Manufacturer's uint8_t product code
@@ -143,33 +128,40 @@ void inst2000::init()
 			"MonitorInstall1",      // InstallationDescription1
 			"MonitorInstall2"       // InstallationDescription2
 			);
-	}
-
-	// for device class and functions see
-	//		docs/ref/nmea_2000/20120726_nmea_2000_class_&_function_codes_v_2.00-1 obtained from the wayback machine at:
-	//		https://web.archive.org/web/20190531120557/https://www.nmea.org/Assets/20120726%20nmea%202000%20class%20&%20function%20codes%20v%202.00.pdf
-	// for registration/company id's see
-	//		docs/ref/nmea2000/20121020_nmea_2000_registration_list.pdf obtained from wayback machine at
-	//		https://web.archive.org/web/20190529161431/http://www.nmea.org/Assets/20121020%20nmea%202000%20registration%20list.pdf
-
-	if (0)
-	{
-		SetDeviceInformation(
-			123456,  // Unique number (serial)
-			10,       // Device function = AC Generator (or try 15)  (0=generic)
-			30,      // Device class = Electrical Generation
-			1851     // Manufacturer ID (can remain arbitrary if not claiming a known brand)
-		);
-	}
-	else
-	{
 		SetDeviceInformation(
 			123456,  // uint32_t Unique number, i.e. Serial number.
 			130,     // uint8_t  Device function = Analog to NMEA 2000 Gateway
 			25,      // uint8_t  Device class = Inter/Intranetwork Device
 			2046     // uint16_t Registration/Company) ID // 2046 does not exist; choosen arbitrarily
 			);
-	}
+
+	#else	// trying to get E80 to see genset
+
+		SetProductInformation(
+			"RayGen_1000",               // Manufacturer's Model serial code (Raymarine-style prefix)
+			1000,                        // Manufacturer's product code
+			"Raymarine Genset Interface",// Manufacturer's Model ID (clear Raymarine branding)
+			"RG_SW_1.0.0",               // Software version code (Raymarine-style prefix)
+			"RG_HW_1.0.0",               // Model version (Raymarine-style prefix)
+			3,                           // LoadEquivalency (3 × 50 mA = 150 mA)
+			2101,                        // NMEA 2000 version
+			1,                           // Certification level
+			0                            // Device index
+		);
+		SetConfigurationInformation(
+			"Raymarine Ltd.",            // ManufacturerInformation (official branding)
+			"RayGenSim Install 1",       // InstallationDescription1 (Raymarine-style naming)
+			"RayGenSim Install 2"        // InstallationDescription2
+		);
+		SetDeviceInformation(
+			123456,  // Unique number (serial)
+			10,       // Device function = AC Generator (or try 15)  (0=generic)
+			30,      // Device class = Electrical Generation
+			1851     // Manufacturer ID (can remain arbitrary if not claiming a known brand)
+		);
+
+	#endif
+
 
 	// set Device Mode and it's address(99)
 
@@ -205,7 +197,6 @@ void inst2000::init()
 	#endif
 	#endif
 
-
 	// add the device list
 	// and add self to it
 
@@ -220,7 +211,6 @@ void inst2000::init()
 	bool ok = Open();
 	if (!ok)
 		my_error("NMEA2000::Open() failed",0);
-
 
 	proc_leave();
 	display(dbg_mon,"inst2000::init() finished",0);
@@ -253,7 +243,7 @@ void inst2000::broadcastNMEA2000Info()
 		last_send_time = now;
 		ParseMessages(); // Keep parsing messages
 
-		display(0,"Sending NMEA2000Info(%d)",info_sent);
+		display(1,"Sending NMEA2000Info(%d)",info_sent);
 
 		// at this time I have not figured out the actisense reader, and how to
 		// get the whole system to work so that when it asks for device configuration(s)
