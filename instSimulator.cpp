@@ -180,6 +180,10 @@ void instSimulator::init()
 		// Uses "normal" data when using the opto-isolater as wired!
 		// Note that there is also SERIAL_9N1_RXINV_TXINV which *might*
 		// work with inverted signal (different circuit).
+// Serial1.setTX(1);  // Explicitly set TX pin
+// Serial1.setRX(0);  // Explicitly set RX pin
+
+
 
 	SERIAL_83A.begin(38400);
 	SERIAL_83B.begin(38400);

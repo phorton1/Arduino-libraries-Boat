@@ -10,7 +10,7 @@
 #if BREADBOARD
 	#define SERIAL_83A 	Serial3		// NMEA0183-1
 	#define SERIAL_83B 	Serial4		// NMEA0183-2
-	#define SERIAL_ST	Serial2
+	#define SERIAL_ST	Serial1
 #else
 	#define SERIAL_83A 	Serial3		// NMEA0183-1
 	#define SERIAL_83B 	Serial2		// NMEA0183-2
