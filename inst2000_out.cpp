@@ -254,7 +254,7 @@ void apInst::send2000()
 
 		// didn't work
 
-		if (0 && last_target != target_num || strcmp(last_route, boat.getRouteName()))
+		if (0 && (last_target != target_num || strcmp(last_route, boat.getRouteName())))
 		{
 			// PGN_ROUTE_WP_INFO
 

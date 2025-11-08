@@ -50,7 +50,6 @@ extern void clearSTQueue();
 
 // in instSTIn
 
-extern bool g_MON_ST;
 
 extern void showDatagram(bool out, const uint8_t *datagram);
 

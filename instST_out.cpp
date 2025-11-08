@@ -9,7 +9,7 @@
 #include "timeLib.h"
 #include <myDebug.h>
 
-#define dbg_data 		(instruments.g_MON_OUT ? 0 : 1)
+#define dbg_data 		(instruments.g_MON[PORT_ST]>1 ? 0 : 1)
 
 
 #define WRITE_TIMEOUT			10
@@ -64,16 +64,16 @@ void sendDatagram()
 	int len = (dg[1] & 0xf) + 3;
 	for (int i=0; i<len; i++)
 	{
-		SERIAL_SEATALK.write9bit(dg[i]);
+		SERIAL_ST.write9bit(dg[i]);
 	}
 
 	bool reported = 0;
 	uint32_t send_time = millis();
 	for (int i=0; i<len; i++)
 	{
-		if (SERIAL_SEATALK.available())
+		if (SERIAL_ST.available())
 		{
-			int c = SERIAL_SEATALK.read();
+			int c = SERIAL_ST.read();
 			if (c != dg[i])
 			{
 				if (!reported)

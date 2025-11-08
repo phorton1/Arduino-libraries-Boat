@@ -4,12 +4,8 @@
 
 #include <myDebug.h>
 #include <math.h>
+#include "instSimulator.h"
 
-bool g_MON_0183;
-bool g_MON_AIS;
-
-
-static int input_msg_num = 0;
 
 
 
@@ -141,7 +137,6 @@ void decode_vdm(const char *sentence)
 
 	if (msg_type == 18 && bit_len >= 168)
 	{
-
 		int repeat = 0;
 		for (i = 0; i < 2; i++)
 		    repeat = (repeat << 1) | bits[pos++];
@@ -272,13 +267,28 @@ void decode_vdm(const char *sentence)
 
 
 
-void handleNMEA0183Input(const char *buf)
+void handleNMEA0183Input(bool portB, const char *buf)
 {
-	input_msg_num++;
-	if (g_MON_0183)
-		display(0,"%-4d <-- %s",input_msg_num,buf);
-	if (g_MON_AIS && strstr(buf,"VDM"))
-		decode_vdm(buf);
+	int port_num = portB ? PORT_83B : PORT_83A;
+	bool b_mon_all = instruments.g_MON[port_num] & MON83_ALL;
+	bool b_ais_in = instruments.g_MON[port_num] & MON83_AIS_IN;
+	bool b_fwd_a_b = !portB && (instruments.g_FWD & FWD_A_TO_B);
+	bool b_fwd_b_a = portB && (instruments.g_FWD & FWD_B_TO_A);
+	bool is_ais = strstr(buf,"VDM");
+
+	if (b_mon_all || (is_ais && b_ais_in))
+	{
+		const char *fwd_name =
+			b_fwd_a_b ? "FWDB <-- " :
+			b_fwd_b_a ? "FWDA <-- " : "";
+
+		display(0,"%s83%c <-- %s",fwd_name,portB?'B':'A',buf);
+		if (is_ais) decode_vdm(buf);
+	}
+	if (b_fwd_a_b)
+		SERIAL_83B.println(buf);
+	if (b_fwd_b_a)
+		SERIAL_83A.println(buf);
 }
 
 

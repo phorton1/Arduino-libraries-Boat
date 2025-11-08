@@ -8,11 +8,13 @@
 #define BREADBOARD	1
 
 #if BREADBOARD
-	#define SERIAL_0183 	Serial3		// NMEA0183-1
-	#define SERIAL_SEATALK	Serial2
+	#define SERIAL_83A 	Serial3		// NMEA0183-1
+	#define SERIAL_83B 	Serial4		// NMEA0183-2
+	#define SERIAL_ST	Serial2
 #else
-	#define SERIAL_0183 	Serial3		// NMEA0183-1
-	#define SERIAL_SEATALK	Serial4
+	#define SERIAL_83A 	Serial3		// NMEA0183-1
+	#define SERIAL_83B 	Serial2		// NMEA0183-2
+	#define SERIAL_ST	Serial4
 #endif
 
 // Teensy Pins Used
@@ -40,16 +42,14 @@
 #define NUM_INSTRUMENTS 	9
 
 
-#define PORT_SEATALK		0
-#define PORT_0183			1
-#define PORT_2000			2
+#define PORT_ST				0
+#define PORT_83A			1
+#define PORT_83B			2
+#define PORT_2000			3
+#define NUM_PORTS			4
 
-
-#define PORT_MASK_NONE 		0x00
-#define PORT_MASK_SEATALK	(1 << PORT_SEATALK)
-#define PORT_MASK_0183		(1 << PORT_0183)
-#define PORT_MASK_2000		(1 << PORT_2000)
-#define PORT_MASK_ALL		0x07
+#define FWD_A_TO_B			1
+#define FWD_B_TO_A			2
 
 
 #define FEET_TO_METERS		0.3048
@@ -57,6 +57,22 @@
 #define GALLON_TO_LITRE		3.785
 #define PSI_TO_PASCAL		6895.0
 #define SECONDS_PER_DAY		86400
+
+
+// g_MON[PORT_83x) is bitwise
+
+#define MON83_ALL		0x01 		// all in/out
+#define MON83_AIS_IN	0x02 		// ais in only
+
+
+// g_MON[PORT_2000] is bitwise
+
+#define MON2000_SENSORS			0x01		// sensors out, known messages in
+#define MON2000_AIS_GPS			0x02      // GPS/AIS specifically
+#define MON2000_PROPRIETARY		0x04      // known proprietary in
+#define MON2000_UNKNOWN			0x08      // unknown (not busi.e. proprietary) in
+#define MON2000_BUS_IN			0x10      // BUS in
+#define MON2000_BUS_OUT			0x20      // BUS out
 
 
 
@@ -68,11 +84,7 @@ class instBase
 {
 public:
 
-	instBase(uint8_t supported) :
-		m_supported(supported)
-	{
-		m_ports = 0;	
-	}
+	instBase() 	{ m_ports = 0; }
 
 	virtual const char *getName() = 0;
 
@@ -81,16 +93,14 @@ public:
 
 	bool portActive(int port_num) 		{
 		uint8_t port_mask = (1 << port_num);
-		return (m_supported & port_mask) &&
-			   (m_ports & port_mask); }
+		return m_ports & port_mask; }
 
 	virtual void sendSeatalk() {};
-	virtual void send0183() {};
+	virtual void send0183(bool portB) {};
 	virtual void send2000() {};
 
 protected:
 
-	uint8_t m_supported;
 	uint8_t m_ports;
 
 };	// class instBase
@@ -101,26 +111,26 @@ protected:
 // instruments
 //--------------------------------
 
-#define DEFINE_INST_CLASS(CLASSNAME, NAMESTR, SUPPORTED) \
+#define DEFINE_INST_CLASS(CLASSNAME, NAMESTR) \
 	class CLASSNAME : public instBase { \
 	public: \
-		CLASSNAME() : instBase(SUPPORTED) {} \
+		CLASSNAME() : instBase() {} \
 	private: \
 		virtual const char* getName() override { return NAMESTR; } \
 		virtual void sendSeatalk() override; \
-		virtual void send0183() override; \
+		virtual void send0183(bool portB) override; \
 		virtual void send2000() override; \
 	};
 
-DEFINE_INST_CLASS(depthInst,    "DEPTH",		PORT_MASK_ALL)
-DEFINE_INST_CLASS(logInst,      "LOG",			PORT_MASK_ALL)
-DEFINE_INST_CLASS(windInst,     "WIND",			PORT_MASK_ALL)
-DEFINE_INST_CLASS(compassInst,  "COMPASS",		PORT_MASK_ALL)
-DEFINE_INST_CLASS(gpsInst,      "GPS",			PORT_MASK_ALL)
-DEFINE_INST_CLASS(aisInst,      "AIS",			PORT_MASK_0183 | PORT_MASK_2000)
-DEFINE_INST_CLASS(apInst,  		"AUTOPILOT",	PORT_MASK_ALL)
-DEFINE_INST_CLASS(engInst,		"ENGINE",		PORT_MASK_ALL)
-DEFINE_INST_CLASS(genInst,		"GENSET",		PORT_MASK_0183 | PORT_MASK_2000)
+DEFINE_INST_CLASS(depthInst,    "DEPTH"		)
+DEFINE_INST_CLASS(logInst,      "LOG"		)
+DEFINE_INST_CLASS(windInst,     "WIND"		)
+DEFINE_INST_CLASS(compassInst,  "COMPASS"	)
+DEFINE_INST_CLASS(gpsInst,      "GPS"		)
+DEFINE_INST_CLASS(aisInst,      "AIS"		)
+DEFINE_INST_CLASS(apInst,  		"AUTOPILOT" )
+DEFINE_INST_CLASS(engInst,		"ENGINE"	)
+DEFINE_INST_CLASS(genInst,		"GENSET"	)
 
 
 
@@ -141,9 +151,10 @@ public:
 	void loadFromEEPROM();
 	void sendBinaryState();
 
-	static bool g_MON_OUT;
-	instBase *getInst(int i)  { return i<NUM_INSTRUMENTS ? m_inst[i] : 0; }
+	static uint8_t g_FWD;
+	static uint8_t g_MON[NUM_PORTS];
 
+	instBase *getInst(int i)  { return i<NUM_INSTRUMENTS ? m_inst[i] : 0; }
 
 private:
 

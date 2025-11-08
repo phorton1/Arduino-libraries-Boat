@@ -71,6 +71,22 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 	static uint32_t msg_counter = 0;
 	msg_counter++;
 
+	// g_MON[PORT_2000] is bitwise
+	//	MON2000_SENSORS
+	//	MON2000_AIS_GPS
+	//	MON2000_PROPRIETARY
+	//	MON2000_UNKNOWN
+	//	MON2000_BUS_IN
+	//	MON2000_BUS_OUT	
+
+	int mon = instruments.g_MON[PORT_2000];
+	bool b_mon_sensors 	= mon & MON2000_SENSORS;
+	bool b_mon_ais_gps  = mon & MON2000_AIS_GPS;
+	bool b_mon_prop 	= mon & MON2000_PROPRIETARY;
+	bool b_mon_unknown 	= mon & MON2000_UNKNOWN;
+	// bool b_mon_bus_in   = mon & MON2000_BUS_IN;
+	// bool b_mon_bus_out  = mon & MON2000_BUS_OUT;
+
 	// display_string(BUS_COLOR,0,msgToString(msg,"BUS: ").c_str());
 
 	if (msg.Destination == 255 ||
@@ -86,7 +102,7 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			if (ParseN2kPGN127250(msg, sid, d1,d2,d3, ref))
 			{
 				msg_handled = true;
-				if (m_MON_SENSORS)
+				if (b_mon_sensors)
 					display(0,"%3d(%d) heading  : %0.3f degrees",msg.Source,msg_counter,RadToDeg(d1));
 			}
 			else
@@ -101,7 +117,7 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			if (ParseN2kPGN127488(msg,engine_num,rpms,boost,tilt))
 			{
 				msg_handled = true;
-				if (m_MON_SENSORS)
+				if (b_mon_sensors)
 					display(0,"%3d(%d) rpms     : %d",msg.Source,msg_counter,((int) rpms) );
 			}
 			else
@@ -142,7 +158,7 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 					status2))			// Status2             Engine Discrete Status 2
 			{
 				msg_handled = true;
-				if (m_MON_SENSORS)
+				if (b_mon_sensors)
 					display(0,"%3d(%d) engine   : temp(%0.0f) pres(%0.0f) volts(%0.1f) rate(%0.1f)",
 						msg.Source,
 						msg_counter,
@@ -163,7 +179,7 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			if (ParseN2kPGN127505(msg, instance, fluid_type, level, capacity))
 			{
 				msg_handled = true;
-				if (m_MON_SENSORS)
+				if (b_mon_sensors)
 					display(0,"%3d(%d) fuel     : tank(%d) = %d%%",
 						msg.Source,
 						msg_counter,
@@ -180,7 +196,7 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			if (ParseN2kPGN128259(msg, sid, d1, d2, SWRT))
 			{
 				msg_handled = true;
-				if (m_MON_SENSORS)
+				if (b_mon_sensors)
 					display(0,"%3d(%d) speed    : %0.3f kts",msg.Source,msg_counter,msToKnots(d1));
 			}
 			else
@@ -192,7 +208,7 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			if (ParseN2kPGN128267(msg,sid,d1,d2,d3))
 			{
 				msg_handled = true;
-				if (m_MON_SENSORS)
+				if (b_mon_sensors)
 					display(0,"%3d(%d) depth    : %0.3f meters",msg.Source,msg_counter,d1);
 			}
 			else
@@ -205,7 +221,7 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			if (ParseN2kPGN129025(msg,lat,lon))
 			{
 				msg_handled = true;
-				if (m_MON_SENSORS)
+				if (b_mon_sensors)
 					display(0,"%3d(%d) position : lat(%0.6f) lon(%0.6f)",msg.Source,msg_counter,lat,lon);
 			}
 			else
@@ -229,7 +245,7 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 								  num_ref_stations, ref_station_type, ref_station_id, age_of_correction))
 			{
 				msg_handled = true;
-				if (m_MON_GPS)
+				if (b_mon_sensors || b_mon_ais_gps)
 					display(0,"%3d(%d) gnss_data: lat(%0.3f) lon(%0.3f) num_sats(%d) hdop(%0.2f)",
 						msg.Source,
 						msg_counter,
@@ -261,7 +277,7 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 								  trans_info, heading, unit, disp, dsc, band, msg22, mode, state, sid))
 			{
 				msg_handled = true;
-				if (m_MON_SENSORS)
+				if (b_mon_sensors || b_mon_ais_gps)
 					display(0,"%3d(%d) ais_a    : mmsi(%d) lat(%0.3f) lon(%0.3f) %s sog(%0.1f) %s",
 						msg.Source,
 						msg_counter,
@@ -283,7 +299,7 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			if (ParseN2kPGN129540(msg, sat_index, sat_info))
 			{
 				msg_handled = true;
-				if (m_MON_GPS)
+				if (b_mon_sensors || b_mon_ais_gps)
 					display(0,"%3d(%d) sat_view : index(%d) PRN(%d) elev(%0.3f) azimuth(%0.3f) SNR(%0.1f)",
 						msg.Source,
 						msg_counter,
@@ -308,7 +324,7 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			if (ParseN2kPGN129809(msg, msg_id, repeat, mmsi, name, 20, trans_info, sid))
 			{
 				msg_handled = true;
-				if (m_MON_SENSORS)
+				if (b_mon_sensors || b_mon_ais_gps)
 					display(0,"%3d(%d) ais_b_a  : mmsi(%d) name: %s",
 						msg.Source,
 						msg_counter,
@@ -340,7 +356,7 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 								  length, beam, pos_ref_stbd, pos_ref_bow, mothership_id, trans_info, sid))
 			{
 				msg_handled = true;
-				if (m_MON_SENSORS)
+				if (b_mon_sensors || b_mon_ais_gps)
 				{
 					int i_length = length * 3.28084;
 					int i_beam = beam * 3.28084;
@@ -366,7 +382,7 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			if (ParseN2kPGN130316(msg,sid,instance,source,d1,d2))
 			{
 				msg_handled = true;
-				if (m_MON_SENSORS)
+				if (b_mon_sensors)
 					display(0,"%3d(%d) temp     : %0.3fC",msg.Source,msg_counter,KelvinToC(d1));
 			}
 			else
@@ -377,17 +393,26 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 	}	// 255 or MONITOR_NMEA_ADDRESS
 
 
-	// show unhandled messages as BUS: in white
+	// I don't think we get bus messages here;
+	// if so, we want to filter them
+	// show unhandled messages as UNKNOWN: in white
 
-	if (!msg_handled && m_MON_BUS)
+	// bool b_mon_bus_in   = g_MON[PORT_2000] & MON2000_BUS_IN;
+	// bool b_mon_bus_in   = g_MON[PORT_2000] & MON2000_BUS_OUT;
+
+	if (!msg_handled && b_mon_unknown)
 	{
 		bool is_known_proprietary =
 			msg.PGN == PGN_PROP_B_65311 ||
 			msg.PGN == PGN_PROP_B_65362 ||
 			msg.PGN == PGN_PROP_B_130846;
+		const char *name = is_known_proprietary ? "PROPRIETARY: " : "UNKNOWN: ";
 
-		if (!is_known_proprietary || m_MON_PROP)
-			display_string(BUS_COLOR,0,msgToString(msg,"BUS: ").c_str());
+		if ((is_known_proprietary && b_mon_prop) ||
+			(!is_known_proprietary && b_mon_unknown))
+		{
+			display_string(BUS_COLOR,0,msgToString(msg,name).c_str());
+		}
 	}
 
 }	// onBusMessage()

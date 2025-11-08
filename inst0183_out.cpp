@@ -9,7 +9,7 @@
 #include "boatBinary.h"
 #include <myDebug.h>
 
-#define show_0183 (1-g_MON_0183)
+// #define show_0183 (1-g_MON_0183)
 
 
 #define MAX_NMEA_MSG	180
@@ -24,20 +24,30 @@ static char nmea_buf[MAX_NMEA_MSG+1];
 	// send these messages out as binary so teensyBoat.pm can
 	// forward them to a VSPE COM29 for RNS
 
-static void sendNMEA0183()
+static void sendNMEA0183(bool portB)
 {
 	if (SEND_NMEA0183_AS_BINARY)
 	{
 		uint8_t buf[BINARY_BUF_SIZE+1];
-		int offset = startBinary(buf,BINARY_TYPE_0183);
+		int offset = startBinary(buf,portB?BINARY_TYPE_0183B:BINARY_TYPE_0183A);
 		offset = binaryVarStr(buf,offset,nmea_buf,BINARY_BUF_SIZE);
 		endBinary(buf,offset);
 		// display(0,"sending type(%d) %d bytes to binary serial port",BINARY_TYPE_0183,offset);
 		Serial.write(buf,offset);
 	}
-	// else
+
+	int port_num = portB ? PORT_83B : PORT_83A;
+	bool b_mon_all = instruments.g_MON[port_num] & MON83_ALL;
+	if (b_mon_all)
+		display(0,"83%c --> %s",portB?'B':'A',nmea_buf);
+
+	if (portB)
 	{
-		SERIAL_0183.println(nmea_buf);
+		SERIAL_83B.println(nmea_buf);
+	}
+	else
+	{
+		SERIAL_83A.println(nmea_buf);
 	}
 }
 
@@ -134,7 +144,7 @@ static const char *standardLon(double longitude)
 // instruments
 //-----------------------------
 
-void depthInst::send0183()
+void depthInst::send0183(bool portB)
 	// SD = Sounder device
 	// DPT = Water Depth
 {
@@ -146,12 +156,12 @@ void depthInst::send0183()
 	//                       1     2
 	sprintf(nmea_buf,"$SDDPT,%0.1f,0.0",d_meters);
 	checksum();
-	display(show_0183,"depthInst --> %s",nmea_buf);
-	sendNMEA0183();
+	// display(show_0183,"depthInst --> %s",nmea_buf);
+	sendNMEA0183(portB);
 }
 
 
-void logInst::send0183()
+void logInst::send0183(bool portB)
 {
 	// VW = Velocity Sensor, Speed Log, Water, Mechanical
 	// VHW device
@@ -171,8 +181,8 @@ void logInst::send0183()
 		// boat.getCOG(),
 		boat.getWaterSpeed());
 	checksum();
-	display(show_0183,"logInst --> %s",nmea_buf);
-	sendNMEA0183();
+	// display(show_0183,"logInst --> %s",nmea_buf);
+	sendNMEA0183(portB);
 
 	if (1)	// The E80 is not seeing this message
 	{
@@ -190,13 +200,13 @@ void logInst::send0183()
 			boat.getLogTotal(),
 			boat.getTripDistance());
 		checksum();
-		display(show_0183,"logInst --> %s", nmea_buf);
-		sendNMEA0183();
+		// display(show_0183,"logInst --> %s", nmea_buf);
+		sendNMEA0183(portB);
 	}
 }
 
 
-void windInst::send0183()
+void windInst::send0183(bool portB)
 {
 	double heading = boat.getHeading();
 	double bow_angle_true = boat.getWindAngle() - heading;
@@ -221,8 +231,8 @@ void windInst::send0183()
 		bow_angle_true,
 		boat.getWindSpeed());
 	checksum();
-	display(show_0183,"windInst --> %s",nmea_buf);
-	sendNMEA0183();
+	// display(show_0183,"windInst --> %s",nmea_buf);
+	sendNMEA0183(portB);
 
 	// apparentWindAngle() is ALREADY measured relative to the bow!
 
@@ -230,12 +240,12 @@ void windInst::send0183()
 		boat.apparentWindAngle(),
 		boat.apparentWindSpeed());
 	checksum();
-	display(show_0183,"windInst --> %s",nmea_buf);
-	sendNMEA0183();
+	// display(show_0183,"windInst --> %s",nmea_buf);
+	sendNMEA0183(portB);
 }
 
 
-void compassInst::send0183()
+void compassInst::send0183(bool portB)
 {
 	// Device = HC (heading compass)
 
@@ -247,8 +257,8 @@ void compassInst::send0183()
 		sprintf(nmea_buf,"$HCHDT,%0.1f,T",
 			boat.getHeading() );
 		checksum();
-		display(show_0183,"compassInst --> %s",nmea_buf);
-		sendNMEA0183();
+		// display(show_0183,"compassInst --> %s",nmea_buf);
+		sendNMEA0183(portB);
 	}
 	if (0)
 	{
@@ -258,13 +268,13 @@ void compassInst::send0183()
 		sprintf(nmea_buf,"$HCHDM,%0.1f,M",
 			boat.getHeading() );
 		checksum();
-		display(show_0183,"compassInst --> %s",nmea_buf);
-		sendNMEA0183();
+		// display(show_0183,"compassInst --> %s",nmea_buf);
+		sendNMEA0183(portB);
 	}
 }
 
 
-void gpsInst::send0183()
+void gpsInst::send0183(bool portB)
 	//	Recommended NMEA Sentence Order
 	//	For a full GPS data stream that devices like the Raymarine E80 expect, the typical order and priority is:
 	//	- $GPGGA — Fix data (position, satellites used, HDOP, altitude)
@@ -303,7 +313,7 @@ void gpsInst::send0183()
 			standardLon(boat.getLon())
 		);
 		checksum();  // Appends *hh
-		sendNMEA0183();
+		sendNMEA0183(portB);
 	}
 
 	if (1)
@@ -323,7 +333,7 @@ void gpsInst::send0183()
 
 		strcpy(nmea_buf, "$GPGSA,A,3,07,08,10,,,,,,,,,,1.8,2.2,2.1");
 		checksum();  // Appends *hh checksum
-		sendNMEA0183();
+		sendNMEA0183(portB);
 	}
 
 	if (1)
@@ -343,7 +353,7 @@ void gpsInst::send0183()
 		//                      1 2 3  a  b  c   d  a  b  c   d  a  b  c   d
 		strcpy(nmea_buf,"$GPGSV,1,1,03,07,79,048,42,08,62,308,45,10,51,180,88");
 		checksum();
-		sendNMEA0183();
+		sendNMEA0183(portB);
 	}
 
 	if (1)
@@ -375,8 +385,8 @@ void gpsInst::send0183()
 			boat.getCOG(),
 			standardDate());
 		checksum();
-		display(show_0183,"gpsInst --> %s",nmea_buf);
-		sendNMEA0183();
+		// display(show_0183,"gpsInst --> %s",nmea_buf);
+		sendNMEA0183(portB);
 	}
 
 	if (1)
@@ -397,18 +407,18 @@ void gpsInst::send0183()
 			standardLon(boat.getLon()),
 			standardTime());
 		checksum();
-		display(show_0183,"gpsInst --> %s",nmea_buf);
-		sendNMEA0183();
+		// display(show_0183,"gpsInst --> %s",nmea_buf);
+		sendNMEA0183(portB);
 	}
 }
 
 
-void aisInst::send0183()
+void aisInst::send0183(bool portB)
 {
 }
 
 
-void apInst::send0183()
+void apInst::send0183(bool portB)
 {
 	char lr = 'R';
 	const char *arrive_char = boat.getArrived() ? "A" : "V";
@@ -433,7 +443,7 @@ void apInst::send0183()
 		boat.getCOG(),		// 1
 		boat.getSOG());		// 3
 	checksum();
-	display(show_0183,"apInst --> %s",nmea_buf);
+	// display(show_0183,"apInst --> %s",nmea_buf);
 
 	// RMC = Recommended Minimum Navigation Information 'C'
 	// "$GPRMC,092750.000,A,5321.6802,N,00630.3372,W,0.02,31.66,280511,,,A*43",
@@ -458,8 +468,8 @@ void apInst::send0183()
 		boat.getCOG(),					// 8
 		standardDate());				// 9
 	checksum();
-	display(show_0183,"apInst --> %s",nmea_buf);
-	sendNMEA0183();
+	// display(show_0183,"apInst --> %s",nmea_buf);
+	sendNMEA0183(portB);
 
 
 	if (boat.getRouting())
@@ -497,8 +507,8 @@ void apInst::send0183()
 			arrive_char);				// 13
 
 		checksum();
-		display(show_0183,"apInst --> %s",nmea_buf);
-		sendNMEA0183();
+		// display(show_0183,"apInst --> %s",nmea_buf);
+		sendNMEA0183(portB);
 		
 		// BWC = Bearing and Distance to Waypoint using Great Circle
 		//	1) UTC time
@@ -523,20 +533,20 @@ void apInst::send0183()
 			boat.distanceToWaypoint(),		// 10
 			target_wp->name);				// 12
 		checksum();
-		display(show_0183,"apInst --> %s",nmea_buf);
-		sendNMEA0183();
+		// display(show_0183,"apInst --> %s",nmea_buf);
+		sendNMEA0183(portB);
 	}
 
 
 }
 
 
-void engInst::send0183()
+void engInst::send0183(bool portB)
 {
 }
 
 
-void genInst::send0183()
+void genInst::send0183(bool portB)
 {
 }
 
@@ -608,7 +618,7 @@ void sendNMEA0183Route(String route_name)
 			}
 			checksum();
 			display(0,"   --->%s",nmea_buf);
-			sendNMEA0183();
+			sendNMEA0183(false);
 		}
 	}
 	
@@ -624,7 +634,7 @@ void sendNMEA0183Route(String route_name)
 			wp->name);
 		checksum();
 		display(0,"   ===>%s",nmea_buf);
-		sendNMEA0183();
+		sendNMEA0183(false);
 	}
 
 	display(0,"sendNMEA0183Route(%s) finshed",found->name);

@@ -139,12 +139,6 @@ public:
 	void sendDeviceQuery();
 	void listDevices();
 
-	static bool m_MON_SENSORS;	// decode and show known sensor messages
-	static bool m_MON_GPS;		// decode and show known gps/satellite messages
-	static bool m_MON_PROP;		// show known proprietary messages on the bus
-	static bool m_MON_BUS;		// show unhandled/unknown messages on the bus
-
-
 #ifdef ESP32
 	static void showESP32Memory();
 #endif

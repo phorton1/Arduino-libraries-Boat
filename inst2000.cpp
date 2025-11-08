@@ -12,11 +12,6 @@
 #define dbg_dl  		0		// device list
 
 
-bool inst2000::m_MON_BUS = 0;
-bool inst2000::m_MON_PROP = 0;
-bool inst2000::m_MON_SENSORS = 0;
-bool inst2000::m_MON_GPS = 0;
-
 
 inst2000 nmea2000;
 	// global static instance

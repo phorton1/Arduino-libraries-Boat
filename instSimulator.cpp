@@ -33,8 +33,6 @@
 #define BROADCAST_NMEA2000_INFO   1
 
 
-bool instSimulator::g_MON_OUT = 0;
-
 instSimulator instruments;
 	// global instance
 
@@ -44,9 +42,12 @@ windInst		i_wind;
 compassInst		i_compass;
 gpsInst			i_gps;
 aisInst			i_ais;
-apInst	i_autopilot;
-engInst		i_engine;
-genInst		i_genset;
+apInst			i_autopilot;
+engInst			i_engine;
+genInst			i_genset;
+
+uint8_t instSimulator::g_MON[NUM_PORTS];
+uint8_t instSimulator::g_FWD;
 
 
 //----------------------------------------------------
@@ -61,25 +62,43 @@ genInst		i_genset;
 
 void instSimulator::saveToEEPROM()
 {
+	int offset = INST_EEPROM_BASE;
 	for (int i=0; i<NUM_INSTRUMENTS; i++)
 	{
 		uint8_t mask = m_inst[i]->getPorts();
-		EEPROM.write(i + INST_EEPROM_BASE,mask);
+		EEPROM.write(offset++,mask);
 		display(dbg_eeprom,"wrote mask(%d) for instrment(%d) to EEPROM",mask,i);
 	}
+	for (int i=0; i<NUM_PORTS; i++)
+	{
+		EEPROM.write(offset++, g_MON[i]);
+		display(dbg_eeprom,"wrote MON(%d)=%02x to EEPROM",i,g_MON[i]);
+	}
+	EEPROM.write(offset++,g_FWD);
+	display(dbg_eeprom,"wrote FWD=%02x to EEPROM",g_FWD);
 }
+
 
 void instSimulator::loadFromEEPROM()
 {
+	int offset = INST_EEPROM_BASE;
 	for (int i=0; i<NUM_INSTRUMENTS; i++)
 	{
-		uint8_t mask = EEPROM.read(i + INST_EEPROM_BASE);
+		uint8_t mask = EEPROM.read(offset++);
 		if (mask != 255)
 		{
 			display(dbg_eeprom,"got mask(%d) for instrment(%d) from EEPROM",mask,i);
 			m_inst[i]->setPorts(mask);
 		}
 	}
+	for (int i=0; i<NUM_PORTS; i++)
+	{
+		g_MON[i] = EEPROM.read(offset++);
+		display(dbg_eeprom,"got G_MON(%d)=%02x",i,g_MON[i]);
+	}
+	g_FWD = EEPROM.read(offset++);
+	display(dbg_eeprom,"got FWD=%02x",g_FWD);
+
 	sendBinaryState();
 }
 
@@ -130,6 +149,12 @@ void instSimulator::sendBinaryState()
 		display(send_state+1,"inst(%d) offset(%d) <= mask(%d)",i,offset,mask);
 		offset = binaryUint8(buf,offset,mask);
 	}
+	for (int i=0; i<NUM_PORTS; i++)
+	{
+		display(send_state+1,"g_MON[%i]=%02x",i,g_MON[i]);
+		offset = binaryUint8(buf,offset,g_MON[i]);
+	}
+	offset = binaryUint8(buf,offset,g_FWD);
 	endBinary(buf,offset);
 	display_bytes(send_state+1,"sending",buf,offset);
 	proc_leave();
@@ -147,37 +172,19 @@ void instSimulator::init()
 	proc_entry();
 
 	//----------------------------------
-	// Seatalk initialization
+	// Port intializations
 	//----------------------------------
 
-	SERIAL_SEATALK.begin(4800, SERIAL_9N1);
+	SERIAL_ST.begin(4800, SERIAL_9N1);
 		// Requires #define SERIAL_9BIT_SUPPORT in HardwareSerial.h
 		// Uses "normal" data when using the opto-isolater as wired!
 		// Note that there is also SERIAL_9N1_RXINV_TXINV which *might*
 		// work with inverted signal (different circuit).
 
-	//----------------------------------
-	// NMEA0183 initialization
-	//----------------------------------
-
-	#if TEST_RS232
-		pinMode(TEST_OUT1,OUTPUT);
-		pinMode(TEST_IN1,INPUT_PULLUP);
-		pinMode(TEST_OUT2,OUTPUT);
-		pinMode(TEST_IN2,INPUT_PULLUP);
-		digitalWrite(TEST_OUT1,1);
-		digitalWrite(TEST_OUT2,1);
-	#else
-		SERIAL_0183.begin(38400);
-	#endif
-
-
-	//---------------------------------
-	// NMEA2000 initialization
-	//---------------------------------
+	SERIAL_83A.begin(38400);
+	SERIAL_83B.begin(38400);
 
 	nmea2000.init();
-
 
 	//---------------------------------
 	// boatSimulator initialization
@@ -196,6 +203,10 @@ void instSimulator::init()
 	m_inst[INST_ENGINE]		= &i_engine;
 	m_inst[INST_GENSET]		= &i_genset;
 
+
+	// one time clear
+	// saveToEEPROM();
+
 	loadFromEEPROM();
 	
 	proc_leave();
@@ -203,6 +214,8 @@ void instSimulator::init()
 }
 
 
+
+bool clear = 0;
 
 void instSimulator::run()
 {
@@ -220,10 +233,12 @@ void instSimulator::run()
 				{
 					delay(10);
 					instBase *inst = m_inst[i];
-					if (inst->portActive(PORT_SEATALK))
+					if (inst->portActive(PORT_ST))
 						inst->sendSeatalk();
-					if (inst->portActive(PORT_0183))
-						inst->send0183();
+					if (inst->portActive(PORT_83A))
+						inst->send0183(false);
+					if (inst->portActive(PORT_83B))
+						inst->send0183(true);
 					if (inst->portActive(PORT_2000))
 						inst->send2000();
 				}
@@ -240,12 +255,11 @@ void instSimulator::run()
 		nmea2000.broadcastNMEA2000Info();
 	#endif
 
-	#if 1	// listen for NMEA0183 data
-
-		while (SERIAL_0183.available())
+	#if 1	// listen for NMEA0183A data
+		while (SERIAL_83A.available())
 		{
 			#define MAX_MSG 180
-			int c = SERIAL_0183.read();
+			int c = SERIAL_83A.read();
 			static char buf[MAX_MSG+1];
 			static int buf_ptr = 0;
 
@@ -254,7 +268,30 @@ void instSimulator::run()
 			if (buf_ptr >= MAX_MSG || c == 0x0a)
 			{
 				buf[buf_ptr] = 0;
-				handleNMEA0183Input(buf);
+				handleNMEA0183Input(false,buf);
+				buf_ptr = 0;
+			}
+			else if (c != 0x0d)
+			{
+				buf[buf_ptr++] = c;
+			}
+		}
+	#endif
+
+	#if 1	// listen for NMEA0183B data
+		while (SERIAL_83B.available())
+		{
+			#define MAX_MSG 180
+			int c = SERIAL_83B.read();
+			static char buf[MAX_MSG+1];
+			static int buf_ptr = 0;
+
+			// display(0,"got Serial2 0x%02x %c",c,c>32 && c<127 ? c : ' ');
+
+			if (buf_ptr >= MAX_MSG || c == 0x0a)
+			{
+				buf[buf_ptr] = 0;
+				handleNMEA0183Input(true,buf);
 				buf_ptr = 0;
 			}
 			else if (c != 0x0d)
@@ -268,9 +305,9 @@ void instSimulator::run()
 	#if 1	// listen for Seatalk data
 
 		static uint32_t last_st_in;
-		while (SERIAL_SEATALK.available())
+		while (SERIAL_ST.available())
 		{
-			int c = SERIAL_SEATALK.read();
+			int c = SERIAL_ST.read();
 			last_st_in = millis();
 
 			// the 9th bit is set on the first 'byte' of a sequence

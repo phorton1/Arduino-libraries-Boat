@@ -17,11 +17,10 @@
 //		numberic target wp names
 
 
-bool g_MON_ST;
+
 uint32_t g_last_st_receive_time;
 
 #define MAX_ST_NAME		12
-
 
 
 
@@ -424,7 +423,7 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 
 void showDatagram(bool out_direction, const uint8_t *dg)
 {
-	if (!g_MON_ST && !(g_BINARY & BINARY_TYPE_ST))
+	if (!instruments.g_MON[PORT_ST] && !(g_BINARY & BINARY_TYPE_ST))
 		return;
 
 	#define WIDTH_OF_HEX	3
@@ -469,7 +468,7 @@ void showDatagram(bool out_direction, const uint8_t *dg)
 
 
 
-	if (g_MON_ST)
+	if (instruments.g_MON[PORT_ST])
 	{
 		String out = pad(in_counter,7);
 		out += arrow;
