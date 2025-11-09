@@ -272,8 +272,8 @@ void handleNMEA0183Input(bool portB, const char *buf)
 	int port_num = portB ? PORT_83B : PORT_83A;
 	bool b_mon_all = instruments.g_MON[port_num] & MON83_ALL;
 	bool b_ais_in = instruments.g_MON[port_num] & MON83_AIS_IN;
-	bool b_fwd_a_b = !portB && (instruments.g_FWD & FWD_A_TO_B);
-	bool b_fwd_b_a = portB && (instruments.g_FWD & FWD_B_TO_A);
+	bool b_fwd_a_b = !portB && (instruments.g_FWD & FWD_83A_TO_B);
+	bool b_fwd_b_a = portB && (instruments.g_FWD & FWD_83B_TO_A);
 	bool is_ais = strstr(buf,"VDM");
 
 	if (b_mon_all || (is_ais && b_ais_in))

@@ -5,17 +5,14 @@
 #pragma once
 #include <myDebug.h>
 
-#define BREADBOARD	1
 
-#if BREADBOARD
-	#define SERIAL_83A 	Serial3		// NMEA0183-1
-	#define SERIAL_83B 	Serial4		// NMEA0183-2
-	#define SERIAL_ST	Serial1
-#else
-	#define SERIAL_83A 	Serial3		// NMEA0183-1
-	#define SERIAL_83B 	Serial2		// NMEA0183-2
-	#define SERIAL_ST	Serial4
-#endif
+#define SERIAL_ST1	Serial1
+#define SERIAL_ST2	Serial2
+#define SERIAL_83A 	Serial3
+#define SERIAL_83B 	Serial4		
+
+
+
 
 // Teensy Pins Used
 //
@@ -42,14 +39,19 @@
 #define NUM_INSTRUMENTS 	9
 
 
-#define PORT_ST				0
-#define PORT_83A			1
-#define PORT_83B			2
-#define PORT_2000			3
-#define NUM_PORTS			4
+#define PORT_ST1			0
+#define PORT_ST2			1
+#define PORT_83A			2
+#define PORT_83B			3
+#define PORT_2000			4
+#define NUM_PORTS			5
 
-#define FWD_A_TO_B			1
-#define FWD_B_TO_A			2
+#define FWD_NONE			0x00
+#define FWD_ST1_TO_2		0x01
+#define FWD_ST2_TO_1		0x02
+#define FWD_83A_TO_B		0x04
+#define FWD_83B_TO_A		0x08
+#define FWD_MAX				0x0f
 
 
 #define FEET_TO_METERS		0.3048
@@ -59,11 +61,12 @@
 #define SECONDS_PER_DAY		86400
 
 
+// g_MON(PORT_STx) is simply on/off
+
 // g_MON[PORT_83x) is bitwise
 
 #define MON83_ALL		0x01 		// all in/out
 #define MON83_AIS_IN	0x02 		// ais in only
-
 
 // g_MON[PORT_2000] is bitwise
 
@@ -95,8 +98,8 @@ public:
 		uint8_t port_mask = (1 << port_num);
 		return m_ports & port_mask; }
 
-	virtual void sendSeatalk() {};
-	virtual void send0183(bool portB) {};
+	virtual void sendSeatalk(bool port2) {};
+	virtual void send0183(bool portB) 	 {};
 	virtual void send2000() {};
 
 protected:
@@ -117,7 +120,7 @@ protected:
 		CLASSNAME() : instBase() {} \
 	private: \
 		virtual const char* getName() override { return NAMESTR; } \
-		virtual void sendSeatalk() override; \
+		virtual void sendSeatalk(bool port2) override; \
 		virtual void send0183(bool portB) override; \
 		virtual void send2000() override; \
 	};
@@ -147,6 +150,8 @@ public:
 
 	void setPorts(int inst_num, uint8_t port_mask, bool no_echo);
 	void setAll(int port_num, bool on, bool no_echo);
+	void setFWD(int fwd);
+
 	void saveToEEPROM();
 	void loadFromEEPROM();
 	void sendBinaryState();

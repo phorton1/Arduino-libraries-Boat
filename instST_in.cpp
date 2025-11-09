@@ -17,9 +17,6 @@
 //		numberic target wp names
 
 
-
-uint32_t g_last_st_receive_time;
-
 #define MAX_ST_NAME		12
 
 
@@ -420,10 +417,23 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 
 
 
-
-void showDatagram(bool out_direction, const uint8_t *dg)
+void showDatagram16(bool port2, bool out, const uint16_t *dg)
 {
-	if (!instruments.g_MON[PORT_ST] && !(g_BINARY & BINARY_TYPE_ST))
+	int len = (dg[1] & 0xf) + 3;
+	uint8_t echo_dg[MAX_ST_BUF];
+	for (int i=0; i<len; i++)
+	{
+		echo_dg[i] = dg[i];
+	}
+	showDatagram(port2,true,echo_dg);
+}
+
+
+void showDatagram(bool port2, bool out, const uint8_t *dg)
+{
+	int port_num = port2 ? PORT_ST2 : PORT_ST1;
+	int binary_type = port2 ? BINARY_TYPE_ST2 : BINARY_TYPE_ST1;
+	if (!instruments.g_MON[port_num] && !(g_BINARY & binary_type))
 		return;
 
 	#define WIDTH_OF_HEX	3
@@ -442,12 +452,28 @@ void showDatagram(bool out_direction, const uint8_t *dg)
 		if (search->st == st) found = search;
 		search++;
 	}
+
+	bool fwd = 0;
+
+	if (!out && (
+		(port2 && (instruments.g_FWD & FWD_ST2_TO_1)) ||
+		(!port2 && (instruments.g_FWD & FWD_ST1_TO_2)) ))
+	{
+		fwd = 1;
+	}
+
+
 	const char *name = found ?
 		found->name : "unknown";
 	const char *inst = found && found->out_inst>= 0?
 		instruments.getInst(found->out_inst)->getName() : "";
 
-	String st_name("ST_");
+	String st_name(fwd ? "S" : "ST");
+	st_name += port2 ? '2' : '1';			// STx for sends and non-forwarded receives
+	if (fwd)								// Sxy for forwarded receives
+		st_name += port2 ? '1' : '2';
+		
+	st_name += '_';
 	st_name += name;
 	String out_inst(inst);
 	out_inst = out_inst.toLowerCase();
@@ -464,11 +490,9 @@ void showDatagram(bool out_direction, const uint8_t *dg)
 		hex += hex_buf;
 	}
 
-	String arrow(out_direction ? "-->" : "<--");
+	String arrow(fwd ? "<->" : out ? "-->" : "<--");
 
-
-
-	if (instruments.g_MON[PORT_ST])
+	if (instruments.g_MON[port_num])
 	{
 		String out = pad(in_counter,7);
 		out += arrow;
@@ -482,7 +506,7 @@ void showDatagram(bool out_direction, const uint8_t *dg)
 		Serial.println(out.c_str());
 	}
 
-	if (g_BINARY & BINARY_TYPE_ST)
+	if (g_BINARY & binary_type)
 	{
 		#define MSG_BUF_SIZE 256
 		String bin =
@@ -491,10 +515,15 @@ void showDatagram(bool out_direction, const uint8_t *dg)
 			hex + "\t" +
 			decode;
 		/*static*/ uint8_t binary_buf[BINARY_HEADER_LEN + MSG_BUF_SIZE];
-		int offset = startBinary(binary_buf,BINARY_TYPE_ST);
+		int offset = startBinary(binary_buf,binary_type);
 		offset = binaryVarStr(binary_buf, offset, bin.c_str(), MSG_BUF_SIZE);
 		endBinary(binary_buf,offset);
 		Serial.write(binary_buf,offset);
+	}
+
+	if (fwd)
+	{
+		queueDatagram8(!port2,dg, true);
 	}
 }
 

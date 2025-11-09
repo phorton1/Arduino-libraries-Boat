@@ -9,57 +9,92 @@
 #include "timeLib.h"
 #include <myDebug.h>
 
-#define dbg_data 		(instruments.g_MON[PORT_ST]>1 ? 0 : 1)
+#define dbg_data 		(instruments.g_MON[port2?PORT_ST2:PORT_ST1]>1 ? 0 : 1)
 
+#define WRITE_TIMEOUT			50
 
-#define WRITE_TIMEOUT			10
-
-#define CIRC_BUF_SIZE  20
+#define NUM_ST_PORTS		    2
+#define CIRC_BUF_SIZE  			20
 
 static uint16_t dg[MAX_ST_BUF];
-static uint16_t circ[CIRC_BUF_SIZE][MAX_ST_BUF];
-static int head;
-static int tail;
+	// there is only one dg message being built at a time
+	// perhaps this *should* be local to each instrument method
 
-void clearSTQueue()
+// but there are two separate queues
+
+static uint16_t circ[NUM_ST_PORTS][CIRC_BUF_SIZE][MAX_ST_BUF];
+static int head[NUM_ST_PORTS];
+static int tail[NUM_ST_PORTS];
+
+void clearSTQueues()
 {
-	head = 0;
-	tail = 0;
+	head[0] = 0;
+	tail[0] = 0;
+	head[1] = 0;
+	tail[1] = 0;
 }
 
-void queueDatagram(const uint16_t *dg)
-{
-	int len = (dg[1] & 0xf) + 3;
-	uint16_t *ptr = circ[head++];
-	memcpy(ptr,dg,len * sizeof(uint16_t));
-	if (head >= CIRC_BUF_SIZE)
-		head = 0;
-	if (head == tail)
-	{
-		tail++;
-		if (tail > CIRC_BUF_SIZE)
-			tail = 0;
-	}
 
-	uint8_t echo_dg[MAX_ST_BUF];
+void queueDatagram8(bool port2, const uint8_t *dg, bool quiet)
+{
+	uint16_t dg16[MAX_ST_BUF];
+	int len = (dg[1] & 0xf) + 3;
 	for (int i=0; i<len; i++)
 	{
-		echo_dg[i] = dg[i];
+		dg16[i] = dg[i];
 	}
-	showDatagram(true,echo_dg);
+	dg16[0] |= ST_COMMAND_BIT;
+	if (quiet)
+		dg16[0] |= ST_QUIET_BIT;
+
+	queueDatagram(port2,dg16);
+}
+
+
+void queueDatagram(bool port2, const uint16_t *dg)
+{
+	int len = (dg[1] & 0xf) + 3;
+	uint16_t *ptr = circ[port2][head[port2]++];
+	memcpy(ptr,dg,len * sizeof(uint16_t));
+	if (head[port2] >= CIRC_BUF_SIZE)
+		head[port2] = 0;
+	if (head[port2] == tail[port2])
+	{
+		tail[port2]++;
+		if (tail[port2] > CIRC_BUF_SIZE)
+			tail[port2] = 0;
+	}
+	// showDatagram16(port2,true,dg);
 }
 
 
 
 
 
-void sendDatagram()
+void sendDatagram(bool port2)
 {
-	if (tail == head)
+	if (tail[port2] == head[port2])
 		return;
-	uint16_t *dg = circ[tail++];
-	if (tail > CIRC_BUF_SIZE)
-		tail = 0;
+
+	HardwareSerial &SERIAL_ST = port2 ?
+		SERIAL_ST2 :
+		SERIAL_ST1 ;
+		
+	uint16_t *dg = circ[port2][tail[port2]++];
+	if (tail[port2] > CIRC_BUF_SIZE)
+		tail[port2] = 0;
+
+	// the 10th bit (ST_QUIET_BIT) will not be sent
+	// but we need to remove it for readback check
+
+	if (dg[0] & ST_QUIET_BIT)
+	{
+		dg[0] &= ~ST_QUIET_BIT;
+	}
+	else
+	{
+		showDatagram16(port2,true,dg);
+	}
 
 	int len = (dg[1] & 0xf) + 3;
 	for (int i=0; i<len; i++)
@@ -69,23 +104,24 @@ void sendDatagram()
 
 	bool reported = 0;
 	uint32_t send_time = millis();
-	for (int i=0; i<len; i++)
+	int got = 0;
+	while (got < len)
 	{
 		if (SERIAL_ST.available())
 		{
 			int c = SERIAL_ST.read();
-			if (c != dg[i])
+			if (c != dg[got++])
 			{
 				if (!reported)
 				{
-					warning(0,"collision(0x%03x) at %d",dg[0],i);
+					warning(0,"collision(0x%03x) at %d",dg[0],got);
 					reported = 1;
 				}
  			}
 		}
 		else if (millis() - send_time >= WRITE_TIMEOUT)
 		{
-			my_error("WRITE_TIMEOUT",0);
+			my_error("READBACK TIMEOUT at chr(%d)",got);
 			return;
 		}
 	}
@@ -99,9 +135,9 @@ void sendDatagram()
 //-------------------------------------
 
 
-void depthInst::sendSeatalk()
+void depthInst::sendSeatalk(bool port2)
 {
-	display(dbg_data,"stdepth(%0.1f)",boat.getDepth());
+	display(dbg_data,"st%d depth(%0.1f)",port2,boat.getDepth());
 
 	uint16_t d10;
 	if (boat.getDepth() > 999)
@@ -115,22 +151,22 @@ void depthInst::sendSeatalk()
 	dg[3] = d10 & 0xff;
 	dg[4] = (d10 >> 8) & 0xff;
 
-	queueDatagram(dg);
+	queueDatagram(port2,dg);
 }
 
 
 
-void logInst::sendSeatalk()
+void logInst::sendSeatalk(bool port2)
 {
 	double speed = boat.getWaterSpeed();
 	int ispeed = (speed+ 0.05) * 10;
-	display(dbg_data,"stWaterSpeed(%0.1f)",speed);
+	display(dbg_data,"st%d WaterSpeed(%0.1f)",port2,speed);
 
 	dg[0] = ST_WATER_SPEED;
 	dg[1] = 0x01;
 	dg[2] = ispeed & 0xff;
 	dg[3] = (ispeed >> 8) & 0xff;
-	queueDatagram(dg);
+	queueDatagram(port2,dg);
 
 	// trip distance, total, or both
 
@@ -144,7 +180,7 @@ void logInst::sendSeatalk()
 		dg[2] = trip_int & 0xff;
 		dg[3] = (trip_int >> 8) & 0xff;
 		dg[4] = (trip_int >> 16) & 0x0f;
-		queueDatagram(dg);
+		queueDatagram(port2,dg);
 	}
 	if (0)
 	{
@@ -156,7 +192,7 @@ void logInst::sendSeatalk()
 		dg[2] = total_int & 0xff;
 		dg[3] = (total_int >> 8) & 0xff;
 		dg[4] = 0;
-		queueDatagram(dg);
+		queueDatagram(port2,dg);
 	}
 	if (1)
 	{
@@ -175,12 +211,12 @@ void logInst::sendSeatalk()
 		dg[5] = (trip_int >> 8) & 0xff;
 		dg[6] = (trip_int >> 16) & 0x0f;
 		dg[6] |= 0xA0;
-		queueDatagram(dg);
+		queueDatagram(port2,dg);
 	}}
 
 
 
-void windInst::sendSeatalk()
+void windInst::sendSeatalk(bool port2)
 {
 	double speed = boat.apparentWindSpeed();	// getWindSpeed();
 	double angle = boat.apparentWindAngle();	// getWindAngle();
@@ -189,26 +225,26 @@ void windInst::sendSeatalk()
 	int ispeed = tenths / 10;
 	tenths = tenths % 10;
 
-	display(dbg_data,"stWindSpeed(%0.1f) ispeed=%d tenths=%d",speed,ispeed,tenths);
+	display(dbg_data,"st%d WindSpeed(%0.1f) ispeed=%d tenths=%d",port2,speed,ispeed,tenths);
 
 	dg[0] = ST_WIND_SPEED;
 	dg[1] = 0x01;
 	dg[2] = (ispeed & 0x7f);		// high order bit 0=knots; 1 would be fathoms
 	dg[3] = tenths;
-	queueDatagram(dg);
+	queueDatagram(port2,dg);
 
-	display(dbg_data,"stWindAngle(%0.1f)",angle);
+	display(dbg_data,"st%d WindAngle(%0.1f)",port2,angle);
 
 	int a2 = angle * 2;
 	dg[0] = ST_WIND_ANGLE;
 	dg[1] = 0x01;
 	dg[2] = (a2 >> 8) & 0xff;
 	dg[3] = a2 & 0xff;
-	queueDatagram(dg);
+	queueDatagram(port2,dg);
 }
 
 
-void compassInst::sendSeatalk()
+void compassInst::sendSeatalk(bool port2)
 {
 	// what a weird encoding
 	// .... ........
@@ -226,7 +262,7 @@ void compassInst::sendSeatalk()
 	idegrees = idegrees - (twos * 2);
 	int halfs = idegrees * 2;
 
-	display(dbg_data,"stHeading(%0.1f) = nineties(%d) twos(%d) halfs(%d)",degrees,nineties,twos,halfs);
+	display(dbg_data,"st%d Heading(%0.1f) = nineties(%d) twos(%d) halfs(%d)",port2,degrees,nineties,twos,halfs);
 
 	// The compass only sends out a Heading (magnetic)
 	// and does not know the COG
@@ -236,17 +272,17 @@ void compassInst::sendSeatalk()
 	dg[2] = twos;
 	dg[3] = 0x00;	// unuaed by me at this time
 	dg[4] = 0x20;	// unuaed by me at this time
-	queueDatagram(dg);
+	queueDatagram(port2,dg);
 }
 
 
 
-void gpsInst::sendSeatalk()
+void gpsInst::sendSeatalk(bool port2)
 {
 
 	double lat = boat.getLat();
 	double lon = boat.getLon();
-	display(dbg_data,"stLatLon(%0.6f,%0.6f)",lat,lon);
+	display(dbg_data,"st%d LatLon(%0.6f,%0.6f)",port2,lat,lon);
 	proc_entry();
 
 	uint8_t Z1 = 0;
@@ -279,8 +315,8 @@ void gpsInst::sendSeatalk()
 	int imin_lon = min_lon * 1000;
 
 	proc_entry();
-	display(dbg_data,"i_lat(%d) frac_lat(%0.6f) min_lat(%0.6f) imin_lat(%d)",i_lat,frac_lat,min_lat,imin_lat);
-	display(dbg_data,"i_lon(%d) frac_lon(%0.6f) min_lon(%0.6f) imin_lon(%d)",i_lon,frac_lon,min_lon,imin_lon);
+	display(dbg_data+1,"i_lat(%d) frac_lat(%0.6f) min_lat(%0.6f) imin_lat(%d)",i_lat,frac_lat,min_lat,imin_lat);
+	display(dbg_data+1,"i_lon(%d) frac_lon(%0.6f) min_lon(%0.6f) imin_lon(%d)",i_lon,frac_lon,min_lon,imin_lon);
 	proc_leave();
 
 	dg[0] = ST_LATLON;
@@ -293,16 +329,16 @@ void gpsInst::sendSeatalk()
 	dg[5] = i_lon;
 	dg[6] = (imin_lon >> 8) & 0xff;
 	dg[7] = imin_lon & 0xff;
-	queueDatagram(dg);
+	queueDatagram(port2,dg);
 
 	//------------------------------------------------
 
-	display(dbg_data,"stSatInfo()",0);
+	display(dbg_data,"st%d SatInfo()",port2);
 
 	dg[0] = ST_SAT_INFO;
 	dg[1] = 0x30;	// num_sats<<4
 	dg[2] = 0x02;	// hdop
-	queueDatagram(dg);
+	queueDatagram(port2,dg);
 
 	uint8_t sat1_id = 0x07;
 	uint8_t sat2_id = 0x08;
@@ -313,7 +349,7 @@ void gpsInst::sendSeatalk()
 		// SAT_DETAIL (57)
 		// if the HDOP available flag is set it counts as the low order bit of num_sats
 
-		display(dbg_data,"stSatDetail(1)",0);
+		display(dbg_data,"st%d SatDetail(1)",port2);
 
 		uint8_t num_sats = 3;
 		dg[0] = ST_SAT_DETAIL;
@@ -326,9 +362,9 @@ void gpsInst::sendSeatalk()
 		dg[7] = 0x00;						 // ZZ=differential age
 		dg[8] = 0x00;						 // YY=differential station ID
 		dg[9] = 0x00;						 // DD=differential station id
-		queueDatagram(dg);
+		queueDatagram(port2,dg);
 
-		display(dbg_data,"stSatDetail(2)",0);
+		display(dbg_data,"st%d SatDetail(2)",port2);
 
 		// SAT_DETAIL(0x74)  (satellite IDs)
 		dg[0] = ST_SAT_DETAIL;
@@ -338,12 +374,12 @@ void gpsInst::sendSeatalk()
 		dg[4] = sat3_id;	// id3
 		dg[5] = 0x00;		// id4
 		dg[6] = 0x00;		// id5
-		queueDatagram(dg);
+		queueDatagram(port2,dg);
 	}
 
 	if (0)
 	{
-		display(dbg_data,"stSatDetail(0xXd)",0);
+		display(dbg_data,"st%d SatDetail(0xXd)",port2);
 
 		// SAT_DETAIL(0xXD)  (satellite IDs)
 		// Satellite 1 (PRN 07)
@@ -394,7 +430,7 @@ void gpsInst::sendSeatalk()
 		dg[14] = XX;
 		dg[15] = YY;
 		dg[16] = ZZ;
-		queueDatagram(dg);
+		queueDatagram(port2,dg);
 	}
 
 
@@ -415,24 +451,24 @@ void gpsInst::sendSeatalk()
 		idegrees = idegrees - (twos * 2);
 		int halfs = idegrees * 2;
 
-		display(dbg_data,"stCOG(%0.1f) = nineties(%d) twos(%d) halfs(%d)",degrees,nineties,twos,halfs);
+		display(dbg_data,"st%d COG(%0.1f) = nineties(%d) twos(%d) halfs(%d)",port2,degrees,nineties,twos,halfs);
 
 		dg[0] = ST_COG;
 		dg[1] = 0 | (nineties << 4) | (halfs<<6);
 		dg[2] = twos;
-		queueDatagram(dg);
+		queueDatagram(port2,dg);
 
 		//-----------------------
 
 		double speed = boat.getSOG();
 		int ispeed = (speed+ 0.05) * 10;
-		display(dbg_data,"stSOG & stSOG(%0.1f)",speed);
+		display(dbg_data,"st%d SOG & stSOG(%0.1f)",port2,speed);
 
 		dg[0] = ST_SOG;
 		dg[1] = 0x01;
 		dg[2] = ispeed & 0xff;
 		dg[3] = (ispeed >> 8) & 0xff;
-		queueDatagram(dg);
+		queueDatagram(port2,dg);
 	}
 
 
@@ -442,12 +478,12 @@ void gpsInst::sendSeatalk()
 		int m = month();
 		int d = day();
 
-		display(dbg_data,"stDate(%02d/%02d/%02d)",y,m,d);
+		display(dbg_data,"st%d Date(%02d/%02d/%02d)",port2,y,m,d);
 		dg[0] = ST_DATE;
 		dg[1] = 0x01 | (m << 4);
 		dg[2] = d;
 		dg[3] = y;
-		queueDatagram(dg);
+		queueDatagram(port2,dg);
 
 		// RST is 12 bits (6 bits for minute, 6 bits for second)
 		// T is four bits (low order four bits of second)
@@ -461,12 +497,12 @@ void gpsInst::sendSeatalk()
 		uint16_t T = RST & 0xf;
 		uint16_t RS = RST >> 4;
 
-		display(dbg_data,"stDate(%02d:%02d:%02d)",h,mm,s);
+		display(dbg_data,"st%d Date(%02d:%02d:%02d)",port2,h,mm,s);
 		dg[0] = ST_TIME;
 		dg[1] = 0x01 | (T << 4);
 		dg[2] = RS;
 		dg[3] = h;
-		queueDatagram(dg);
+		queueDatagram(port2,dg);
 	}
 
 	proc_leave();
@@ -475,12 +511,12 @@ void gpsInst::sendSeatalk()
 
 
 
-void aisInst::sendSeatalk()
+void aisInst::sendSeatalk(bool port2)
 {
 }
 
 
-void apInst::sendSeatalk()
+void apInst::sendSeatalk(bool port2)
 {
 	// as somewhat expected, as with NMEA2000, these messages
 	// don't seem to affect the E80's notion of "following" or XTE values.
@@ -536,7 +572,7 @@ void apInst::sendSeatalk()
 			double dist = boat.distanceToWaypoint();
 			uint16_t xte_hundreths = boat.getCrossTrackError() * 100;
 
-			display(dbg_data,"stNavToWp head(%0.1f) dist(%0.3f) xte(%0.2f)",head,dist,((float) xte_hundreths)/100.0);
+			display(dbg_data,"st%d NavToWp head(%0.1f) dist(%0.3f) xte(%0.2f)",port2,head,dist,((float) xte_hundreths)/100.0);
 			proc_entry();
 
 			uint8_t X6 = (xte_hundreths & 0xf) << 4;
@@ -584,7 +620,7 @@ void apInst::sendSeatalk()
 			dg[6] = (Y<<4) | F;				// YF = 4 bits of Y and 4 bits of F
 			dg[7] = 0xff - dg[6];			// yf undocumented presumed weird checksum
 
-			queueDatagram(dg);
+			queueDatagram(port2,dg);
 
 		}
 
@@ -603,7 +639,7 @@ void apInst::sendSeatalk()
 			//		Corresponding NMEA sentences: RMB, APB, BWR, BWC
 
 
-			display(dbg_data,"stTargetName(%s) name4(%s)",name.c_str(),name4.c_str());
+			display(dbg_data,"st%d TargetName(%s) name4(%s)",port2,name.c_str(),name4.c_str());
 
 			// another weird 6 bit character encoding
 			// with additionally weird checksumming
@@ -631,7 +667,7 @@ void apInst::sendSeatalk()
 			dg[5] = yy;
 			dg[6] = ZZ;
 			dg[7] = zz;
-			queueDatagram(dg);
+			queueDatagram(port2,dg);
 		}
 
 		if (1)
@@ -655,7 +691,7 @@ void apInst::sendSeatalk()
 			dg[4] = name4.charAt(1); // - 0x30;
 			dg[5] = name4.charAt(2); // - 0x30;
 			dg[6] = name4.charAt(3); // - 0x30;
-			queueDatagram(dg);
+			queueDatagram(port2,dg);
 		}
 
 
@@ -664,11 +700,11 @@ void apInst::sendSeatalk()
 
 
 
-void engInst::sendSeatalk()
+void engInst::sendSeatalk(bool port2)
 {
 	// not really supported
 	int rpm = boat.getRPM();
-	display(dbg_data,"stRPM(%d)",rpm);
+	display(dbg_data,"st% RPM(%d)",port2,rpm);
 	if (rpm > 4000)
 		rpm = 4000;
 	dg[0] = ST_RPM;
@@ -677,11 +713,11 @@ void engInst::sendSeatalk()
 	dg[3] = rpm / 256;
 	dg[4] = rpm % 256;
 	dg[5] = 0x08;	// default 8 degree pitch
-	queueDatagram(dg);
+	queueDatagram(port2,dg);
 }
 
 
-void genInst::sendSeatalk()
+void genInst::sendSeatalk(bool port2)
 {
 	// not supported
 }
