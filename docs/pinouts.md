@@ -1,0 +1,169 @@
+# Pinouts
+
+## E80
+
+### E80 "Seatalk/Alarm" cable pinout
+
+Here is a diagram of the purported E80 Seatalk/Alarm cable pinout.
+With regards to Seatalk, after detailed testing, I can tell you that the
+diagram is, at best, misleading.
+
+![seatalk_alarm_connector_pinout.jpg](images/seatalk_alarm_connector_pinout.jpg)
+
+Clockwise, in the above diagram, starting at the notch
+
+- red - Unconnected for Seatalk communications as the E80 is powered separately.
+  Does not provide 12V in case you think it might.
+  Not used in my configuration.
+- **black** - The ground for the Seatalk serial Data signal.
+  Must be provided as it is not internally connected to the
+  E80 power supply negative (ship's DC ground).
+- **yellow** - The bus for the Seatalk serial Data.
+- white - Alarm out. Not used in my configuration.
+- brown - Alarm return. Not used  in my configuration
+- screen - RF ground/earth?  Not internally linked to the E80 power supply negative
+  (ship's DC ground), not used in my configuration
+
+In the end, the only two wires of interest for communicating Seatalk with the
+E80 are the **black** data signal ground and **yellow** data bus.
+
+
+
+### E80 NMEA0183 cable pinout
+
+Here is a diagram of the E80's NMEA0183 cable pinout, which is the
+same on the E120.
+
+![E120_nmea0183_connector.jpg](images/E120_nmea0183_connector.jpg)
+
+Clockwise, in the above diagram, starting at the notch
+
+- **green** - NMEA Input Common - (minus)
+  Used as common ground in single ended configurations like mine.
+- **white** - NMEA Input + (plus)
+  The E80 *receives* NMEA0183 on this wire
+- **yellow** - NMEA Output + (plus)
+  The E80 *sends* NMEA0183 on this wire.
+- **brown** - NMEA Output Common - (minus)
+  Duplicate of green?
+  Not used in my configuration.
+- screen - braided screen wire
+  Grounded on E80?
+  Not used in my configuration.
+
+My system uses an MAX3232 RS232 converter to read NMEA0183, treating
+the inputs as single ended, and connecting the **green** wire to the
+common **GND** for the Teensy *and* the Boat's 12V power supply.
+
+
+### E80 NMEA2000/Seatalk2 cable pinout
+
+Here is a diagram of the purported E80 NMEA2000/Seatalk2 cable pinout.
+
+![seaTalk2_ng_connector_pinout.jpg](images/seaTalk2_ng_connector_pinout.jpg)
+
+Clockwise, in the above diagram, starting at the notch
+
+- **red** - Net_S (+12V DC)
+- **black** - Net_C (GND)
+- **blue** - Can_L
+- **white** - Can_H
+- screen - braided; not connected on NMEA2000 bus side
+
+
+
+## Standard Horizon GX2410GPS Cable Pinouts
+
+
+### GX2410 NMEA0183 pigtail wires
+
+The Standard Horizon documentation is horrible.
+In the "Connections" section, instead of giving a clear description of each wire,
+they give you a full page with two "connection examples" with superscripted notes
+and a monkey-do list of how to hook it up with a confusing note.
+
+There is a comment regarding grounding which is relevant, with
+colors in asterisks added by me:
+
+	NOTE: Some GPS chartplotters have a single wire for NMEA signal ground.
+	In this case, connect the *green* NMEA input (-) to the GPS chartplotters
+	single NMEA signal ground wire, and leave the *brown* NMEA output (-) open.
+
+I have a common 12V ground and so ignore the rest of the comment:
+
+	In case the assignment of power supply and ground of a GPS chart plotter
+	to be used is different from that of the radio, connect the signal ground
+	wire of the GPS chart plotter to the ground terminal (GND) on the rear
+	panel of the radio.
+
+####  Better names for GX2410 NMEA0183 wires
+
+In truth, it appears that one pair of wires outputs GPS
+information, another pair accepts GPS input information,
+and the third pair outputs AIS information.
+
+Standard Horizon's use of 'DSC' in the "Connections" section just
+confuses things even more.  Here's a list that makes sense:
+
+- **yellow** GPS Input +
+- **green**  GPS Input -
+- **white**  GPS Output +
+- **brown**  GPS Output -
+- **blue**   AIS Output +
+- **grey**   AIS Output -
+
+
+#### GX2410 Common Grounds and the E80
+
+On my boat, historically, I generally connected just the
+**blue/grey** AIS output to the **white/grean** NMEA0813 input on
+the E80 to provide AIS information to the E80.
+
+I have found that the E80 has a difficult time treating both
+directions as a single ended pair with a common ground.  In other words
+I have found that if you just use the **white/green/yellow** wires on
+the E80, and try to connect the **grey/blue+green/white** from the VHF
+to them, connecting the **blue** and the **green** from the VHF to provide
+a common ground, that the E80 has a hard time differentiating the signal.
+
+So, in a living boat configuration, if you wanted to connect in both
+directions to the E80, you would connect the **green** E80 input - (minus)
+to the VHF **grey** AIS out - (minus), and the **brown** E80 output - (minus)
+to the VHF **green** GPS input - (minus).
+
+TeensyBoat, on the other hand, has two (single ended) NMEA0183 ports, each
+with input and output directions.  In my 'living boat' configuration of the
+teensyBoat circuit board, I connect one of the NMEA0183 ports bi-directionally
+to the E80, using the *green* common ground, and the other NMEA0183 port the
+the VHF to both send (spoof) GPS information and receive (AIS) information.
+
+Then there are two ways that I use the teensBoat circuit board.
+In a 'live' configuration, that is where the teensy is powered up and
+running, I place a jumper to use the combined **blue+green** ground on the VHF,
+and forward messages between the E80 and the VHF.
+
+When the teensy is not powered and running, allowind the E80 to receive AIS
+information when it is not running, I switch the jumper to another position
+that connects the VHS AIS output **blue** to the E80 NMEA0183 input **white**
+and disconnect the VHF **green** GPS - (minus) from ground.
+
+
+### GX2410 NMEA2000 Connector
+
+The GX2410 uses a standard NMEA2000 Connector, so the one would expect
+that the wires in a given table *should* follow the standard convention.
+
+- **red** - Net_S (+12V DC)
+- **black** - Net_C (GND)
+- **blue** - Can_L
+- **white** - Can_H
+- screen - braided; not connected on NMEA2000 bus side
+
+
+However, the cable that I cut open to begin working with my breadboard
+NMEA2000 circuit had incorrect colors, so **beware**!  My cable has/had
+white=12V, black=GND, blue=CAN_H, and white=CAN_L, with an extra brown
+wire that was not connected to anything.
+
+
+

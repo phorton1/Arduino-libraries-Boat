@@ -82,10 +82,6 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 	int mon = instruments.g_MON[PORT_2000];
 	bool b_mon_sensors 	= mon & MON2000_SENSORS;
 	bool b_mon_ais_gps  = mon & MON2000_AIS_GPS;
-	bool b_mon_prop 	= mon & MON2000_PROPRIETARY;
-	bool b_mon_unknown 	= mon & MON2000_UNKNOWN;
-	// bool b_mon_bus_in   = mon & MON2000_BUS_IN;
-	// bool b_mon_bus_out  = mon & MON2000_BUS_OUT;
 
 	// display_string(BUS_COLOR,0,msgToString(msg,"BUS: ").c_str());
 
@@ -291,6 +287,26 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			else
 				my_error("Parsing PGN_AIS_CLASS_B_POSITION",0);
 		}
+		else if (msg.PGN == PGN_CROSS_TRACK_ERROR)
+		{
+			uint8_t msg_id;
+			tN2kXTEMode xteMode;
+			bool terminated;
+			double xte;
+			if (ParseN2kPGN129283(msg,msg_id,xteMode,terminated,xte))
+			{
+				msg_handled = true;
+				if (b_mon_sensors)
+					display(0,"%3d(%d) xte_err  : terminated(%d) xte_nm(%0.3f)",
+						msg.Source,
+						msg_counter,
+						terminated,
+						xte == N2kDoubleNA ? -1 : xte * NM_TO_METERS);
+			}
+			else
+				my_error("Parsing PGN_CROSS_TRACK_ERROR",0);
+;
+		}
 		else if (msg.PGN == PGN_GNSS_SATS_IN_VIEW)
 		{
 			uint8_t sat_index = 0;
@@ -397,16 +413,38 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 	// if so, we want to filter them
 	// show unhandled messages as UNKNOWN: in white
 
-	// bool b_mon_bus_in   = g_MON[PORT_2000] & MON2000_BUS_IN;
-	// bool b_mon_bus_in   = g_MON[PORT_2000] & MON2000_BUS_OUT;
-
-	if (!msg_handled && b_mon_unknown)
+	if (!msg_handled && (
+		msg.PGN == PGN_REQUEST			||
+		msg.PGN == PGN_ADDRESS_CLAIM	||
+		msg.PGN == PGN_PGN_LIST			||
+		msg.PGN == PGN_HEARTBEAT		||
+		msg.PGN == PGN_PRODUCT_INFO		||
+		msg.PGN == PGN_DEVICE_CONFIG ))
 	{
+		if (mon & MON2000_BUS_IN)
+		{
+			const char *name =
+				msg.PGN == PGN_REQUEST			? "BUS_REQUEST: " :
+				msg.PGN == PGN_ADDRESS_CLAIM	? "BUS_ADDRESS_CLAIM: " :
+				msg.PGN == PGN_PGN_LIST			? "BUS_PGN_LIST: " :
+				msg.PGN == PGN_HEARTBEAT		? "BUS_HEARTBEAT: " :
+				msg.PGN == PGN_PRODUCT_INFO		? "BUS_PRODUCT_INFO: " :
+				msg.PGN == PGN_DEVICE_CONFIG	? "BUS_DEVICE_CONFIG: " : "";
+			display_string(BUS_COLOR,0,msgToString(msg,name).c_str());
+		}
+		msg_handled = true;
+	}
+
+	if (!msg_handled)
+	{
+		bool b_mon_prop 	= mon & MON2000_PROPRIETARY;
+		bool b_mon_unknown 	= mon & MON2000_UNKNOWN;
 		bool is_known_proprietary =
 			msg.PGN == PGN_PROP_B_65311 ||
 			msg.PGN == PGN_PROP_B_65362 ||
 			msg.PGN == PGN_PROP_B_130846;
-		const char *name = is_known_proprietary ? "PROPRIETARY: " : "UNKNOWN: ";
+		const char *name =
+			is_known_proprietary ? "PROPRIETARY: " : "UNKNOWN: ";
 
 		if ((is_known_proprietary && b_mon_prop) ||
 			(!is_known_proprietary && b_mon_unknown))

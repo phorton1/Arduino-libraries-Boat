@@ -137,11 +137,36 @@ void boatSimulator::init()
 // setters
 //-------------------------------------------
 
-void boatSimulator::setDepth(float depth)		{ m_depth = depth; 	sendBinaryBoatState(!m_running); }
+void boatSimulator::setDepth(float depth)
+{
+	m_depth = depth;
+	sendBinaryBoatState(!m_running);
+	if (depth<0)
+	{
+		my_error("Depth(%0.1f) must be >= zero",depth);
+		return;
+	}
+}
 
-void boatSimulator::setHeading(float heading)	{ m_heading = heading; 	calculate(); sendBinaryBoatState(!m_running);}
+void boatSimulator::setHeading(float heading)
+{
+	if (heading<0 || heading>360)
+	{
+		my_error("Heading(%0.1f) must be between 0 and 360",heading);
+		return;
+	}
+	m_heading = heading;
+	calculate();
+	sendBinaryBoatState(!m_running);
+}
+
 void boatSimulator::setWaterSpeed(float speed)
 {
+	if (speed<0)
+	{
+		my_error("WaterSpeed(%0.1f) must be >= zero",speed);
+		return;
+	}
 	m_water_speed = speed;
 	calculate();
 	if (speed == 0)
@@ -155,14 +180,67 @@ void boatSimulator::setWaterSpeed(float speed)
 	}
 	sendBinaryBoatState(!m_running);
 }
-void boatSimulator::setCurrentSet(float angle){ m_current_set = angle;	calculate(); sendBinaryBoatState(!m_running);}
-void boatSimulator::setCurrentDrift(float speed){ m_current_drift = speed;	calculate(); sendBinaryBoatState(!m_running);}
 
-void boatSimulator::setWindAngle(float angle) 	{ m_wind_angle = angle; calculateApparentWind(); sendBinaryBoatState(!m_running);}
-void boatSimulator::setWindSpeed(float speed)	{ m_wind_speed = speed; calculateApparentWind(); sendBinaryBoatState(!m_running);}
-void boatSimulator::setRPM(uint16_t rpm)		{ m_rpm = rpm; sendBinaryBoatState(!m_running);}
-void boatSimulator::setGenset(bool on)			{ m_genset = on; display(0,"GENSET %s",m_genset?"ON":"OFF"); sendBinaryBoatState(!m_running);}
+void boatSimulator::setCurrentSet(float angle)
+{
+	if (angle<0 || angle>360)
+	{
+		my_error("Set(%0.1f) must be between 0 and 360",angle);
+		return;
+	}
+	m_current_set = angle;
+	calculate();
+	sendBinaryBoatState(!m_running);
+}
 
+void boatSimulator::setCurrentDrift(float speed)
+{
+	if (speed<0)
+	{
+		my_error("Drift(%0.1f) must be >= zero",speed);
+		return;
+	}
+	m_current_drift = speed;
+	calculate();
+	sendBinaryBoatState(!m_running);
+}
+
+void boatSimulator::setWindAngle(float angle)
+{
+	if (angle<0 || angle>360)
+	{
+		my_error("WindAngle(%0.1f) must be between 0 and 360",angle);
+		return;
+	}
+	m_wind_angle = angle;
+	calculateApparentWind();
+	sendBinaryBoatState(!m_running);
+}
+
+void boatSimulator::setWindSpeed(float speed)
+{
+	if (speed<0)
+	{
+		my_error("WindSpeed(%0.1f) must be >= zero",speed);
+		return;
+	}
+	m_wind_speed = speed;
+	calculateApparentWind();
+	sendBinaryBoatState(!m_running);
+}
+
+void boatSimulator::setRPM(uint16_t rpm)
+{
+	m_rpm = rpm;
+	sendBinaryBoatState(!m_running);
+}
+
+void boatSimulator::setGenset(bool on)
+{
+	m_genset = on;
+	display(0,"GENSET %s",m_genset?"ON":"OFF");
+	sendBinaryBoatState(!m_running);
+}
 
 const route_t *boatSimulator::getRoute(const char *name)
 {
@@ -209,8 +287,6 @@ void boatSimulator::setRoute(const char *name)
 	sendBinaryBoatState(m_inited && !m_running);
 }
 
-
-
 void boatSimulator::setTargetWPNum(uint8_t wp_num)
 {
 	if (wp_num < 0 || wp_num >= m_num_waypoints)
@@ -237,7 +313,6 @@ void boatSimulator::setTargetWPNum(uint8_t wp_num)
 	sendBinaryBoatState(!m_running);
 }
 
-
 void boatSimulator::setStartWPNum(uint8_t wp_num)
 {
 	if (wp_num >= m_num_waypoints)
@@ -262,9 +337,6 @@ void boatSimulator::setStartWPNum(uint8_t wp_num)
 	sendBinaryBoatState(!m_running);
 }
 
-
-
-
 void boatSimulator::setAutopilot(bool on)
 {
 	if (m_autopilot != on)
@@ -286,7 +358,6 @@ void boatSimulator::setAutopilot(bool on)
 		warning(0,"AUTOPILOT ALREADY %s",(on?"ON":"OFF"));
 }
 
-
 void boatSimulator::setRouting(bool on)
 {
 	if (m_routing != on)
@@ -304,13 +375,9 @@ void boatSimulator::setRouting(bool on)
 }
 
 
-
-
 //-----------------------------------------------
 // implementation
 //-----------------------------------------------
-
-
 
 static void useFuel(float *used, float *level, float capacity)
 {

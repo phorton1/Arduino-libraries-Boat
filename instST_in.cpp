@@ -26,41 +26,45 @@ typedef struct
 	uint16_t	st;
 	const char *name;
 	int 		out_inst;
-	int			standard;	// 0=opt_off, 1=opt_on; 2=standard
+
 } 	st_info_type;
 
 const st_info_type st_known[] =
 {
-	//                              name			out_inst
-	/* 0x100 */ { ST_DEPTH,			"DEPTH",		INST_DEPTH,		2,	},
-	/* 0x105 */ { ST_RPM,			"RPM",			INST_ENGINE,    2,	},
-	/* 0x110 */ { ST_WIND_ANGLE,	"WIND_ANGLE",	INST_WIND,		2,	},
-	/* 0x111 */ { ST_WIND_SPEED,	"WIND_SPEED",	INST_WIND,		2,	},
-	/* 0x120 */ { ST_WATER_SPEED,	"WATER_SPEED",	INST_LOG,		2,	},
-	/* 0x121 */	{ ST_TRIP,			"TRIP",			INST_LOG,		0,	},
-	/* 0x121 */	{ ST_LOG_TOTAL,		"TOTAL",		INST_LOG,		0,	},
-	/* 0x125 */	{ ST_TRIP_TOTAL,	"TRIP_TOTAL",	INST_LOG,		1,	},
-	/* 0x126 */ { ST_LOG_SPEED,		"LOG_SPEED",	-1,				0,	},
-	/* 0x150 */ { ST_LAT,			"LAT",			-1,				0,	},
-	/* 0x151 */ { ST_LON,			"LON",			-1,				0,	},
-	/* 0x152 */ { ST_SOG,			"SOG",			INST_GPS,		1,	},
-	/* 0x153 */ { ST_COG,			"COG",			INST_GPS,		1,	},
-	/* 0x154 */ { ST_TIME,			"TIME",			-1,				0,	},
-	/* 0x156 */ { ST_DATE,			"DATE",			-1,				0,	},
-	/* 0x157 */ { ST_SAT_INFO,		"SAT_INFO",		INST_GPS,		2,	},
-	/* 0x158 */ { ST_LATLON,		"LATLON",		INST_GPS,		2,	},
-	/* 0x159 */ { ST_59,			"59",			-1,				0,	},
-	/* 0x161 */ { ST_E80_SIG,		"E80_SIG",		-1,				0,	},
-	/* 0x182 */ { ST_TARGET_NAME,	"TARGET_NAME",	INST_AUTOPILOT,	1,	},
-	/* 0x185 */ { ST_NAV_TO_WP,		"NAV_TO_WP",	INST_AUTOPILOT,	1,	},
-	/* 0x189 */ { ST_HEADING,		"HEADING",		INST_COMPASS,	2,	},
-	/* 0x199 */ { ST_COMPASS_VAR,	"COMPASS_VAR",	-1,				0,	},
-	/* 0x1a2 */ { ST_ARRIVAL,		"ARRIVAL",		INST_AUTOPILOT,	1,	},
-	/* 0x19E */	{ ST_WP_DEF,		"WP_DEF",		-1, 			0,	},
-	/* 0z1A4 */	{ ST_DEV_QUERY,		"DEV_QUERY",	-1,				0,	},
-	/* 0z1A4 */	{ ST_SAT_DETAIL,	"SAT_DETAIL",	INST_GPS,		0,	},
-	/* 0x1A7 */	{ ST_A7,			"A7",			-1,				0,	},
-	/* 0x1AD */	{ ST_AD,			"AD"			-1,				0,	},
+	//                              name
+	/* 0x100 */ { ST_DEPTH,			"DEPTH",		},
+	/* 0x105 */ { ST_RPM,			"RPM",			},
+	/* 0x110 */ { ST_WIND_ANGLE,	"WIND_ANGLE",	},
+	/* 0x111 */ { ST_WIND_SPEED,	"WIND_SPEED",	},
+	/* 0x120 */ { ST_WATER_SPEED,	"WATER_SPEED",	},
+	/* 0x121 */	{ ST_TRIP,			"TRIP",			},
+	/* 0x121 */	{ ST_LOG_TOTAL,		"TOTAL",		},
+	/* 0x123 */ { ST_WATER_TEMPR,	"WATER_TEMP",	},
+	/* 0x124 */ { ST_DISP_UNITS,	"DISP_UNITS",	},
+	/* 0x125 */	{ ST_TRIP_TOTAL,	"TRIP_TOTAL",	},
+	/* 0x126 */ { ST_LOG_SPEED,		"LOG_SPEED",	},
+	/* 0x127 */ { ST_WATER_CELSIUS,	"WATER_CELS",	},
+	/* 0x130 */ { ST_LAMP_INTENSITY,"LAMP_LEVEL",   },
+	/* 0x150 */ { ST_LAT,			"LAT",			},
+	/* 0x151 */ { ST_LON,			"LON",			},
+	/* 0x152 */ { ST_SOG,			"SOG",			},
+	/* 0x153 */ { ST_COG,			"COG",			},
+	/* 0x154 */ { ST_TIME,			"TIME",			},
+	/* 0x156 */ { ST_DATE,			"DATE",			},
+	/* 0x157 */ { ST_SAT_INFO,		"SAT_INFO",		},
+	/* 0x158 */ { ST_LATLON,		"LATLON",		},
+	/* 0x159 */ { ST_59,			"59",			},
+	/* 0x161 */ { ST_E80_SIG,		"E80_SIG",		},
+	/* 0x182 */ { ST_TARGET_NAME,	"TARGET_NAME",	},
+	/* 0x185 */ { ST_NAV_TO_WP,		"NAV_TO_WP",	},
+	/* 0x189 */ { ST_HEADING,		"HEADING",		},
+	/* 0x199 */ { ST_COMPASS_VAR,	"COMPASS_VAR",	},
+	/* 0x1a2 */ { ST_ARRIVAL,		"ARRIVAL",		},
+	/* 0x19E */	{ ST_WP_DEF,		"WP_DEF",		},
+	/* 0z1A4 */	{ ST_DEV_QUERY,		"DEV_QUERY",	},
+	/* 0z1A4 */	{ ST_SAT_DETAIL,	"SAT_DETAIL",	},
+	/* 0x1A7 */	{ ST_A7,			"A7",			},
+	/* 0x1AD */	{ ST_AD,			"AD"			},
 
 	0,
 };
@@ -130,15 +134,34 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 	}
 	else if (st == ST_LOG_TOTAL)		// 0x122
 	{
-		uint32_t total = dg[2];
+		uint32_t total = dg[4];
 		total <<= 8;
 		total |= dg[3];
+		total <<= 8;
+		total |= dg[2];
+			// knaufman's spec is wrong here, he ignores the last byte
 
 		float f_total = total;
 		f_total /= 10;
 		char buf[20];
 		sprintf(buf,"total(%0.2f)",f_total);
 		retval = buf;
+	}
+	else if (st == ST_WATER_TEMPR)		// 0x123
+	{
+		const char *err = dg[1] & 4 ?
+			" defective/not connected" : "";
+		char buf[40];
+		sprintf(buf,"%dC %dF",dg[2],dg[3]);
+		retval = buf;
+		retval += err;
+	}
+	else if (st == ST_DISP_UNITS)		// 0x124
+	{
+		retval = (
+			dg[4] == 0x86 ? "km/kmph" :
+			dg[4] == 0x06 ? "imperial_miles/imph" :
+			"nm/knots" );
 	}
 	else if (st == ST_TRIP_TOTAL)		// 0x125
 	{
@@ -189,6 +212,29 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 			retval += avg;
 			retval += ")";
 		}
+	}
+	else if (st == ST_WATER_CELSIUS)		// 0x127
+	{
+		uint32_t cels = dg[3];
+		cels <<= 8;
+		cels |= dg[2];
+
+		float tempr = cels - 100;
+		tempr /= 10;
+		char buf[12];
+		sprintf(buf,"%0.1fC",tempr);
+		retval = buf;
+	}
+	else if (st == ST_LAMP_INTENSITY)		// 0x130
+	{
+		//  30  00  0X      Set lamp Intensity; X=0: L0, X=4: L1, X=8: L2, X=C: L3
+        //  (only sent once when setting the lamp intensity)
+		const char *level =
+			dg[2] == 0x0c ? "high" :
+			dg[2] == 0x08 ? "medium" :
+			dg[2] == 0x04 ? "low" :
+			"off";
+		retval = level;
 	}
 	else if (st == ST_LAT)			// 0x150
 	{
@@ -465,8 +511,6 @@ void showDatagram(bool port2, bool out, const uint8_t *dg)
 
 	const char *name = found ?
 		found->name : "unknown";
-	const char *inst = found && found->out_inst>= 0?
-		instruments.getInst(found->out_inst)->getName() : "";
 
 	String st_name(fwd ? "S" : "ST");
 	st_name += port2 ? '2' : '1';			// STx for sends and non-forwarded receives
@@ -475,8 +519,12 @@ void showDatagram(bool port2, bool out, const uint8_t *dg)
 		
 	st_name += '_';
 	st_name += name;
-	String out_inst(inst);
-	out_inst = out_inst.toLowerCase();
+	if (!found)
+	{
+		char buf[10];
+		sprintf(buf,"(%02x)",dg[0] & 0xff);
+		st_name += buf;
+	}
 
 	// fill out the hex buf
 
@@ -500,7 +548,6 @@ void showDatagram(bool port2, bool out, const uint8_t *dg)
 		out += pad(st_name,MAX_ST_NAME+3);
 		out += " ";
 		out += pad(hex,PAD_HEX);
-		out += pad(out_inst,MAX_INST_NAME);
 		out += " ";
 		out += decode;
 		Serial.println(out.c_str());

@@ -78,6 +78,7 @@ void instSimulator::saveToEEPROM()
 		display(dbg_eeprom,"wrote MON(%d)=%02x to EEPROM",i,g_MON[i]);
 	}
 	EEPROM.write(offset++,g_FWD);
+	EEPROM.write(offset++,getE80Filter());
 	display(dbg_eeprom,"wrote FWD=%02x to EEPROM",g_FWD);
 }
 
@@ -101,6 +102,11 @@ void instSimulator::loadFromEEPROM()
 	}
 	g_FWD = EEPROM.read(offset++);
 	display(dbg_eeprom,"got FWD=%02x",g_FWD);
+	int e80_filter = EEPROM.read(offset++);
+	display(dbg_eeprom,"got E80_FILTER=%d",e80_filter);
+	setE80Filter(e80_filter);
+
+	display(dbg_eeprom,"got FWD=%02x",g_FWD);
 
 	sendBinaryState();
 }
@@ -112,18 +118,18 @@ void instSimulator::loadFromEEPROM()
 
 // FLAG_FROM_PERL
 
-void instSimulator::setPorts(int inst_num, uint8_t port_mask, bool no_echo)
+void instSimulator::setPorts(int inst_num, uint8_t port_mask)
 {
-	display(0,"setPorts(%d) mask(%d) no_echo(%d)",inst_num,port_mask,no_echo);
+	display(0,"setPorts(%d) mask(0x%02x)",inst_num,port_mask);
 	m_inst[inst_num]->setPorts(port_mask);
-	if (!no_echo) sendBinaryState();
+	sendBinaryState();
 }
 
 
-void instSimulator::setAll(int port_num, bool on, bool no_echo)
+void instSimulator::setAll(int port_num, bool on)
 {
 	uint8_t port_mask = 1 << port_num;
-	display(0,"setAll(%d) on(%d) no_echo(%d)",port_num,on,no_echo);
+	display(0,"setAll(%d) on(%d)",port_num,on);
 
 	for (int i=0; i<NUM_INSTRUMENTS; i++)
 	{
@@ -135,7 +141,7 @@ void instSimulator::setAll(int port_num, bool on, bool no_echo)
 			cur &= ~port_mask;
 		inst->setPorts(cur);
 	}
-	if (!no_echo) sendBinaryState();
+	sendBinaryState();
 }
 
 
@@ -145,11 +151,14 @@ void instSimulator::setFWD(int fwd)
 	display(0,"setFWD(0x%02x)",fwd);
 	if (fwd > FWD_MAX)
 		ok = 0;
-	else if (((fwd & FWD_ST1_TO_2) && (fwd & FWD_ST2_TO_1)) ||
-			 ((fwd & FWD_83A_TO_B) && (fwd & FWD_83B_TO_A)) )
-		ok = 0;
+	// else if (((fwd & FWD_ST1_TO_2) && (fwd & FWD_ST2_TO_1)) ||
+	// 		 ((fwd & FWD_83A_TO_B) && (fwd & FWD_83B_TO_A)) )
+	// 	ok = 0;
 	if (ok)
+	{
 		g_FWD = fwd;
+		sendBinaryState();
+	}
 	else
 		my_error("illegal forward value: 0x%02x",fwd);
 }
@@ -175,6 +184,8 @@ void instSimulator::sendBinaryState()
 		offset = binaryUint8(buf,offset,g_MON[i]);
 	}
 	offset = binaryUint8(buf,offset,g_FWD);
+	offset = binaryUint8(buf,offset,getE80Filter());
+	
 	endBinary(buf,offset);
 	display_bytes(send_state+1,"sending",buf,offset);
 	proc_leave();

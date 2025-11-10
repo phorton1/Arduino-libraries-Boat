@@ -6,6 +6,8 @@
 #include <math.h>
 #include "instSimulator.h"
 
+static bool e80_filter;
+	// see notes in inst0183.h
 
 
 
@@ -267,6 +269,20 @@ void decode_vdm(const char *sentence)
 
 
 
+void setE80Filter(bool value)
+{
+	display(0,"setE80Filter(%d) 'the E80 filter that keeps it from killing the GX2410 gps'",value);
+	e80_filter = value;
+	instruments.sendBinaryState();
+}
+
+bool getE80Filter()
+{
+	return e80_filter;
+}
+
+
+
 void handleNMEA0183Input(bool portB, const char *buf)
 {
 	int port_num = portB ? PORT_83B : PORT_83A;
@@ -275,6 +291,12 @@ void handleNMEA0183Input(bool portB, const char *buf)
 	bool b_fwd_a_b = !portB && (instruments.g_FWD & FWD_83A_TO_B);
 	bool b_fwd_b_a = portB && (instruments.g_FWD & FWD_83B_TO_A);
 	bool is_ais = strstr(buf,"VDM");
+	bool is_gx2410_killer =
+		strstr(buf,"GGA") ||
+		strstr(buf,"GLL") ||
+		strstr(buf,"RMC");
+	if (b_fwd_a_b && e80_filter && is_gx2410_killer)
+		b_fwd_a_b = false;
 
 	if (b_mon_all || (is_ais && b_ais_in))
 	{

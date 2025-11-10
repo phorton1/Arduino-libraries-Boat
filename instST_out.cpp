@@ -128,6 +128,24 @@ void sendDatagram(bool port2)
 }
 
 
+//------------------------------------
+// general
+//------------------------------------
+
+void setLampIntensity(int value)
+{
+	// sent to all ports, 0==off, 1=low, 2=medium, 3=high
+	display(0,"Set Lamp Intensity(%d)",value);
+	dg[0] = ST_LAMP_INTENSITY;
+	dg[1] = 0x00;
+	dg[2] =
+		value == 3 ? 0x0c :
+		value == 2 ? 0x08 :
+		value == 1 ? 0x04 : 0x00;
+	queueDatagram(false,dg);
+	queueDatagram(true,dg);
+
+}
 
 
 //-------------------------------------

@@ -148,8 +148,8 @@ public:
 	void init();
 	void run();
 
-	void setPorts(int inst_num, uint8_t port_mask, bool no_echo);
-	void setAll(int port_num, bool on, bool no_echo);
+	void setPorts(int inst_num, uint8_t port_mask);
+	void setAll(int port_num, bool on);
 	void setFWD(int fwd);
 
 	void saveToEEPROM();
