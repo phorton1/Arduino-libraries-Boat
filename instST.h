@@ -8,7 +8,7 @@
 #include <Arduino.h>
 
 #define MAX_ST_BUF		20			// size of my maximum datagram buffers
-#define MAX_ST_SEEN		9			// largest ST message I've seen
+#define MAX_ST_SEEN		11			// largest ST message I've seen
 
 #define ST_COMMAND_BIT	0x100		// the 0th byte of 9bit ST commands have this
 #define ST_QUIET_BIT	0x200		// this is a flag I add to NOT echo the command while forwarding
@@ -57,6 +57,8 @@ extern void queueDatagram8(bool port2, const uint8_t *dg, bool quiet);
 extern void sendDatagram(bool port2);
 extern void clearSTQueues();
 extern void setLampIntensity(int value);	// sent to all ports, 0==off, 1=low, 2=medium, 3=high
+
+extern void sendSTCourseComputer();
 
 // in instSTIn
 

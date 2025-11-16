@@ -717,6 +717,136 @@ void apInst::sendSeatalk(bool port2)
 }
 
 
+void sendSTCourseComputer()
+{
+	display(0,"sendSTCourseComputer()",0);
+
+	#define TRY 	1
+	#define TRY2 	1
+
+	// I should just hook it up and record the conversation
+	// ST7000 sends 0x97 00 00 before reporting no link
+
+	if (TRY2)
+	{
+		dg[0] = 0x197;
+		dg[1] = 0x10;
+		dg[2] = 0x00;
+		queueDatagram(false,dg);
+	}
+
+	if (TRY)
+	{
+		// 9C  U1  VW  RR    Compass heading and Rudder position (see also command 84)
+		//                     Compass heading in degrees:
+		//                       The two lower  bits of  U * 90 +
+		//                       the six lower  bits of VW *  2 +
+		//                       number of bits set in the two higher bits of U =
+		//                       (U & 0x3)* 90 + (VW & 0x3F)* 2 + (U & 0xC ? (U & 0xC == 0xC ? 2 : 1): 0)
+		//                     Turning direction:
+		//                       Most significant bit of U = 1: Increasing heading, Ship turns right
+		//                       Most significant bit of U = 0: Decreasing heading, Ship turns left
+		//                     Rudder position: RR degrees (positive values steer right,
+		//                       negative values steer left. Example: 0xFE = 2° left)
+		//                     The rudder angle bar on the ST600R uses this record
+		dg[0] = 0x19c;
+		dg[1] = 0x01;
+		dg[2] = 0x00;
+		dg[3] = 0x00;
+		queueDatagram(false,dg);
+	}
+	
+
+	if (1)
+	{
+		// 84  U6  VW  XY 0Z 0M RR SS TT  Compass heading  Autopilot course and
+		//                  Rudder position (see also command 9C)
+		//                  Compass heading in degrees:
+		//                    The two lower  bits of  U * 90 +
+		//                    the six lower  bits of VW *  2 +
+		//                    number of bits set in the two higher bits of U =
+		//                    (U & 0x3)* 90 + (VW & 0x3F)* 2 + (U & 0xC ? (U & 0xC == 0xC ? 2 : 1): 0)
+		//                  Turning direction:
+		//                    Most significant bit of U = 1: Increasing heading, Ship turns right
+		//                    Most significant bit of U = 0: Decreasing heading, Ship turns left
+		//                  Autopilot course in degrees:
+		//                    The two higher bits of  V * 90 + XY / 2
+		//                  Z & 0x2 = 0 : Autopilot in Standby-Mode
+		//                  Z & 0x2 = 2 : Autopilot in Auto-Mode
+		//                  Z & 0x4 = 4 : Autopilot in Vane Mode (WindTrim), requires regular "10" datagrams
+		//                  Z & 0x8 = 8 : Autopilot in Track Mode
+		//                  M: Alarms + audible beeps
+		//                    M & 0x04 = 4 : Off course
+		//                    M & 0x08 = 8 : Wind Shift
+		//                  Rudder position: RR degrees (positive values steer right,
+		//                    negative values steer left. Example: 0xFE = 2° left)
+		//                  SS & 0x01 : when set, turns off heading display on 600R control.
+		//                  SS & 0x02 : always on with 400G
+		//                  SS & 0x08 : displays “NO DATA” on 600R
+		//                  SS & 0x10 : displays “LARGE XTE” on 600R
+		//                  SS & 0x80 : Displays “Auto Rel” on 600R
+		//                  TT : Always 0x08 on 400G computer, always 0x05 on 150(G) computer
+
+		dg[0] = 0x184;
+		dg[1] = 0x06;
+		dg[2] = 0x00;
+		dg[3] = 0x00;
+		dg[4] = 0x00;
+		dg[5] = 0x00;
+		dg[6] = 0x00;
+		dg[7] = 0x00;
+		dg[8] = 0x00;
+		queueDatagram(false,dg);
+
+	}
+
+
+	// from https://forum.arduino.cc/t/arduino-autohelm-6000-autopilot/644379/12
+	//
+	//	140 0 255 255	= 0x8c 0x00 0xff 0xff
+	//	128 96 255 255  = 0x80 0x60 0xff 0xff
+	//	132 174 255 255 = 0x84 0xAE 0xff 0xff
+	//	138 60 255 255  = 0x8A 0x3c 0xff 0xff
+	//
+	// These cannot be seatalk messages du to erroneous length bytes
+
+
+	// 01  05  00 00 00 60 01 00  Course Computer 400G
+
+	if (TRY2)
+	{
+		dg[0] = 0x101;
+		dg[1] = 0x05;
+		dg[2] = 0x00;
+		dg[3] = 0x00;
+		dg[4] = 0x00;
+		dg[5] = 0x60;
+		dg[6] = 0x01;
+		dg[7] = 0x00;
+		queueDatagram(false,dg);
+	}
+
+	if (TRY2)
+	{
+		dg[0] = 0x183;	// Sent by course computer.
+		dg[1] = 0x07;
+		dg[2] = 0x00;
+			// XX = 0 after clearing a failure condition, also sent once after power-up.
+			// XX = 1 failure, auto release error. Repeated once per second.
+			// XX = 8 failure, drive stopped.
+		dg[3] = 0x00;
+		dg[4] = 0x00;
+		dg[5] = 0x00;
+		dg[6] = 0x00;
+		dg[7] = 0x00;
+		dg[8] = 0x80;
+		dg[9] = 0x00;
+		dg[10] = 0x00;
+		queueDatagram(false,dg);
+	}
+}
+
+
 
 void engInst::sendSeatalk(bool port2)
 {
