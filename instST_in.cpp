@@ -552,7 +552,8 @@ void showDatagram(bool port2, bool out, const uint8_t *dg)
 		out += decode;
 		Serial.println(out.c_str());
 		#ifdef SERIAL_ESP32
-			SERIAL_ESP32.println(out.c_str());
+			if (udp_enabled)
+				SERIAL_ESP32.println(out.c_str());
 		#endif
 	}
 
@@ -570,7 +571,8 @@ void showDatagram(bool port2, bool out, const uint8_t *dg)
 		endBinary(binary_buf,offset);
 		Serial.write(binary_buf,offset);
 		#ifdef SERIAL_ESP32
-			SERIAL_ESP32.write(binary_buf,offset);
+			if (udp_enabled)
+				SERIAL_ESP32.write(binary_buf,offset);
 		#endif
 	}
 

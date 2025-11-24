@@ -35,7 +35,8 @@ static void sendNMEA0183(bool portB)
 		// display(0,"sending type(%d) %d bytes to binary serial port",BINARY_TYPE_0183,offset);
 		Serial.write(buf,offset);
 		#ifdef SERIAL_ESP32
-			SERIAL_ESP32.write(buf,offset);
+			if (udp_enabled)
+				SERIAL_ESP32.write(buf,offset);
 		#endif
 	}
 

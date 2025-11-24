@@ -52,6 +52,10 @@ genInst			i_genset;
 uint8_t instSimulator::g_MON[NUM_PORTS];
 uint8_t instSimulator::g_FWD;
 
+bool udp_enabled;
+	// turned on only if SERIAL_ESP32 and PIN_UDP_ENABLE
+	// is pulled high
+
 
 //----------------------------------------------------
 // EEPROM
@@ -191,7 +195,8 @@ void instSimulator::sendBinaryState()
 	proc_leave();
 	Serial.write(buf,offset);
 	#ifdef SERIAL_ESP32
-		SERIAL_ESP32.write(buf,offset);
+		if (udp_enabled)
+			SERIAL_ESP32.write(buf,offset);
 	#endif
 }
 
@@ -209,17 +214,12 @@ void instSimulator::init()
 	// Port intializations
 	//----------------------------------
 
-	#if TEST_SEATALK
-		pinMode(1,OUTPUT);	// TX1
-		pinMode(8,OUTPUT);	// TX2
-	#else
-		SERIAL_ST1.begin(4800, SERIAL_9N1);
-		SERIAL_ST2.begin(4800, SERIAL_9N1);
+	SERIAL_ST1.begin(4800, SERIAL_9N1);
+	SERIAL_ST2.begin(4800, SERIAL_9N1);
 		// Requires #define SERIAL_9BIT_SUPPORT in HardwareSerial.h
 		// Uses "normal" data when using the opto-isolater as wired!
 		// Note that there is also SERIAL_9N1_RXINV_TXINV which *might*
 		// work with inverted signal (different circuit).
-	#endif
 	
 	SERIAL_83A.begin(38400);
 	SERIAL_83B.begin(38400);
@@ -227,12 +227,24 @@ void instSimulator::init()
 	nmea2000.init();
 
 	#ifdef SERIAL_ESP32
-		display(0,"starting SERIAL_ESP32",0);
+		// Serial5 is always opened if SERIAL_ESP32 is defined,
+		// but it is only polled/written to if PIN_UDP_ENABLE
+		// is high.
+
+		pinMode(PIN_UDP_ENABLE,INPUT_PULLDOWN);
+		udp_enabled = digitalRead(PIN_UDP_ENABLE);
+
+		display(0,"starting SERIAL_ESP32 udp_enabled=%d",udp_enabled);
+
 		SERIAL_ESP32.begin(921600);
 		delay(500);
 		display(0,"SERIAL_ESP32 started",0);
-		extraSerial = &SERIAL_ESP32;
-		display(0,"starting extraSerial = SERIAL_ESP32",0);
+
+		if (udp_enabled)
+		{
+			extraSerial = &SERIAL_ESP32;
+			display(0,"starting extraSerial = SERIAL_ESP32",0);
+		}
 	#endif
 
 	//---------------------------------
@@ -339,22 +351,27 @@ void handleStPort(
 
 void instSimulator::run()
 {
+	#ifdef SERIAL_ESP32
+		bool enabled = digitalRead(PIN_UDP_ENABLE);
+		if (udp_enabled != enabled)
+		{
+			udp_enabled = enabled;
+			if (enabled)
+			{
+				extraSerial = &SERIAL_ESP32;
+				display(0,"attaching extraSerial to SERIAL_ESP32",0);
+			}
+			else
+			{
+				display(0,"detaching extraSerial from SERIAL_ESP32",0);
+				extraSerial = 0;
+			}
+		}
+	#endif
+
 	uint32_t now = millis();
 	static uint32_t last_update = 0;
 
-	#if TEST_SEATALK
-		#define ST_TEST_WAVE_MILLIS	5000
-		static uint32_t last_toggle_st;
-		static bool 	st1_high;
-		if (now - last_toggle_st > ST_TEST_WAVE_MILLIS)
-		{
-			last_toggle_st = now;
-			st1_high = !st1_high;
-			display(0,"TX1(%d) TX2(%d)",st1_high,!st1_high);
-			digitalWrite(1,st1_high);		// TX1
-			digitalWrite(8,!st1_high);		// TX2
-		}
-	#endif
 	if (now - last_update >= UPDATE_MILLIS)
 	{
 		last_update = now;
@@ -367,13 +384,10 @@ void instSimulator::run()
 				delay(10);
 				instBase *inst = m_inst[i];
 
-			#if !TEST_SEATALK
 				if (inst->portActive(PORT_ST1))
 					inst->sendSeatalk(false);
 				if (inst->portActive(PORT_ST2))
 					inst->sendSeatalk(true);
-			#endif
-
 				if (inst->portActive(PORT_83A))
 					inst->send0183(false);
 				if (inst->portActive(PORT_83B))
@@ -449,7 +463,7 @@ void instSimulator::run()
 	// if (1) and brackets serve to create scope
 	// for static per-port variables
 
-	if (!TEST_SEATALK)
+	if (1)
 	{
 		static uint32_t last_st_in;
 		static uint32_t last_st_out;
@@ -459,7 +473,7 @@ void instSimulator::run()
 
 		handleStPort(false,&last_st_in,&last_st_out,&outp,&dlen,datagram,SERIAL_ST1);
 	}
-	if (!TEST_SEATALK)
+	if (1)
 	{
 		static uint32_t last_st_in;
 		static uint32_t last_st_out;

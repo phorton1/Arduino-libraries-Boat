@@ -5,28 +5,35 @@
 #pragma once
 #include <myDebug.h>
 
-#define TEST_SEATALK 0
-
 #define SERIAL_ST1	Serial1
 #define SERIAL_ST2	Serial2
 #define SERIAL_83A 	Serial3
 #define SERIAL_83B 	Serial4
 
+#define PIN_UDP_ENABLE	4
 #define SERIAL_ESP32	Serial5
-
-
+	// if defined, enables whole UDP scheme
+	// otherwise, no code/penalty for scheme's existance
+extern bool udp_enabled;
+	// in instSimulator.cpp
 
 
 // Teensy Pins Used
 //
 // 23 - CRX from CANBUS module
 // 22 - CTX to CANBUS module
-// 7  - RX2
-// 8  - TX2
-// 15 - RX3
-// 14 - TX3
-// 16 - RX4
-// 17 - TX4
+// 0  - RX1 Seatalk1
+// 1  = TX1 Seatalk1
+// 7  - RX2 Seatalk2
+// 8  - TX2 Seatalk2
+// 15 - RX3 NMEA0183A
+// 14 - TX3 NMEA0183A
+// 16 - RX4 NMEA0183B
+// 17 - TX4 NMEA0183B
+// 20 - TX5 tbESP32
+// 21 - RX5 tbESP32
+// 9  - UDP_ENABLE
+
 
 #define MAX_INST_NAME		10
 

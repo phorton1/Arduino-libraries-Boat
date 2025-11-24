@@ -1002,12 +1002,10 @@ void boatSimulator::sendBinaryBoatState(bool doit /*=1*/)
 	offset = binaryFixStr	(buf,offset,timebuf, 20);
 	endBinary(buf,offset);
 
-	// display(0,"sendBinaryBoatState(%d)",offset);
 	Serial.write(buf,offset);
-	
 	#ifdef SERIAL_ESP32
-		// display(0,"sendBinaryBoatState ESP32(%d)",offset);
-		SERIAL_ESP32.write(buf,offset);
+		if (udp_enabled)
+			SERIAL_ESP32.write(buf,offset);
 	#endif
 }
 
