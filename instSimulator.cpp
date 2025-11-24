@@ -169,7 +169,7 @@ void instSimulator::sendBinaryState()
 {
 	display(send_state,"sendBinaryState()",0);
 	proc_entry();
-	uint8_t buf[BINARY_HEADER_LEN + NUM_INSTRUMENTS];
+	uint8_t buf[BINARY_HEADER_LEN + NUM_INSTRUMENTS + NUM_PORTS + 2];
 	int offset = startBinary(buf,BINARY_TYPE_PROG);
 	display(send_state+1,"offset after header=%d",offset);
 	for (int i=0; i<NUM_INSTRUMENTS; i++)
