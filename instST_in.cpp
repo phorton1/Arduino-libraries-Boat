@@ -551,6 +551,9 @@ void showDatagram(bool port2, bool out, const uint8_t *dg)
 		out += " ";
 		out += decode;
 		Serial.println(out.c_str());
+		#ifdef SERIAL_ESP32
+			SERIAL_ESP32.println(out.c_str());
+		#endif
 	}
 
 	if (g_BINARY & binary_type)
@@ -566,6 +569,9 @@ void showDatagram(bool port2, bool out, const uint8_t *dg)
 		offset = binaryVarStr(binary_buf, offset, bin.c_str(), MSG_BUF_SIZE);
 		endBinary(binary_buf,offset);
 		Serial.write(binary_buf,offset);
+		#ifdef SERIAL_ESP32
+			SERIAL_ESP32.write(binary_buf,offset);
+		#endif
 	}
 
 	if (fwd)

@@ -5,11 +5,14 @@
 #pragma once
 #include <myDebug.h>
 
+#define TEST_SEATALK 0
 
 #define SERIAL_ST1	Serial1
 #define SERIAL_ST2	Serial2
 #define SERIAL_83A 	Serial3
-#define SERIAL_83B 	Serial4		
+#define SERIAL_83B 	Serial4
+
+#define SERIAL_ESP32	Serial5
 
 
 

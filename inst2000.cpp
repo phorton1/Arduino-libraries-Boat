@@ -364,6 +364,9 @@ void inst2000::sendDeviceQuery()
 				olen += 3;
 			}
 			Serial.println(obuf);
+			#ifdef SERIAL_ESP32
+				SERIAL_ESP32.println(obuf);
+			#endif
 		}
 	}
 #endif
