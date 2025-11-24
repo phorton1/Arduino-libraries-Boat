@@ -162,7 +162,7 @@ that the wires in a given table *should* follow the standard convention.
 
 However, the cable that I cut open to begin working with my breadboard
 NMEA2000 circuit had incorrect colors, so **beware**!  My cable has/had
-white=12V, black=GND, blue=CAN_H, and white=CAN_L, with an extra brown
+white=12V, blue=GND, black=CAN_H, and grey=CAN_L, with an extra brown
 wire that was not connected to anything.
 
 
