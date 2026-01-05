@@ -10,7 +10,7 @@
 #define SERIAL_83A 	Serial3
 #define SERIAL_83B 	Serial4
 
-#define PIN_UDP_ENABLE	4
+#define PIN_UDP_ENABLE	12
 #define SERIAL_ESP32	Serial5
 	// if defined, enables whole UDP scheme
 	// otherwise, no code/penalty for scheme's existance
@@ -32,7 +32,7 @@ extern bool udp_enabled;
 // 17 - TX4 NMEA0183B
 // 20 - TX5 tbESP32
 // 21 - RX5 tbESP32
-// 9  - UDP_ENABLE
+// 12 - UDP_ENABLE
 
 
 #define MAX_INST_NAME		10
