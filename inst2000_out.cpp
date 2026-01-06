@@ -22,7 +22,7 @@
 
 void depthInst::send2000()
 {
-	double meters = boat.getDepth() * FEET_TO_METERS;
+	double meters = boat_sim.getDepth() * FEET_TO_METERS;
 	tN2kMsg msg;
 	// PGN_WATER_DEPTH
 	SetN2kPGN128267(msg, 255,		// msg, sid
@@ -42,7 +42,7 @@ void logInst::send2000()
 	#if 1
 		// PGN_SPEED_WATER_REF
 		SetN2kPGN128259(msg, 255,				// msg, sid
-			KnotsToms(boat.getWaterSpeed()));	// meters per second
+			KnotsToms(boat_sim.getWaterSpeed()));	// meters per second
 		nmea2000.SendMsg(msg);
 	#endif
 
@@ -51,8 +51,8 @@ void logInst::send2000()
 		SetN2kPGN128275(msg,
 			0,	// DaysSince1970
 			0,	// SecondsSinceMidnight
-			boat.getLogTotal() * NM_TO_METERS,
-			boat.getTripDistance() * NM_TO_METERS);
+			boat_sim.getLogTotal() * NM_TO_METERS,
+			boat_sim.getTripDistance() * NM_TO_METERS);
 		nmea2000.SendMsg(msg);
 
 	#endif
@@ -64,14 +64,14 @@ void windInst::send2000()
 	tN2kMsg msg;
 	// PGN_WIND_DATA	- we are emulating the wind instrument, so we only send "Apparent" angle
 	SetN2kPGN130306(msg, 255,
-		KnotsToms(boat.apparentWindSpeed()),	// meters per second
-		DegToRad(boat.apparentWindAngle()),		// radians
+		KnotsToms(boat_sim.apparentWindSpeed()),	// meters per second
+		DegToRad(boat_sim.apparentWindAngle()),		// radians
 		N2kWind_Apparent);						// tN2kWindReference
 	nmea2000.SendMsg(msg);
 	#if 0
 		SetN2kPGN130306(msg, 255,					// not sending out separate "True" angle
-			KnotsToms(boat.getWindSpeed()),			// meters per second
-			DegToRad(boat.getWindAngle()),			// radians
+			KnotsToms(boat_sim.getWindSpeed()),			// meters per second
+			DegToRad(boat_sim.getWindAngle()),			// radians
 			N2kWind_True_North);					// tN2kWindReference
 		nmea2000.SendMsg(msg);
 	#endif
@@ -83,7 +83,7 @@ void compassInst::send2000()
 	tN2kMsg msg;
 	// PGN_VESSEL_HEADING
 	SetN2kPGN127250(msg, 255,			// msg, sid
-		DegToRad(boat.getHeading()),	// heading is in radians
+		DegToRad(boat_sim.getHeading()),	// heading is in radians
 		0.0, 							// Deviation
 		0.0, 							// Variation,
 		N2khr_true );					// tN2kHeadingReference(0)
@@ -95,14 +95,14 @@ void gpsInst::send2000()
 {
 	tN2kMsg msg;
 		// not using PGN_POSITION
-		// SetN2kPGN129025(msg, boat.getLat(), boat.getLon());
+		// SetN2kPGN129025(msg, boat_sim.getLat(), boat_sim.getLon());
 
 	// PGN_GNSS_POSITION_DATA
 	SetN2kPGN129029(msg, 255,	// msg, sid
 		0, 					// uint16_t DaysSince1970,
 		millis()/1000,		// double SecondsSinceMidnight,
-		boat.getLat(),		// double Latitude,
-		boat.getLon(),		// double Longitude,
+		boat_sim.getLat(),		// double Latitude,
+		boat_sim.getLon(),		// double Longitude,
 		0,					// double Altitude,
         N2kGNSSt_GPS,		// tN2kGNSStype GNSStype,
 		N2kGNSSm_GNSSfix,	// tN2kGNSSmethod GNSSmethod,
@@ -127,12 +127,12 @@ void gpsInst::send2000()
 			N2kDD025_Estimated,			// tN2kDataMode
 			N2khr_true,					// tN2kHeadingReference,
 			255,						// sid,
-			DegToRad(boat.getCOG()),		// COG in radians
-			KnotsToms(boat.getSOG()),			// SOG in m/s
-			DegToRad(boat.getHeading()),		// heading in radians
-			KnotsToms(boat.getWaterSpeed()),	// speed through water in m/s
-			KnotsToms(boat.getCurrentSet()),	// Set
-			KnotsToms(boat.getCurrentDrift()));	// Drift
+			DegToRad(boat_sim.getCOG()),		// COG in radians
+			KnotsToms(boat_sim.getSOG()),			// SOG in m/s
+			DegToRad(boat_sim.getHeading()),		// heading in radians
+			KnotsToms(boat_sim.getWaterSpeed()),	// speed through water in m/s
+			KnotsToms(boat_sim.getCurrentSet()),	// Set
+			KnotsToms(boat_sim.getCurrentDrift()));	// Drift
 		nmea2000.SendMsg(msg);
 	#endif
 
@@ -177,13 +177,13 @@ void apInst::send2000()
 		N2kOnOff_Unavailable,           // RudderLimitExceeded
 		N2kOnOff_Unavailable,           // OffHeadingLimitExceeded
 		N2kOnOff_Unavailable,           // OffTrackLimitExceeded
-		boat.getAutopilot() ? N2kOnOff_On : N2kOnOff_Off, // Override (used here to indicate autopilot state)
+		boat_sim.getAutopilot() ? N2kOnOff_On : N2kOnOff_Off, // Override (used here to indicate autopilot state)
 		N2kSM_HeadingControl,           // SteeringMode
 		N2kTM_RudderLimitControlled,    // TurnMode (safe default)
 		N2khr_true,                 	// HeadingReference
 		N2kRDO_NoDirectionOrder,        // CommandedRudderDirection
 		N2kDoubleNA,                    // CommandedRudderAngle
-		DegToRad(boat.getDesiredHeading()),		  // HeadingToSteerCourse
+		DegToRad(boat_sim.getDesiredHeading()),		  // HeadingToSteerCourse
 		N2kDoubleNA,                    // Track
 		N2kDoubleNA,                    // RudderLimit
 		N2kDoubleNA,                    // OffHeadingLimit
@@ -198,17 +198,17 @@ void apInst::send2000()
 	static int last_route_id = 1;
 	static int last_target = -1;
 	static const char *last_route = "";
-	int start_num = boat.getStartWPNum();
-	int target_num = boat.getTargetWPNum();
-	const waypoint_t *start_wp = boat.getWaypoint(start_num);
-	const waypoint_t *target_wp = boat.getWaypoint(target_num);
+	int start_num = boat_sim.getStartWPNum();
+	int target_num = boat_sim.getTargetWPNum();
+	const waypoint_t *start_wp = boat_sim.getWaypoint(start_num);
+	const waypoint_t *target_wp = boat_sim.getWaypoint(target_num);
 
-	bool arrived = boat.getArrived();
-	double wp_dist = boat.distanceToWaypoint();
-	double wp_bearing = boat.headingToWaypoint();
-	double rte_heading = boat.headingTo(start_wp->lat,start_wp->lon,target_wp);
+	bool arrived = boat_sim.getArrived();
+	double wp_dist = boat_sim.distanceToWaypoint();
+	double wp_bearing = boat_sim.headingToWaypoint();
+	double rte_heading = boat_sim.headingTo(start_wp->lat,start_wp->lon,target_wp);
 
-	bool routing = boat.getRouting();
+	bool routing = boat_sim.getRouting();
 
 	if (last_routing && !routing)
 	{
@@ -242,9 +242,9 @@ void apInst::send2000()
 			msg.Add2ByteUInt(start_num);		// Current waypoint sequence number
 			msg.AddStr(startName, 16);			// Current waypoint name (fixed 16 bytes, padded with nulls)
 			msg.AddByte(0);  					// Assume True; Unknown byte (possibly direction reference: 0 = True, 1 = Magnetic)
-			msg.Add4ByteUDouble(boat.distanceToWaypoint(), 1.0);				// Distance to next waypoint (meters, scaled as UFIX32)
-			msg.Add2ByteUDouble(DegToRad(boat.headingToWaypoint()), 0.0001);	// Bearing from current position to next waypoint (True, scaled as 0.0001 rad)
-			msg.Add2ByteUDouble(DegToRad(boat.headingTo(						// Bearing from current WP to next WP (True, scaled as 0.0001 rad)
+			msg.Add4ByteUDouble(boat_sim.distanceToWaypoint(), 1.0);				// Distance to next waypoint (meters, scaled as UFIX32)
+			msg.Add2ByteUDouble(DegToRad(boat_sim.headingToWaypoint()), 0.0001);	// Bearing from current position to next waypoint (True, scaled as 0.0001 rad)
+			msg.Add2ByteUDouble(DegToRad(boat_sim.headingTo(						// Bearing from current WP to next WP (True, scaled as 0.0001 rad)
 				start_wp->lat,
 				start_wp->lon,
 				target_wp)), 0.0001);
@@ -254,13 +254,13 @@ void apInst::send2000()
 
 		// didn't work
 
-		if (0 && (last_target != target_num || strcmp(last_route, boat.getRouteName())))
+		if (0 && (last_target != target_num || strcmp(last_route, boat_sim.getRouteName())))
 		{
 			// PGN_ROUTE_WP_INFO
 
 			last_route_id++;
 			last_target = target_num;
-			last_route = boat.getRouteName();
+			last_route = boat_sim.getRouteName();
 			display(0, "Inst2000 Routing Sending Waypoints for Route(%s)", last_route);
 
 			const uint16_t db_id = 237;
@@ -269,9 +269,9 @@ void apInst::send2000()
 			const tN2kGenericStatusPair supplementary = N2kDD002_No;
 
 			SetN2kPGN129285(msg, 0, db_id, route_id, direction, last_route, supplementary);
-			for (int i = 0; i < boat.getNumWaypoints(); i++)
+			for (int i = 0; i < boat_sim.getNumWaypoints(); i++)
 			{
-				const waypoint_t *rte_pt = boat.getWaypoint(i);
+				const waypoint_t *rte_pt = boat_sim.getWaypoint(i);
 				display(0, "   adding wpt(%d,%s)", i, rte_pt->name);
 				if (!AppendN2kPGN129285(msg, i, rte_pt->name, rte_pt->lat, rte_pt->lon))
 				{
@@ -314,7 +314,7 @@ void apInst::send2000()
 			target_num,					// uint32_t DestinationWaypointNumber,
 			target_wp->lat,				// double DestinationLatitude,
 			target_wp->lon,				// double DestinationLongitude,
-			N2kDoubleNA);				// KnotsToms(boat.getCOG()));	// double WaypointClosingVelocity);
+			N2kDoubleNA);				// KnotsToms(boat_sim.getCOG()));	// double WaypointClosingVelocity);
 		nmea2000.SendMsg(msg);
 
 		// PGN_CROSS_TRACK_ERROR
@@ -324,7 +324,7 @@ void apInst::send2000()
 			255,                      // SID (sequence ID, arbitrary or 0xff)
 			N2kxtem_Estimated,   	  // tN2kXTEMode
 			false,                    // NavigationTerminated
-			boat.getCrossTrackError() * NM_TO_METERS);	// XTE in meters
+			boat_sim.getCrossTrackError() * NM_TO_METERS);	// XTE in meters
 		nmea2000.SendMsg(msg);
 
 
@@ -340,8 +340,8 @@ void engInst::send2000()
 	SetN2kPGN127488(			// PGN_ENGINE_RAPID
 			msg,
 			0,							// EngineInstance
-			boat.getRPM(),				// EngineSpeed
-			boat.getBoostPressure()  * PSI_TO_PASCAL,	// EngineBoostPressure
+			boat_sim.getRPM(),				// EngineSpeed
+			boat_sim.getBoostPressure()  * PSI_TO_PASCAL,	// EngineBoostPressure
 			N2kUInt8NA);				// EngineTiltTrim
 	nmea2000.SendMsg(msg);
 
@@ -350,15 +350,15 @@ void engInst::send2000()
 
 	SetN2kPGN127489(msg,		// PGN_ENGINE_DYNAMIC
 		0,											// EngineInstance
-		boat.getOilPressure() * PSI_TO_PASCAL,		// EngineOilPress      in Pascal
-		FToKelvin(boat.getOilTemp()),				// EngineOilTemp       in Kelvin
-		FToKelvin(boat.getCoolantTemp()),			// EngineCoolantTemp   in Kelvin
-		boat.getAltVoltage(),						// AltenatorVoltage    in Voltage
-		boat.getFuelRate() * GALLON_TO_LITRE,		// FuelRate            in litres/hour
+		boat_sim.getOilPressure() * PSI_TO_PASCAL,		// EngineOilPress      in Pascal
+		FToKelvin(boat_sim.getOilTemp()),				// EngineOilTemp       in Kelvin
+		FToKelvin(boat_sim.getCoolantTemp()),			// EngineCoolantTemp   in Kelvin
+		boat_sim.getAltVoltage(),						// AltenatorVoltage    in Voltage
+		boat_sim.getFuelRate() * GALLON_TO_LITRE,		// FuelRate            in litres/hour
 		N2kDoubleNA,								// EngineHours         in seconds
 		N2kDoubleNA,								// EngineCoolantPress  in Pascal
 		N2kDoubleNA,								// EngineFuelPress     in Pascal
-		100 * boat.getRPM() / 7200,					// EngineLoad          in %
+		100 * boat_sim.getRPM() / 7200,					// EngineLoad          in %
 		0,											// EngineTorque        in %
 		status1,									// Status1             Engine Discrete Status 1
 		status2);									// Status2             Engine Discrete Status 2
@@ -371,13 +371,13 @@ void engInst::send2000()
 	// how THEY implemented it
 	
 	SetN2kPGN127505(msg, 0, fluid_type,
-		boat.getFuelLevel(0) * 100,
-		boat.getTankCapacity(0) * GALLON_TO_LITRE);
+		boat_sim.getFuelLevel(0) * 100,
+		boat_sim.getTankCapacity(0) * GALLON_TO_LITRE);
 	nmea2000.SendMsg(msg);
 
 	SetN2kPGN127505(msg, 1, fluid_type,
-		boat.getFuelLevel(1) * 100,
-		boat.getTankCapacity(1) * GALLON_TO_LITRE);
+		boat_sim.getFuelLevel(1) * 100,
+		boat_sim.getTankCapacity(1) * GALLON_TO_LITRE);
 	nmea2000.SendMsg(msg);
 }
 
@@ -485,7 +485,7 @@ void genInst::send2000()
 	SetN2kPGN127488(			// PGN_ENGINE_RAPID
 			msg,
 			instance,			// EngineInstance
-			boat.getGenRPM(),	// EngineSpeed
+			boat_sim.getGenRPM(),	// EngineSpeed
 			N2kDoubleNA,		// EngineBoostPressure
 			N2kUInt8NA);		// EngineTiltTrim
 	nmea2000.SendMsg(msg);
@@ -495,11 +495,11 @@ void genInst::send2000()
 
 	SetN2kPGN127489(msg,		// PGN_ENGINE_DYNAMIC
 		instance,									// EngineInstance
-		boat.getGenOilPressure() * PSI_TO_PASCAL,	// EngineOilPress      in Pascal
-		FToKelvin(boat.getOilTemp()),				// EngineOilTemp       in Kelvin
-		FToKelvin(boat.getGenCoolTemp()),			// EngineCoolantTemp   in Kelvin
-		boat.getAltVoltage(),						// AltenatorVoltage    in Voltage
-		boat.getFuelRate() * GALLON_TO_LITRE,		// FuelRate            in litres/hour
+		boat_sim.getGenOilPressure() * PSI_TO_PASCAL,	// EngineOilPress      in Pascal
+		FToKelvin(boat_sim.getOilTemp()),				// EngineOilTemp       in Kelvin
+		FToKelvin(boat_sim.getGenCoolTemp()),			// EngineCoolantTemp   in Kelvin
+		boat_sim.getAltVoltage(),						// AltenatorVoltage    in Voltage
+		boat_sim.getFuelRate() * GALLON_TO_LITRE,		// FuelRate            in litres/hour
 		N2kDoubleNA,								// EngineHours         in seconds
 		N2kDoubleNA,								// EngineCoolantPress  in Pascal
 		N2kDoubleNA,								// EngineFuelPress     in Pascal

@@ -36,7 +36,7 @@
 #define ST_SEND_INTERVAL			10
 
 
-instSimulator instruments;
+instSimulator inst_sim;
 	// global instance
 
 depthInst		i_depth;
@@ -252,7 +252,7 @@ void instSimulator::init()
 	//---------------------------------
 	// and instrument simulator initialization
 
-	boat.init();
+	boat_sim.init();
 
 	m_inst[INST_DEPTH]		= &i_depth;
 	m_inst[INST_LOG]		= &i_log;
@@ -375,8 +375,8 @@ void instSimulator::run()
 	if (now - last_update >= UPDATE_MILLIS)
 	{
 		last_update = now;
-		boat.run();
-		if (boat.running())
+		boat_sim.run();
+		if (boat_sim.running())
 		{
 			clearSTQueues();
 			for (int i=0; i<NUM_INSTRUMENTS; i++)

@@ -41,7 +41,7 @@ static void sendNMEA0183(bool portB)
 	}
 
 	int port_num = portB ? PORT_83B : PORT_83A;
-	bool b_mon_all = instruments.g_MON[port_num] & MON83_ALL;
+	bool b_mon_all = inst_sim.g_MON[port_num] & MON83_ALL;
 	if (b_mon_all)
 		display(0,"83%c --> %s",portB?'B':'A',nmea_buf);
 
@@ -75,10 +75,10 @@ static const char *standardDate()
 	// returns constant fake date
 {
 	// return "100525";	// 2025-05-10
-	int year = boat.getYear();
+	int year = boat_sim.getYear();
 	year = year > 2000 ? year-2000 : 0;
-	int month = boat.getMonth();
-	int day = boat.getDay();
+	int month = boat_sim.getMonth();
+	int day = boat_sim.getDay();
 	static char time_buf[20];
 	sprintf(time_buf,"%02d%02d%02d",day,month,year);
 	return time_buf;
@@ -95,9 +95,9 @@ static const char *standardTime()
 	// if (hour > 23)
 	// 	hour = 0;
 
-	int hour = boat.getHour();
-	int minute = boat.getMinute();
-	int secs = boat.getSecond();
+	int hour = boat_sim.getHour();
+	int minute = boat_sim.getMinute();
+	int secs = boat_sim.getSecond();
 
 	static char time_buf[20];
 	sprintf(time_buf,"%02d%02d%02d.00",hour,minute,secs);
@@ -145,14 +145,14 @@ static const char *standardLon(double longitude)
 
 
 //-----------------------------
-// instruments
+// simulated instruments
 //-----------------------------
 
 void depthInst::send0183(bool portB)
 	// SD = Sounder device
 	// DPT = Water Depth
 {
-	double d_meters = boat.getDepth() * FEET_TO_METERS;
+	double d_meters = boat_sim.getDepth() * FEET_TO_METERS;
 	// 1) Depth, meters
 	// 2) Offset from transducer;
 	// 	  positive means distance from transducer to water line,
@@ -182,8 +182,8 @@ void logInst::send0183(bool portB)
 	// 8) K = Kilometres
 	//                       12345     678
 	sprintf(nmea_buf,"$VWVHW,,,,,%0.1f,N,,",
-		// boat.getCOG(),
-		boat.getWaterSpeed());
+		// boat_sim.getCOG(),
+		boat_sim.getWaterSpeed());
 	checksum();
 	// display(show_0183,"logInst --> %s",nmea_buf);
 	sendNMEA0183(portB);
@@ -201,8 +201,8 @@ void logInst::send0183(bool portB)
 		// 4) N = Nautical miles
 		//                       1    2 3    4
 		sprintf(nmea_buf,"$VWVLW,%.2f,N,%.2f,N",
-			boat.getLogTotal(),
-			boat.getTripDistance());
+			boat_sim.getLogTotal(),
+			boat_sim.getTripDistance());
 		checksum();
 		// display(show_0183,"logInst --> %s", nmea_buf);
 		sendNMEA0183(portB);
@@ -212,8 +212,8 @@ void logInst::send0183(bool portB)
 
 void windInst::send0183(bool portB)
 {
-	double heading = boat.getHeading();
-	double bow_angle_true = boat.getWindAngle() - heading;
+	double heading = boat_sim.getHeading();
+	double bow_angle_true = boat_sim.getWindAngle() - heading;
 	if (bow_angle_true < 0) bow_angle_true += 360;
 	
 	// WI = Weather Instruments
@@ -233,7 +233,7 @@ void windInst::send0183(bool portB)
 	//                       1     2  3     4 5
 	sprintf(nmea_buf,"$WIMWV,%0.1f,T,%0.1f,N,A",
 		bow_angle_true,
-		boat.getWindSpeed());
+		boat_sim.getWindSpeed());
 	checksum();
 	// display(show_0183,"windInst --> %s",nmea_buf);
 	sendNMEA0183(portB);
@@ -241,8 +241,8 @@ void windInst::send0183(bool portB)
 	// apparentWindAngle() is ALREADY measured relative to the bow!
 
 	sprintf(nmea_buf,"$WIMWV,%0.1f,R,%0.1f,N,A",
-		boat.apparentWindAngle(),
-		boat.apparentWindSpeed());
+		boat_sim.apparentWindAngle(),
+		boat_sim.apparentWindSpeed());
 	checksum();
 	// display(show_0183,"windInst --> %s",nmea_buf);
 	sendNMEA0183(portB);
@@ -259,7 +259,7 @@ void compassInst::send0183(bool portB)
 		//		237.5 = true heading
 		//		T = true
 		sprintf(nmea_buf,"$HCHDT,%0.1f,T",
-			boat.getHeading() );
+			boat_sim.getHeading() );
 		checksum();
 		// display(show_0183,"compassInst --> %s",nmea_buf);
 		sendNMEA0183(portB);
@@ -270,7 +270,7 @@ void compassInst::send0183(bool portB)
 		// 		238.0 = magnetic heading
 		// 		M = magnetic
 		sprintf(nmea_buf,"$HCHDM,%0.1f,M",
-			boat.getHeading() );
+			boat_sim.getHeading() );
 		checksum();
 		// display(show_0183,"compassInst --> %s",nmea_buf);
 		sendNMEA0183(portB);
@@ -313,8 +313,8 @@ void gpsInst::send0183(bool portB)
 		//                        1  23 45 6 7  8   9   10 11  12
 		sprintf(nmea_buf, "$GPGGA,%s,%s,%s,1,03,2.2,15.3,M,0.0,M,,",
 			standardTime(),
-			standardLat(boat.getLat()),
-			standardLon(boat.getLon())
+			standardLat(boat_sim.getLat()),
+			standardLon(boat_sim.getLon())
 		);
 		checksum();  // Appends *hh
 		sendNMEA0183(portB);
@@ -383,10 +383,10 @@ void gpsInst::send0183(bool portB)
 		//                       1  2 34 56 7     8     9 10&11 missing
 		sprintf(nmea_buf,"$GPRMC,%s,A,%s,%s,%0.1f,%0.1f,%s,,,",
 			standardTime(),
-			standardLat(boat.getLat()),
-			standardLon(boat.getLon()),
-			boat.getSOG(),
-			boat.getCOG(),
+			standardLat(boat_sim.getLat()),
+			standardLon(boat_sim.getLon()),
+			boat_sim.getSOG(),
+			boat_sim.getCOG(),
 			standardDate());
 		checksum();
 		// display(show_0183,"gpsInst --> %s",nmea_buf);
@@ -407,8 +407,8 @@ void gpsInst::send0183(bool portB)
 		//	6) Status A - Data Valid, V - Data Invalid
 		//                       12 34 5  6
 		sprintf(nmea_buf,"$GPGLL,%s,%s,%s,A",
-			standardLat(boat.getLat()),
-			standardLon(boat.getLon()),
+			standardLat(boat_sim.getLat()),
+			standardLon(boat_sim.getLon()),
 			standardTime());
 		checksum();
 		// display(show_0183,"gpsInst --> %s",nmea_buf);
@@ -425,9 +425,9 @@ void aisInst::send0183(bool portB)
 void apInst::send0183(bool portB)
 {
 	char lr = 'R';
-	const char *arrive_char = boat.getArrived() ? "A" : "V";
-	const waypoint_t *start_wp = boat.getWaypoint(boat.getStartWPNum());
-	const waypoint_t *target_wp = boat.getWaypoint(boat.getTargetWPNum());
+	const char *arrive_char = boat_sim.getArrived() ? "A" : "V";
+	const waypoint_t *start_wp = boat_sim.getWaypoint(boat_sim.getStartWPNum());
+	const waypoint_t *target_wp = boat_sim.getWaypoint(boat_sim.getTargetWPNum());
 	String start_name(start_wp->name);
 	String target_name(target_wp->name);
 
@@ -444,8 +444,8 @@ void apInst::send0183(bool portB)
 	//	8) K = Kilometers/hour
 	//                       1    2 34 5    6 78
 	sprintf(nmea_buf,"$APVTG,%.1f,T,,M,%.2f,N,,K",
-		boat.getCOG(),		// 1
-		boat.getSOG());		// 3
+		boat_sim.getCOG(),		// 1
+		boat_sim.getSOG());		// 3
 	checksum();
 	// display(show_0183,"apInst --> %s",nmea_buf);
 
@@ -466,17 +466,17 @@ void apInst::send0183(bool portB)
 	//                       1  2 34 56 7     8     9 10&11 missing
 	sprintf(nmea_buf,"$APRMC,%s,A,%s,%s,%0.1f,%0.1f,%s,,,",
 		standardTime(),
-		standardLat(boat.getLat()),		// 3,4
-		standardLon(boat.getLon()),		// 5,6
-		boat.getSOG(),					// 7
-		boat.getCOG(),					// 8
+		standardLat(boat_sim.getLat()),		// 3,4
+		standardLon(boat_sim.getLon()),		// 5,6
+		boat_sim.getSOG(),					// 7
+		boat_sim.getCOG(),					// 8
 		standardDate());				// 9
 	checksum();
 	// display(show_0183,"apInst --> %s",nmea_buf);
 	sendNMEA0183(portB);
 
 
-	if (boat.getRouting())
+	if (boat_sim.getRouting())
 	{
 		// RMB = Recommended Minimum Navigation Information 'B'
 		// 1) Status, V = Navigation receiver warning
@@ -499,15 +499,15 @@ void apInst::send0183(bool portB)
 
 		//                       1 2     3  4  5  67 89 10    11    12    13
 		sprintf(nmea_buf,"$APRMB,A,%0.3f,%c,%s,%s,%s,%s,%0.3f,%0.1f,%0.4f,%s,",
-			boat.getCrossTrackError(),	// 2
+			boat_sim.getCrossTrackError(),	// 2
 			lr,							// 3
 			start_name.c_str(),			// 4
 			target_name.c_str(),		// 5
-			standardLat(boat.getLat()),	// 67
-			standardLon(boat.getLon()),	// 89
-			boat.distanceToWaypoint(),	// 10
-			boat.headingToWaypoint(),	// 11
-			boat.getSOG(),				// 12
+			standardLat(boat_sim.getLat()),	// 67
+			standardLon(boat_sim.getLon()),	// 89
+			boat_sim.distanceToWaypoint(),	// 10
+			boat_sim.headingToWaypoint(),	// 11
+			boat_sim.getSOG(),				// 12
 			arrive_char);				// 13
 
 		checksum();
@@ -533,8 +533,8 @@ void apInst::send0183(bool portB)
 			standardTime(),					// 1
 			standardLat(target_wp->lat),	// 23
 			standardLon(target_wp->lon),	// 45
-			boat.headingToWaypoint(),		// 6
-			boat.distanceToWaypoint(),		// 10
+			boat_sim.headingToWaypoint(),		// 6
+			boat_sim.distanceToWaypoint(),		// 10
 			target_wp->name);				// 12
 		checksum();
 		// display(show_0183,"apInst --> %s",nmea_buf);
@@ -577,7 +577,7 @@ void sendNMEA0183Route(String route_name)
 	// We have to do two passes .. one to count the number
 	// of needed messags, and a second to build them and send them.
 {
-	const route_t *found = boat.getRoute(route_name.c_str());
+	const route_t *found = boat_sim.getRoute(route_name.c_str());
 	if (!found) return;
 	const int num_wpts = found->num_wpts;
 	const waypoint_t *wpts = found->wpts;

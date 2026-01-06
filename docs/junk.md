@@ -16,7 +16,7 @@ state, and/or historical information to the ESP32 for further processing.
 To the degree that the serial protocol can also be implemented in Perl
 on the laptop. it should be possible to bypass the ESP32 and connect
 directly to the teensy with the (a) laptop to avoid entirely the usage
-of wifi on the boat.
+of wifi on the boat_sim.
 
 ### Big Question
 
@@ -82,7 +82,7 @@ will drive an instrument simulator.
 ### instSimulator
 
 The instrument simulator will encapsulate a number of particular instruments
-on the virtual boat. Some of these will map to my existing actual ST50
+on the virtual boat_sim. Some of these will map to my existing actual ST50
 or other instruments.
 
 - depth

@@ -37,14 +37,14 @@ move, even if you properly call start() and run() !!
 There is a single static global instance, **boat**, of the class in
 boatSimulator.cpp.
 
-- call **boat.init()** from your setup() method, or additionally later to stop and
+- call **boat_sim.init()** from your setup() method, or additionally later to stop and
   re-initialize the simulator at any time.
-- call **boat.run()** from your loop() method (or a task) once per second or so
-- call **boat.start()** to start the simulator (sets running=1)
-- call **boat.stop()** to stop the simulator (sets running=0) and freeze it
-- call **boat.setCOG()** and **boat.setSOG()** to set the boat's speed
+- call **boat_sim.run()** from your loop() method (or a task) once per second or so
+- call **boat_sim.start()** to start the simulator (sets running=1)
+- call **boat_sim.stop()** to stop the simulator (sets running=0) and freeze it
+- call **boat_sim.setCOG()** and **boat_sim.setSOG()** to set the boat's speed
   and course over ground to manually drive the boat around.
-- call **boat.setAutopilot(true)** to cause the boat to drive to the
+- call **boat_sim.setAutopilot(true)** to cause the boat to drive to the
   current waypoint at the current SOG
 - call **setRouting(true)** to further cause the autopilot to advance
   to the next waypoint in the route after it arrives at the current one.

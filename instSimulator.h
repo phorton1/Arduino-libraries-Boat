@@ -1,6 +1,23 @@
 //---------------------------------------------
 // instSimulator.h
 //---------------------------------------------
+// 2026-01-05 Adding boatActual class
+//
+// Inasmuch as the instrument simulator and it's instrument
+// sub-implementations currently have the monitoring capabilities
+// for both in and out, the initial implementation decision for
+// the boatActual is that it will live under the instrument simulator
+// much as the boat simulator does.
+//
+// I *barely* have a handle on monitoring
+//
+//		ST monitoring is mostly complete, minus an understanding
+//			of the ST7000 that I could not spoof on the desk
+//		NMEA2000 monitoring is moderately robust with most of
+//			instrument types implicitly supported
+//		NMEA0183 monitoring is currently "text" only, echoing
+//			the text, but not parsing, the NMEA0183 messages
+//
 
 #pragma once
 #include <myDebug.h>
@@ -121,7 +138,7 @@ protected:
 
 
 //--------------------------------
-// instruments
+// simulated instruments
 //--------------------------------
 
 #define DEFINE_INST_CLASS(CLASSNAME, NAMESTR) \
@@ -179,7 +196,7 @@ private:
 
 
 
-extern instSimulator instruments;
+extern instSimulator inst_sim;
 
 
 // end of instSimulator.h

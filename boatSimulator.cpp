@@ -10,14 +10,14 @@
 #include "boatBinary.h"
 #include <TimeLib.h>
 
-#define dbg_sim	 (1 - boat.g_MON_SIM)
+#define dbg_sim	 (1 - boat_sim.g_MON_SIM)
 #define dbg_ap  0
 
 #define SIMULATION_INTERVAL		1000	// ms
 #define CLOSEST_NONE			65535	// exact
 
 
-boatSimulator boat;
+boatSimulator boat_sim;
 int boatSimulator::g_MON_SIM = 0;
 	// global instance
 
@@ -36,14 +36,14 @@ void boatSimulator::start()
 {
 	display(0,"STARTING SIMULATOR",0);
 	m_running = true;
-	sendBinaryBoatState(1);
+	sendBinarySimState(1);
 }
 
 void boatSimulator::stop()
 {
 	display(0,"STOPPING SIMULATOR",0);
 	m_running = false;
-	sendBinaryBoatState(1);
+	sendBinarySimState(1);
 }
 
 
@@ -127,7 +127,7 @@ void boatSimulator::init()
 	m_closest = CLOSEST_NONE;
 
 	calculate(false);
-	sendBinaryBoatState(1);
+	sendBinarySimState(1);
 
 	proc_leave();
 	display(0,"boatSimulator::init() finished",0);
@@ -141,7 +141,7 @@ void boatSimulator::init()
 void boatSimulator::setDepth(float depth)
 {
 	m_depth = depth;
-	sendBinaryBoatState(!m_running);
+	sendBinarySimState(!m_running);
 	if (depth<0)
 	{
 		my_error("Depth(%0.1f) must be >= zero",depth);
@@ -158,7 +158,7 @@ void boatSimulator::setHeading(float heading)
 	}
 	m_heading = heading;
 	calculate();
-	sendBinaryBoatState(!m_running);
+	sendBinarySimState(!m_running);
 }
 
 void boatSimulator::setWaterSpeed(float speed)
@@ -179,7 +179,7 @@ void boatSimulator::setWaterSpeed(float speed)
 		float new_rpm = 100 + (m_water_speed / 10.0) * 900;  // approx 900 rpm per 10 knots
 		m_rpm = new_rpm;
 	}
-	sendBinaryBoatState(!m_running);
+	sendBinarySimState(!m_running);
 }
 
 void boatSimulator::setCurrentSet(float angle)
@@ -191,7 +191,7 @@ void boatSimulator::setCurrentSet(float angle)
 	}
 	m_current_set = angle;
 	calculate();
-	sendBinaryBoatState(!m_running);
+	sendBinarySimState(!m_running);
 }
 
 void boatSimulator::setCurrentDrift(float speed)
@@ -203,7 +203,7 @@ void boatSimulator::setCurrentDrift(float speed)
 	}
 	m_current_drift = speed;
 	calculate();
-	sendBinaryBoatState(!m_running);
+	sendBinarySimState(!m_running);
 }
 
 void boatSimulator::setWindAngle(float angle)
@@ -215,7 +215,7 @@ void boatSimulator::setWindAngle(float angle)
 	}
 	m_wind_angle = angle;
 	calculateApparentWind();
-	sendBinaryBoatState(!m_running);
+	sendBinarySimState(!m_running);
 }
 
 void boatSimulator::setWindSpeed(float speed)
@@ -227,20 +227,20 @@ void boatSimulator::setWindSpeed(float speed)
 	}
 	m_wind_speed = speed;
 	calculateApparentWind();
-	sendBinaryBoatState(!m_running);
+	sendBinarySimState(!m_running);
 }
 
 void boatSimulator::setRPM(uint16_t rpm)
 {
 	m_rpm = rpm;
-	sendBinaryBoatState(!m_running);
+	sendBinarySimState(!m_running);
 }
 
 void boatSimulator::setGenset(bool on)
 {
 	m_genset = on;
 	display(0,"GENSET %s",m_genset?"ON":"OFF");
-	sendBinaryBoatState(!m_running);
+	sendBinarySimState(!m_running);
 }
 
 const route_t *boatSimulator::getRoute(const char *name)
@@ -285,7 +285,7 @@ void boatSimulator::setRoute(const char *name)
 	m_latitude = m_waypoints[0].lat;
 	m_longitude = m_waypoints[0].lon;
 
-	sendBinaryBoatState(m_inited && !m_running);
+	sendBinarySimState(m_inited && !m_running);
 }
 
 void boatSimulator::setTargetWPNum(uint8_t wp_num)
@@ -311,7 +311,7 @@ void boatSimulator::setTargetWPNum(uint8_t wp_num)
 		strDegreeMinutes(wp->lon).c_str(),
 		(int) m_heading);
 
-	sendBinaryBoatState(!m_running);
+	sendBinarySimState(!m_running);
 }
 
 void boatSimulator::setStartWPNum(uint8_t wp_num)
@@ -335,7 +335,7 @@ void boatSimulator::setStartWPNum(uint8_t wp_num)
 		strDegreeMinutes(m_latitude).c_str(),
 		strDegreeMinutes(m_longitude).c_str());
 
-	sendBinaryBoatState(!m_running);
+	sendBinarySimState(!m_running);
 }
 
 void boatSimulator::setAutopilot(bool on)
@@ -353,7 +353,7 @@ void boatSimulator::setAutopilot(bool on)
 		else if (m_routing)
 			setRouting(false);
 
-		sendBinaryBoatState(!m_running);
+		sendBinarySimState(!m_running);
 	}
 	else
 		warning(0,"AUTOPILOT ALREADY %s",(on?"ON":"OFF"));
@@ -369,7 +369,7 @@ void boatSimulator::setRouting(bool on)
 		if (on && !m_autopilot)
 			setAutopilot(true);
 
-		sendBinaryBoatState(!m_running);
+		sendBinarySimState(!m_running);
 	}
 	else
 		warning(0,"ROUTING ALREADY %s",(on?"ON":"OFF"));
@@ -527,7 +527,7 @@ void boatSimulator::run()
 		m_gen_freq =		m_genset ? 60: 0;
 	}
 	
-	sendBinaryBoatState(1);
+	sendBinarySimState(1);
 
 	proc_leave();
 	
@@ -919,19 +919,19 @@ void boatSimulator::setDateTime(int year, int month, int day, int hour, int minu
 #define MAX_WP_NAME		8
 #define DATE_SIZE		20
 
-void boatSimulator::sendBinaryBoatState(bool doit /*=1*/)
+void boatSimulator::sendBinarySimState(bool doit /*=1*/)
 {
-	if (!(g_BINARY & BINARY_TYPE_BOAT)) return;
+	if (!(g_BINARY & BINARY_TYPE_SIM)) return;
 	if (!doit) return;
 
-	// display(0,"sendBinaryBoatState(%d)",doit);
+	// display(0,"sendBinarySimState(%d)",doit);
 
 	uint8_t buf[sizeof(boatSimulator) + BINARY_HEADER_LEN + 16+1 + 2 * (MAX_WP_NAME + 1) + DATE_SIZE + 2];		// guaranteed to be big enough
 
 	const waypoint_t *start_wp = getWaypoint(m_start_wp_num);
 	const waypoint_t *target_wp = getWaypoint(m_target_wp_num);
 
-	int offset = startBinary(buf,BINARY_TYPE_BOAT);
+	int offset = startBinary(buf,BINARY_TYPE_SIM);
 
 	offset = binaryBool		(buf,offset,m_running);
 	offset = binaryBool		(buf,offset,m_autopilot);

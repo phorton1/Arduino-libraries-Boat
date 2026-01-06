@@ -273,7 +273,7 @@ void setE80Filter(bool value)
 {
 	display(0,"setE80Filter(%d) 'the E80 filter that keeps it from killing the GX2410 gps'",value);
 	e80_filter = value;
-	instruments.sendBinaryState();
+	inst_sim.sendBinaryState();
 }
 
 bool getE80Filter()
@@ -286,10 +286,10 @@ bool getE80Filter()
 void handleNMEA0183Input(bool portB, const char *buf)
 {
 	int port_num = portB ? PORT_83B : PORT_83A;
-	bool b_mon_all = instruments.g_MON[port_num] & MON83_ALL;
-	bool b_ais_in = instruments.g_MON[port_num] & MON83_AIS_IN;
-	bool b_fwd_a_b = !portB && (instruments.g_FWD & FWD_83A_TO_B);
-	bool b_fwd_b_a = portB && (instruments.g_FWD & FWD_83B_TO_A);
+	bool b_mon_all = inst_sim.g_MON[port_num] & MON83_ALL;
+	bool b_ais_in = inst_sim.g_MON[port_num] & MON83_AIS_IN;
+	bool b_fwd_a_b = !portB && (inst_sim.g_FWD & FWD_83A_TO_B);
+	bool b_fwd_b_a = portB && (inst_sim.g_FWD & FWD_83B_TO_A);
 	bool is_ais = strstr(buf,"VDM");
 	bool is_gx2410_killer =
 		strstr(buf,"GGA") ||

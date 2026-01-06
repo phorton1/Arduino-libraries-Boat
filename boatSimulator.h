@@ -2,7 +2,7 @@
 // boatSimulator.h
 //---------------------------------------------
 // A generic platform independent Arduino library that provides
-// a simple simulation of a sailing boat.  Used to generate data for
+// a simple simulation of a sailing boat_sim.  Used to generate data for
 // testing various hardware interfaces including my Seatalk, NMEA1083
 // and NMEA2000 hardware projects.
 
@@ -253,13 +253,13 @@ private:
 		calculateApparentWind(quiet);
 	}
 	
-	void sendBinaryBoatState(bool doit=1);
+	void sendBinarySimState(bool doit=1);
 	
 
 };	// class Simulator
 
 
-extern boatSimulator boat;
+extern boatSimulator boat_sim;
 	// static instance in boatSimulator.cpp
 
 

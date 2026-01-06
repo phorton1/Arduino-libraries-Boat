@@ -1,7 +1,7 @@
 //---------------------------------------------
 // instST_out.cpp
 //---------------------------------------------
-// Implementation of Seatalk instruments.
+// Implementation of simulated Seatalk instruments.
 
 #include "instST.h"
 #include "instSimulator.h"
@@ -9,7 +9,7 @@
 #include "timeLib.h"
 #include <myDebug.h>
 
-#define dbg_data 		(instruments.g_MON[port2?PORT_ST2:PORT_ST1]>1 ? 0 : 1)
+#define dbg_data 		(inst_sim.g_MON[port2?PORT_ST2:PORT_ST1]>1 ? 0 : 1)
 
 #define WRITE_TIMEOUT			50
 
@@ -155,13 +155,13 @@ void setLampIntensity(int value)
 
 void depthInst::sendSeatalk(bool port2)
 {
-	display(dbg_data,"st%d depth(%0.1f)",port2,boat.getDepth());
+	display(dbg_data,"st%d depth(%0.1f)",port2,boat_sim.getDepth());
 
 	uint16_t d10;
-	if (boat.getDepth() > 999)
+	if (boat_sim.getDepth() > 999)
 		d10 = 9990;
 	else
-		d10 = (boat.getDepth() + 0.05) * 10.0;
+		d10 = (boat_sim.getDepth() + 0.05) * 10.0;
 
 	dg[0] = ST_DEPTH;
 	dg[1] = 0x02;
@@ -176,7 +176,7 @@ void depthInst::sendSeatalk(bool port2)
 
 void logInst::sendSeatalk(bool port2)
 {
-	double speed = boat.getWaterSpeed();
+	double speed = boat_sim.getWaterSpeed();
 	int ispeed = (speed+ 0.05) * 10;
 	display(dbg_data,"st%d WaterSpeed(%0.1f)",port2,speed);
 
@@ -190,7 +190,7 @@ void logInst::sendSeatalk(bool port2)
 
 	if (0)
 	{
-		double trip_distance = boat.getTripDistance() * 100;
+		double trip_distance = boat_sim.getTripDistance() * 100;
 		uint32_t trip_int = trip_distance;;
 
 		dg[0] = ST_TRIP;
@@ -202,7 +202,7 @@ void logInst::sendSeatalk(bool port2)
 	}
 	if (0)
 	{
-		double total_distance = boat.getLogTotal() * 10;
+		double total_distance = boat_sim.getLogTotal() * 10;
 		uint32_t total_int = total_distance;;
 
 		dg[0] = ST_LOG_TOTAL;
@@ -214,8 +214,8 @@ void logInst::sendSeatalk(bool port2)
 	}
 	if (1)
 	{
-		double total_distance = boat.getLogTotal() * 10;
-		double trip_distance = boat.getTripDistance() * 100;
+		double total_distance = boat_sim.getLogTotal() * 10;
+		double trip_distance = boat_sim.getTripDistance() * 100;
 		uint32_t total_int = total_distance;;
 		uint32_t trip_int = trip_distance;;
 
@@ -236,8 +236,8 @@ void logInst::sendSeatalk(bool port2)
 
 void windInst::sendSeatalk(bool port2)
 {
-	double speed = boat.apparentWindSpeed();	// getWindSpeed();
-	double angle = boat.apparentWindAngle();	// getWindAngle();
+	double speed = boat_sim.apparentWindSpeed();	// getWindSpeed();
+	double angle = boat_sim.apparentWindAngle();	// getWindAngle();
 
 	int tenths = (speed + 0.05) * 10.0;
 	int ispeed = tenths / 10;
@@ -268,8 +268,8 @@ void compassInst::sendSeatalk(bool port2)
 	// .... ........
 	// HH99   222222
 
-	double degrees = boat.getHeading();
-	degrees += boat.getMagneticVariance();
+	double degrees = boat_sim.getHeading();
+	degrees += boat_sim.getMagneticVariance();
 	if (degrees > 360.0) degrees = degrees - 360.0;
 		// added to send 'proper' magnetic version via ST_HEADING
 
@@ -298,8 +298,8 @@ void compassInst::sendSeatalk(bool port2)
 void gpsInst::sendSeatalk(bool port2)
 {
 
-	double lat = boat.getLat();
-	double lon = boat.getLon();
+	double lat = boat_sim.getLat();
+	double lon = boat_sim.getLon();
 	display(dbg_data,"st%d LatLon(%0.6f,%0.6f)",port2,lat,lon);
 	proc_entry();
 
@@ -456,9 +456,9 @@ void gpsInst::sendSeatalk(bool port2)
 
 	if (1)	// GPS Instrument sends out SOG/COG
 	{
-		double degrees = boat.getCOG();
+		double degrees = boat_sim.getCOG();
 
-		degrees += boat.getMagneticVariance();
+		degrees += boat_sim.getMagneticVariance();
 		if (degrees > 360.0) degrees = degrees - 360.0;
 			// added to send 'proper' magnetic version via ST_COG
 
@@ -478,7 +478,7 @@ void gpsInst::sendSeatalk(bool port2)
 
 		//-----------------------
 
-		double speed = boat.getSOG();
+		double speed = boat_sim.getSOG();
 		int ispeed = (speed+ 0.05) * 10;
 		display(dbg_data,"st%d SOG & stSOG(%0.1f)",port2,speed);
 
@@ -540,10 +540,10 @@ void apInst::sendSeatalk(bool port2)
 	// don't seem to affect the E80's notion of "following" or XTE values.
 	// I'll have to check this out sometime with the real autopilot
 	
-	if (boat.getAutopilot())
+	if (boat_sim.getAutopilot())
 	{
-		int wp_num = boat.getTargetWPNum();
-		const waypoint_t *wp = boat.getWaypoint(wp_num);
+		int wp_num = boat_sim.getTargetWPNum();
+		const waypoint_t *wp = boat_sim.getWaypoint(wp_num);
 
 		String name(wp->name);
 		int len = name.length();
@@ -586,9 +586,9 @@ void apInst::sendSeatalk(bool port2)
 			//					should be transmitted prior to sentence 82 (which indicates the waypoint change).
 			//					Corresponding NMEA sentences: RMB, APB, BWR, BWC, XTE
 
-			double head = boat.headingToWaypoint();
-			double dist = boat.distanceToWaypoint();
-			uint16_t xte_hundreths = boat.getCrossTrackError() * 100;
+			double head = boat_sim.headingToWaypoint();
+			double dist = boat_sim.distanceToWaypoint();
+			uint16_t xte_hundreths = boat_sim.getCrossTrackError() * 100;
 
 			display(dbg_data,"st%d NavToWp head(%0.1f) dist(%0.3f) xte(%0.2f)",port2,head,dist,((float) xte_hundreths)/100.0);
 			proc_entry();
@@ -703,7 +703,7 @@ void apInst::sendSeatalk(bool port2)
 			// and there is an extra flag byte at the end.
 
 			dg[0] = ST_ARRIVAL;
-			dg[1] = boat.getArrived() ? 0x64 : 0x04;			// both arrival types
+			dg[1] = boat_sim.getArrived() ? 0x64 : 0x04;			// both arrival types
 			dg[2] = 0;
 			dg[3] = name4.charAt(0); // - 0x30;
 			dg[4] = name4.charAt(1); // - 0x30;
@@ -851,7 +851,7 @@ void sendSTCourseComputer()
 void engInst::sendSeatalk(bool port2)
 {
 	// not really supported
-	int rpm = boat.getRPM();
+	int rpm = boat_sim.getRPM();
 	display(dbg_data,"st% RPM(%d)",port2,rpm);
 	if (rpm > 4000)
 		rpm = 4000;

@@ -479,7 +479,7 @@ void showDatagram(bool port2, bool out, const uint8_t *dg)
 {
 	int port_num = port2 ? PORT_ST2 : PORT_ST1;
 	int binary_type = port2 ? BINARY_TYPE_ST2 : BINARY_TYPE_ST1;
-	if (!instruments.g_MON[port_num] && !(g_BINARY & binary_type))
+	if (!inst_sim.g_MON[port_num] && !(g_BINARY & binary_type))
 		return;
 
 	#define WIDTH_OF_HEX	3
@@ -502,8 +502,8 @@ void showDatagram(bool port2, bool out, const uint8_t *dg)
 	bool fwd = 0;
 
 	if (!out && (
-		(port2 && (instruments.g_FWD & FWD_ST2_TO_1)) ||
-		(!port2 && (instruments.g_FWD & FWD_ST1_TO_2)) ))
+		(port2 && (inst_sim.g_FWD & FWD_ST2_TO_1)) ||
+		(!port2 && (inst_sim.g_FWD & FWD_ST1_TO_2)) ))
 	{
 		fwd = 1;
 	}
@@ -540,7 +540,7 @@ void showDatagram(bool port2, bool out, const uint8_t *dg)
 
 	String arrow(fwd ? "<->" : out ? "-->" : "<--");
 
-	if (instruments.g_MON[port_num])
+	if (inst_sim.g_MON[port_num])
 	{
 		String out = pad(in_counter,7);
 		out += arrow;

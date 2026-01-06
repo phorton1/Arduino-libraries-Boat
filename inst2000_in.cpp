@@ -79,7 +79,7 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 	//	MON2000_BUS_IN
 	//	MON2000_BUS_OUT	
 
-	int mon = instruments.g_MON[PORT_2000];
+	int mon = inst_sim.g_MON[PORT_2000];
 	bool b_mon_sensors 	= mon & MON2000_SENSORS;
 	bool b_mon_ais_gps  = mon & MON2000_AIS_GPS;
 
