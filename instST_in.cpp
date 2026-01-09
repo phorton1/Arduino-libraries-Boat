@@ -268,7 +268,7 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 
 		lon += mins / 60.0;
 		if (!east) lon = -lon;
-		retval = "lat(";
+		retval = "lon(";
 		retval += strDegreeMinutes(lon);
 		retval += ")";
 	}
