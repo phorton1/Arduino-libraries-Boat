@@ -56,9 +56,11 @@ const st_info_type st_known[] =
 	/* 0x159 */ { ST_59,			"59",			},
 	/* 0x161 */ { ST_E80_SIG,		"E80_SIG",		},
 	/* 0x182 */ { ST_TARGET_NAME,	"TARGET_NAME",	},
+	/* 0x184 */	{ ST_AUTOPILOT,		"AUTOPILOT",	},
 	/* 0x185 */ { ST_NAV_TO_WP,		"NAV_TO_WP",	},
 	/* 0x189 */ { ST_HEADING,		"HEADING",		},
 	/* 0x199 */ { ST_COMPASS_VAR,	"COMPASS_VAR",	},
+	/* 0x19C */ { ST_RUDDER,		"RUDDER",		},
 	/* 0x1a2 */ { ST_ARRIVAL,		"ARRIVAL",		},
 	/* 0x19E */	{ ST_WP_DEF,		"WP_DEF",		},
 	/* 0z1A4 */	{ ST_DEV_QUERY,		"DEV_QUERY",	},
@@ -68,6 +70,7 @@ const st_info_type st_known[] =
 
 	0,
 };
+
 
 
 
@@ -364,6 +367,70 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 		retval += (char) (char4 + 0x30);
 		retval += ")";
 	}
+	else if (st == ST_AUTOPILOT)	// 0x184
+	{
+		uint8_t U  = dg[1];
+		uint8_t V  = dg[2];
+		uint8_t W  = dg[3];
+		uint8_t X  = dg[4];
+		uint8_t Y  = dg[5];
+		uint8_t Z  = dg[6];
+		uint8_t M  = dg[7];
+		uint8_t RR = dg[8];
+		uint8_t SS = dg[9];
+		uint8_t TT = dg[10];	// Always 0x08 on 400G computer, always 0x05 on 150(G) computer
+
+		// --- Compass heading, rudder, and right, essentially same as 0x9C --
+
+		bool right = (U & 0x80) != 0;
+		uint16_t base = (U & 0x03) * 90;
+		uint16_t fine = (V & 0x3F) * 2;
+		uint8_t hi = (U >> 2) & 0x03;
+		uint8_t add = (hi == 0 ? 0 : (hi == 3 ? 2 : 1));
+		uint16_t heading = (base + fine + add) % 360;
+		int8_t rudder = (int8_t)RR;
+
+		// --- Autopilot course ---
+		uint16_t ap_base = ((V >> 6) & 0x03) * 90;
+		uint16_t XY = ((uint16_t)X << 8) | Y;
+		uint16_t ap_course = (ap_base + (XY / 2)) % 360;
+
+		// --- Autopilot mode from Z: 0=standby, 1=auto, 2=vane, 3=track ---
+		const char *mode="STBY";
+		if (Z & 0x08) mode = "TRACK";
+		else if (Z & 0x04) mode = "VANE";
+		else if (Z & 0x02) mode = "AUTO";
+
+		#if 0
+			// --- Alarms from M ---
+			bool alarm_offcourse = (M & 0x04) != 0;
+			bool alarm_windshift = (M & 0x08) != 0;
+
+			// --- SS flags ---
+			bool ss_no_heading = (SS & 0x01) != 0;
+			bool ss_no_data    = (SS & 0x08) != 0;
+			bool ss_large_xte  = (SS & 0x10) != 0;
+			bool ss_auto_rel   = (SS & 0x80) != 0;
+		#endif
+
+		// --- Build retval ---
+		retval  = mode;
+		retval += " head(";
+		retval += heading;
+		retval += ") rud(";
+		retval += rudder;
+		retval += ") right(";
+		retval += (right ? 1 : 0);
+		retval += ") ap(";
+		retval += ap_course;
+		retval += ") alarm(";
+		retval += M;
+		retval += ") flags(";
+		retval += SS;
+		retval += ") TT(";
+		retval += TT;
+		retval += ")";
+	}
 	else if (st == ST_NAV_TO_WP)	// 0x185
 	{
 		uint16_t XXX = dg[2];
@@ -434,6 +501,32 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 		}
 		sprintf(buf,"%s(%d)",direction,var);
 		retval = buf;
+	}
+	else if (st == ST_RUDDER)		// 0x19c
+	{
+		// 9C  U1  VW  RR
+
+		uint8_t U  = dg[1];
+		uint8_t VW = dg[2];
+		uint8_t RR = dg[3];
+
+		bool right = (U & 0x80) != 0;
+		int8_t rudder = (int8_t) RR;
+
+		uint16_t base = (U & 0x03) * 90;
+		uint16_t fine = (VW & 0x3F) * 2;
+		uint8_t hi = (U >> 2) & 0x03;   // values 0..3
+		uint8_t add = (hi == 0 ? 0 : (hi == 3 ? 2 : 1));
+		uint16_t heading = base + fine + add;
+		heading %= 360;
+
+		retval = "head(";
+		retval += heading;
+		retval += ") rud(";
+		retval += rudder;
+		retval += " right(";
+		retval += right;
+		retval += ")";
 	}
 	else if (st == ST_ARRIVAL)		// 0x1a2
 	{
@@ -516,7 +609,7 @@ void showDatagram(bool port2, bool out, const uint8_t *dg)
 	st_name += port2 ? '2' : '1';			// STx for sends and non-forwarded receives
 	if (fwd)								// Sxy for forwarded receives
 		st_name += port2 ? '1' : '2';
-		
+
 	st_name += '_';
 	st_name += name;
 	if (!found)
