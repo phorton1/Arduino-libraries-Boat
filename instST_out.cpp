@@ -534,12 +534,156 @@ void aisInst::sendSeatalk(bool port2)
 }
 
 
+
+
 void apInst::sendSeatalk(bool port2)
+	// Note that the Seatalk Autopilot "instrument" does something that
+	// the NMEA0183/NMEA2000 instruments don't currently do.
+	// It can be "on" in "STANDBY" mode, and knows that "routing"==TRACK mode
 {
-	// as somewhat expected, as with NMEA2000, these messages
-	// don't seem to affect the E80's notion of "following" or XTE values.
-	// I'll have to check this out sometime with the real autopilot
+	// This chunk of code "wakes up" the ST7000.
+	//
+	// If an "autopilot" apInst is being simulated, it is separate from
+	// whether or not the autopilot is "engaged", so this code sends
+	// the ST_AUTOPILOT message whenever the instrument is simulated.
+	//
+	// CARE MUST BE TAKEN on the real boat when sending ANY information
+	// about, or to, the actual autopilot computer!!!!!
+
+	if (1)	// 0x184 ST_AUTOPILOT (should be ST_AP_COMPUTER)
+	{
+		// The apInst message sends the compass heading!
+		//
+		// Note these three headings:
+		//
+		// 		boatSimulator::m_heading = the compass heading
+		// 		boatSimulator::m_desired_heading = the autopiilot course setting
+		// 		boatSimulator::m_cog = the actual course over ground
+		//
+		// For this simulation:
+		//
+		//		If the autopilot is not engaged, the rudder position is set to zero
+		// 		If the autopilot is engaged, then the rudder position is set by comparing
+		//			the compass m_heading to the aoutpilot m_desired_heading, thus
+		//			for example, it might be necessary to maintain an off-center rudder
+		//			to maintain a cog that matches the desired_heading, but that is
+		//			different than the compass heading.
+		//
+		// This simulation does NOT do the VANE mode of the ST7000 system on my boat.
+
+		// KNAUFS DESCRIPTION:
+		//
+		// prh - NOTE that Knauf's description of the U NIBBLE doubly usese
+		//		 the high (bit in the U nibble and that I believe the high
+		//		 bit is the 'right' direction bit, the next bit is the ODD
+		//		 degree bit, and the bottom two bits are the QUADRANT bits
+		//
+		// 84  U6  VW  XY 0Z 0M RR SS TT  Compass heading  Autopilot course and
+		//     Rudder position (see also command 9C)
+		//     Compass heading in degrees:
+		//       The two lower  bits of  U * 90 +
+		//       the six lower  bits of VW *  2 +
+		//       number of bits set in the two higher bits of U =							<-- prh this is incorrect in my view
+		//       (U & 0x3)* 90 + (VW & 0x3F)* 2 + (U & 0xC ? (U & 0xC == 0xC ? 2 : 1): 0)	<-- prh this is incorrect in my view
+		//     Turning direction:
+		//       Most significant bit of U = 1: Increasing heading, Ship turns right
+		//       Most significant bit of U = 0: Decreasing heading, Ship turns left
+		//     Autopilot course in degrees:
+		//       The two higher bits of  V * 90 + XY / 2
+		//     Z & 0x2 = 0 : Autopilot in Standby-Mode
+		//     Z & 0x2 = 2 : Autopilot in Auto-Mode
+		//     Z & 0x4 = 4 : Autopilot in Vane Mode (WindTrim), requires regular "10" datagrams
+		//     Z & 0x8 = 8 : Autopilot in Track Mode
+		//     M: Alarms + audible beeps
+		//       M & 0x04 = 4 : Off course
+		//       M & 0x08 = 8 : Wind Shift
+		//     Rudder position: RR degrees (positive values steer right,
+		//       negative values steer left. Example: 0xFE = 2° left)
+		//     SS & 0x01 : when set, turns off heading display on 600R control.
+		//     SS & 0x02 : always on with 400G
+		//     SS & 0x08 : displays “NO DATA” on 600R
+		//     SS & 0x10 : displays “LARGE XTE” on 600R
+		//     SS & 0x80 : Displays “Auto Rel” on 600R
+		//     TT : Always 0x08 on 400G computer, always 0x05 on 150(G) computer
+
+
+		uint8_t Z =										// mode nibble/byte
+			boat_sim.getRouting() ? 0xA :			// routing == TRACK mode
+			boat_sim.getAutopilot() ? 0x2 :		// autopilot engaged == AUTO mode
+			0;											// STANDBY mode
+
+		// get the heading and ap course and make them "true"
+
+		uint16_t hdg = boat_sim.getHeading();			// algorighm only encodes integer values
+		double ap  = boat_sim.getDesiredHeading();		// algorithm encodes 1/2 degrees
+
+		hdg += boat_sim.getMagneticVariance();
+		if (hdg > 360) hdg = hdg - 360;
+
+		ap += boat_sim.getMagneticVariance();
+		if (ap > 360.0) ap = ap - 360.0;
+
+		// calculate the rudder posiition if autopilot enaged
+		// and set the "right" bit
+
+		int rudder = 0;
+		if (boat_sim.getAutopilot())
+		{
+			rudder = ap - hdg;
+			while (rudder > 180) rudder -= 360;
+			while (rudder < -180) rudder += 360;
+			if (rudder > 127)  rudder = 127;
+			if (rudder < -128) rudder = -128;
+		}
+		bool right = rudder>=0 ? 1 : 0;
+
+		// do the weird ninetees, twos, and odd bit encodings
+		// for the heading into U and W
+
+		uint8_t U = (hdg / 90);   					// U = 'ninetees' == quadrant 0..3
+		uint8_t VW = (hdg - U * 90) / 2;			// twos = 0..44 (six bits)
+		uint8_t odd = hdg & 0x1;					// odd = 0 or 1
+		U += (odd << 2) + (right << 3);
+
+		// do similar weird encoding of ap nineties into V and halfs into XY, sheesh
+
+		uint8_t Vh = (uint8_t)(ap / 90.0);    					// 0..3
+		VW |= Vh << 6;
+
+		uint16_t ap_coarse =  Vh * 90;
+		uint16_t ap_rem    = (uint16_t)(ap - ap_coarse);
+		uint8_t  XY        = ap_rem * 2;
+
+		int8_t rr8 = (int8_t)rudder;     // signed 8?bit
+
+		dg[0] = ST_AUTOPILOT;				// 0x184;
+		dg[1] = (U << 4) | 0x6;				// U6
+		dg[2] = VW;							// VW
+		dg[3] = XY;							// XY
+		dg[4] = Z;							// 0Z = Z = 'mode'.  0x02=AUTO
+		dg[5] = 0x00;						// 0M (no alarms)
+		dg[6] = (uint8_t)rr8;				// RR  <--- this is where I'm at
+		dg[7] = 0x00;       				// SS always zero in my case
+		dg[8] = 0x00;						// TT always zero in my case
+
+		queueDatagram(port2,dg);
+
+		// also send the ST_RUDDER datagram
+
+		dg[0] = ST_RUDDER;
+		dg[1] = (U << 4) | 0x1;				// U1
+		dg[2] = VW;							// VW
+		dg[3] = (uint8_t)rr8;				// RR  <--- this is where I'm at
+		queueDatagram(port2,dg);
+	}
 	
+
+
+	//------------------------------------------------------------
+	// From here down, the autopilot is "engaged", and so we send
+	// waypoint information, even though we may not be "routing".
+	// The whole autopiloot simulation scheme needs reworking.
+
 	if (boat_sim.getAutopilot())
 	{
 		int wp_num = boat_sim.getTargetWPNum();
@@ -711,23 +855,51 @@ void apInst::sendSeatalk(bool port2)
 			dg[6] = name4.charAt(3); // - 0x30;
 			queueDatagram(port2,dg);
 		}
+	}	// Autopilot engaged
+}	// apInst::sendSeatalk()
 
-
-	}
-}
 
 
 void sendSTCourseComputer()
+	// This method, currently unused, was developed to test ST7000 control heads,
+	// and brings up a very involved question about the granularity and purport of my
+	// whole simulated instruments scheme.
+	//
+	// The ST7000 control head is separate from the Autopilot Computer and
+	// they talk using Seatalk.  I have yet to probe them in detail in-vitro,
+	// and learn how they really talk in detail (i.e. buttons, settings, etc),
+	// having done almost all of my work by sending messages to the E80, but it
+	// is very clear they are two separate devices.
+	//
+	// My current "intruments" are simply things that can SEND data the E80
+	// or other devices via Seatalk, NMEA0183 and/or NMEA2000. The instruments
+	// themselves do NOT receieve any data or maintain any state.
+	//
+	// The Autopilot computer is, in reality, a separate 'node' that can
+	// send AND RECEIVE data.  So is the ST7000 control head.  And both of them
+	// maintain state. In fact many of the ST50 instruments SEND AND RECEIVE data
+	// and MAINTAIN STATE, from the ST50 MULTI which is both a display AND a controller
+	// device, to the ST50 WIND device which uses the (autopilot computer) compass heading
+	// and (GPS device) COG/SOG to calculate the apparent versus true wind, separately,
+	// I believe, from the E80 which also does those kinds of calculations.
+	//
+	// I am not going to change my whole architecture at this point, but it is
+	// interesting to note the limitations of my scheme.
 {
 	display(0,"sendSTCourseComputer()",0);
 
-	#define TRY 	1
-	#define TRY2 	1
+	// It turns out that the ST7000 #1 that I bought for $400 apparently does not work,
+	// does not beep, and just reports "NO LINK" when connected with the ST cable I made
+	// for initial installation on Rhapsody.
+	//
+	// On the other hand, a quick test of ST7000 #0A and #0B, the two I removed from Rhapsody
+	// and apparently replaced the LCDs, and they both "come alive" and show "STANDBY" when
+	// sent the 0x184 ST_AUTOPILOT datagram.
+	//
+	// FWIW, the ST7000 head itself sends an unknown 0x97 00 00 datagram every 15 seconds or so,
+	// apparently probing for the ap computer, each time before it reports "NO LINK"
 
-	// I should just hook it up and record the conversation
-	// ST7000 sends 0x97 00 00 before reporting no link
-
-	if (TRY2)
+	if (0)	// SENT by the ST7000
 	{
 		dg[0] = 0x197;
 		dg[1] = 0x10;
@@ -735,72 +907,83 @@ void sendSTCourseComputer()
 		queueDatagram(false,dg);
 	}
 
-	if (TRY)
+	// Sending 0x19C by itself does not make the ST7000 come alive.
+	// It continues sending the 0x197.
+
+	if (0)	// ST_RUDDER - This is the simpler of the two similar ST messages
 	{
 		// 9C  U1  VW  RR    Compass heading and Rudder position (see also command 84)
-		//                     Compass heading in degrees:
-		//                       The two lower  bits of  U * 90 +
-		//                       the six lower  bits of VW *  2 +
-		//                       number of bits set in the two higher bits of U =
-		//                       (U & 0x3)* 90 + (VW & 0x3F)* 2 + (U & 0xC ? (U & 0xC == 0xC ? 2 : 1): 0)
-		//                     Turning direction:
-		//                       Most significant bit of U = 1: Increasing heading, Ship turns right
-		//                       Most significant bit of U = 0: Decreasing heading, Ship turns left
-		//                     Rudder position: RR degrees (positive values steer right,
-		//                       negative values steer left. Example: 0xFE = 2° left)
-		//                     The rudder angle bar on the ST600R uses this record
+		//     Compass heading in degrees:
+		//       The two lower  bits of  U * 90 +
+		//       the six lower  bits of VW *  2 +
+		//       number of bits set in the two higher bits of U =
+		//       (U & 0x3)* 90 + (VW & 0x3F)* 2 + (U & 0xC ? (U & 0xC == 0xC ? 2 : 1): 0)
+		//     Turning direction:
+		//       Most significant bit of U = 1: Increasing heading, Ship turns right
+		//       Most significant bit of U = 0: Decreasing heading, Ship turns left
+		//     Rudder position: RR degrees (positive values steer right,
+		//       negative values steer left. Example: 0xFE = 2° left)
+		//     The rudder angle bar on the ST600R uses this record
+
 		dg[0] = 0x19c;
 		dg[1] = 0x01;
 		dg[2] = 0x00;
 		dg[3] = 0x00;
 		queueDatagram(false,dg);
 	}
-	
 
-	if (1)
+
+	// Sending 0x184 by itself DOES make the ST7000 come alive and show the mode, etc.
+	// I suspect it needs the TT byte, which is 0 from my AP CPU, as an identifier.
+	// After finding that this woke the ST7000 up, this code was copied to the apInst
+	// and modified
+
+	if (1)	// 0x184 ST_AUTOPILOT (should be ST_AP_COMPUTER)
 	{
 		// 84  U6  VW  XY 0Z 0M RR SS TT  Compass heading  Autopilot course and
-		//                  Rudder position (see also command 9C)
-		//                  Compass heading in degrees:
-		//                    The two lower  bits of  U * 90 +
-		//                    the six lower  bits of VW *  2 +
-		//                    number of bits set in the two higher bits of U =
-		//                    (U & 0x3)* 90 + (VW & 0x3F)* 2 + (U & 0xC ? (U & 0xC == 0xC ? 2 : 1): 0)
-		//                  Turning direction:
-		//                    Most significant bit of U = 1: Increasing heading, Ship turns right
-		//                    Most significant bit of U = 0: Decreasing heading, Ship turns left
-		//                  Autopilot course in degrees:
-		//                    The two higher bits of  V * 90 + XY / 2
-		//                  Z & 0x2 = 0 : Autopilot in Standby-Mode
-		//                  Z & 0x2 = 2 : Autopilot in Auto-Mode
-		//                  Z & 0x4 = 4 : Autopilot in Vane Mode (WindTrim), requires regular "10" datagrams
-		//                  Z & 0x8 = 8 : Autopilot in Track Mode
-		//                  M: Alarms + audible beeps
-		//                    M & 0x04 = 4 : Off course
-		//                    M & 0x08 = 8 : Wind Shift
-		//                  Rudder position: RR degrees (positive values steer right,
-		//                    negative values steer left. Example: 0xFE = 2° left)
-		//                  SS & 0x01 : when set, turns off heading display on 600R control.
-		//                  SS & 0x02 : always on with 400G
-		//                  SS & 0x08 : displays “NO DATA” on 600R
-		//                  SS & 0x10 : displays “LARGE XTE” on 600R
-		//                  SS & 0x80 : Displays “Auto Rel” on 600R
-		//                  TT : Always 0x08 on 400G computer, always 0x05 on 150(G) computer
+		//     Rudder position (see also command 9C)
+		//     Compass heading in degrees:
+		//       The two lower  bits of  U * 90 +
+		//       the six lower  bits of VW *  2 +
+		//       number of bits set in the two higher bits of U =
+		//       (U & 0x3)* 90 + (VW & 0x3F)* 2 + (U & 0xC ? (U & 0xC == 0xC ? 2 : 1): 0)
+		//     Turning direction:
+		//       Most significant bit of U = 1: Increasing heading, Ship turns right
+		//       Most significant bit of U = 0: Decreasing heading, Ship turns left
+		//     Autopilot course in degrees:
+		//       The two higher bits of  V * 90 + XY / 2
+		//     Z & 0x2 = 0 : Autopilot in Standby-Mode
+		//     Z & 0x2 = 2 : Autopilot in Auto-Mode
+		//     Z & 0x4 = 4 : Autopilot in Vane Mode (WindTrim), requires regular "10" datagrams
+		//     Z & 0x8 = 8 : Autopilot in Track Mode
+		//     M: Alarms + audible beeps
+		//       M & 0x04 = 4 : Off course
+		//       M & 0x08 = 8 : Wind Shift
+		//     Rudder position: RR degrees (positive values steer right,
+		//       negative values steer left. Example: 0xFE = 2° left)
+		//     SS & 0x01 : when set, turns off heading display on 600R control.
+		//     SS & 0x02 : always on with 400G
+		//     SS & 0x08 : displays “NO DATA” on 600R
+		//     SS & 0x10 : displays “LARGE XTE” on 600R
+		//     SS & 0x80 : Displays “Auto Rel” on 600R
+		//     TT : Always 0x08 on 400G computer, always 0x05 on 150(G) computer
 
 		dg[0] = 0x184;
-		dg[1] = 0x06;
-		dg[2] = 0x00;
-		dg[3] = 0x00;
-		dg[4] = 0x00;
-		dg[5] = 0x00;
-		dg[6] = 0x00;
-		dg[7] = 0x00;
-		dg[8] = 0x00;
+		dg[1] = 0x06;		// U6
+		dg[2] = 0x00;		// VW
+		dg[3] = 0x00;		// XY
+		dg[4] = 0x02;		// 0Z = Z = 'mode'.  0x02=AUTO
+		dg[5] = 0x00;		// 0M
+		dg[6] = 0x00;		// RR
+		dg[7] = 0x00;       // SS
+		dg[8] = 0x00;		// TT
+
 		queueDatagram(false,dg);
 
 	}
 
 
+	// THIS ST6000 STUFF IS NOT UNDERSTOOD OR TESTED, retained for posterities sake.
 	// from https://forum.arduino.cc/t/arduino-autohelm-6000-autopilot/644379/12
 	//
 	//	140 0 255 255	= 0x8c 0x00 0xff 0xff
@@ -808,12 +991,13 @@ void sendSTCourseComputer()
 	//	132 174 255 255 = 0x84 0xAE 0xff 0xff
 	//	138 60 255 255  = 0x8A 0x3c 0xff 0xff
 	//
-	// These cannot be seatalk messages du to erroneous length bytes
+	// These cannot be seatalk messages due to erroneous length bytes
 
+	#define TRY_ST_6000_STUFF	0
 
 	// 01  05  00 00 00 60 01 00  Course Computer 400G
 
-	if (TRY2)
+	if (TRY_ST_6000_STUFF)
 	{
 		dg[0] = 0x101;
 		dg[1] = 0x05;
@@ -826,7 +1010,7 @@ void sendSTCourseComputer()
 		queueDatagram(false,dg);
 	}
 
-	if (TRY2)
+	if (TRY_ST_6000_STUFF)
 	{
 		dg[0] = 0x183;	// Sent by course computer.
 		dg[1] = 0x07;

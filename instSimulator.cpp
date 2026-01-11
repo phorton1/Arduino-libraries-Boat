@@ -396,13 +396,6 @@ void instSimulator::run()
 					inst->send2000();
 			}
 		}
-
-		// kludge attempt to emulate AP computer
-
-		if (0)
-		{
-			sendSTCourseComputer();
-		}
 	}
 
 

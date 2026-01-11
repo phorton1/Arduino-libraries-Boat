@@ -60,8 +60,6 @@ extern void sendDatagram(bool port2);
 extern void clearSTQueues();
 extern void setLampIntensity(int value);	// sent to all ports, 0==off, 1=low, 2=medium, 3=high
 
-extern void sendSTCourseComputer();
-
 // in instSTIn
 
 extern void showDatagram(bool port2, bool out, const uint8_t *datagram);
