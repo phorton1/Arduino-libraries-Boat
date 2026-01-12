@@ -9,6 +9,7 @@
 #include "boatUtils.h"
 #include "boatBinary.h"
 
+#define dbg_st7000	0
 
 // notes
 //
@@ -58,15 +59,17 @@ const st_info_type st_known[] =
 	/* 0x182 */ { ST_TARGET_NAME,	"TARGET_NAME",	},
 	/* 0x184 */	{ ST_AUTOPILOT,		"AUTOPILOT",	},
 	/* 0x185 */ { ST_NAV_TO_WP,		"NAV_TO_WP",	},
+	/* 0x186 */ { ST_AP_KEYSTROKE,	"AP_KEY",		},
 	/* 0x189 */ { ST_HEADING,		"HEADING",		},
+	/* 0x197 */	{ ST_ST7000,		"ST7000",		},
 	/* 0x199 */ { ST_COMPASS_VAR,	"COMPASS_VAR",	},
-	/* 0x19C */ { ST_RUDDER,		"RUDDER",		},
+	/* 0x19c */ { ST_RUDDER,		"RUDDER",		},
+	/* 0x19e */	{ ST_WP_DEF,		"WP_DEF",		},
 	/* 0x1a2 */ { ST_ARRIVAL,		"ARRIVAL",		},
-	/* 0x19E */	{ ST_WP_DEF,		"WP_DEF",		},
-	/* 0z1A4 */	{ ST_DEV_QUERY,		"DEV_QUERY",	},
-	/* 0z1A4 */	{ ST_SAT_DETAIL,	"SAT_DETAIL",	},
-	/* 0x1A7 */	{ ST_A7,			"A7",			},
-	/* 0x1AD */	{ ST_AD,			"AD"			},
+	/* 0z1a4 */	{ ST_DEV_QUERY,		"DEV_QUERY",	},
+	/* 0z1a4 */	{ ST_SAT_DETAIL,	"SAT_DETAIL",	},
+	/* 0x1a7 */	{ ST_A7,			"A7",			},
+	/* 0x1ad */	{ ST_AD,			"AD"			},
 
 	0,
 };
@@ -464,6 +467,133 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 		retval += has_range ? "R" : " ";
 		retval += ")";
 	}
+	else if (st == ST_AP_KEYSTROKE)	// 0x186
+	{
+		// tested ST7000 is complicated
+		//		- buttons are not simple "sends"; some affect the state of the ST7000 itself
+		//		- buttons are sometimes modal and affect the state of the ST7000 depending on the mode
+		//		- some single keypresses appear to be modeless
+		// 		- some are sent on press, some on up, and some after an interval
+		//      - the ST7000 appears to send out the ST_ST7000=0x197 00 00 datagram in some error combinations
+		//		  possibly to get the cpu to affirm its state (even though I believe the cpu sends state once per second)
+		//
+		// byte2 seems to be the only relevant byte and
+		// byte3 appears to be a checksum = 0xff minus byte2
+		// here we assert the checksum
+
+		uint8_t key = dg[2];
+		uint8_t cs  = 0xff - key;
+		if (dg[3] != cs) warning(0,"invalid key(0x%02x) checksum(0x%02x) expected(0x%02x)",key,cs,dg[3]);
+
+		// A long press seems to be indicated by the 0x40 bit
+		// I would like to remove it from the key and then proceed, but
+		// 		unfortunately combination presses don't work that way, so
+		// 		to help me find patterns I will get it and remove it into an
+		// 		additional variable called "single_key" that will not be valid
+		// 		for multi-key combinations.
+
+		#define LONG_BIT 0x40
+		bool longpress = key & LONG_BIT ? 1 : 0;
+		uint8_t single_key = key & ~LONG_BIT;
+
+		// The following appear to map to the long_press convention
+		// 01 = Auto
+		// 02 = Standby
+		// 03 = Track
+		// 04 = Display
+		// 05 = -1
+		// 06 = -10
+		// 07 = +1
+		// 08 = +10
+		// 09 = Resp-
+		// 0a = Resp+
+
+		display(dbg_st7000,"key(0x%02x) long(%d) single_key(0x%02x)",key,longpress,single_key);
+
+
+		// old
+
+		// Combinations are tricky to affirm and apparently modal.
+		//		- appear to include the STANDBY button, possibly because in any mode as STANDBY (would?) turn off any other mode
+		//		- appear to include the AUTO button (only?) in AUTO mode
+		// Usually, but possibly not always, you get the SHIFT Key first, then the combination
+		//		- some messages are sent on the press, some on the key up, some after a time interval
+		// The head appears to output ST7000=0x197 in some error combinations
+		//		possibly to prompt a resend of info from the AP cpu
+		//
+		// 23 = Standby & Auto
+		// 63 = Standby & Auto long
+		// 30 = Standby & -1
+		// 70 = Standby & -1 long
+		// 25 = Standby & -10
+		// 65 = Standby & -10 long
+
+
+		// At this point I referred back to the ST7000 "operation handbook" to see what valid
+		// combinations they present:
+		//
+		// Autotack - operates in both "compass=audo" and "vane" modes
+		//		+1 & +10 = tack 100 degrees to starboard
+		//		-1 & -20 = tack 100 degrees to port
+		// Wind Trim = "vane" mod
+		//		STANDBY & AUTO = enter "vane" mode and maintain current apparent wind angle
+		//			If the calculated ap_heading changes by more than 15 degrees a
+		//			WIND_CHANGE_ALARM will be issued, and STANDBY & AUTO (brief) will
+		//				clear it.
+		//			VANE mode requires one minute of changed apparent wind before it
+		//				adjusts the ap course
+		//		STANDBY & AUTO long = return to "previous apparent wind angle"
+		//			but the documentation is unclear as it apears to labelled "Previous Automatic Heading"
+		//			and appears to possibly return to "auto" mode.
+		//
+		// And from the "installation handbook" the following about "calibration"
+		//		in STANDBY mode (press STANDBY first)
+		//
+		//		"to select calibration mode"
+		//			TRACK and DISPLAY long (2 seconds) to (display calibration settings?)
+		//		"to enter calibration mode"
+		//			TRACK and DISPLAY long (again 2 seconds) to entier calibration mode
+		//			I am not 100% sure they meant to repeat this as it appears that you
+		//			can edit values possibly in "calibration display mode"
+		//		"to save changes  made in calibration mode"
+		//			TRACK and DISPLAY long (again 2 seconds) to entier calibration mode
+		//		"to exit calibration display/modification modes without saving"
+		//			press STANDBY
+		//
+		// When in calibration mode, the DISPLAY button will traverse through values and
+		//		RESP+ and RESP- will modify them.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+		// 30 = Standby & Display
+		// 6b = Standby & Track
+		//
+		//
+		//
+		//
+		//
+		//
+		//
+		//
+		//
+
+
+
+
+
+	}
 	else if (st == ST_HEADING)		// 0x189
 	{
 		uint8_t U = dg[1] >> 4;
@@ -475,6 +605,11 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 		retval = "heading(";
 		retval += heading;
 		retval += ") magnetic";
+	}
+	else if (st == ST_ST7000)		// 0x197	undocumented by Knauf
+	{
+		// ST7000 sends 0x197 00 00 at startup, and as error/query to the AP cpu
+		retval = "ST7000";
 	}
 	else if (st == ST_COMPASS_VAR)	// 0x199
 	{

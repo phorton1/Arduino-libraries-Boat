@@ -40,11 +40,13 @@
 #define ST_59				0x159		// 					o		recd
 #define ST_E80_SIG			0x161		// 					o		recd
 #define ST_TARGET_NAME		0x182		// apInst(1)				recd
-#define ST_AUTOPILOT		0x184		// apInst(?)				recd from AP cpu
+#define ST_AUTOPILOT		0x184		// apInst(1)				recd from AP cpu
 #define ST_NAV_TO_WP		0x185		// apInst(1)				recd
+#define ST_AP_KEYSTROKE		0x186		//							recd from ST7000
 #define ST_HEADING			0x189		// compassInst(x)			recd
+#define ST_ST7000			0x197		//							recd from ST7000 error/query mode
 #define ST_COMPASS_VAR		0x199		// 							recd
-#define ST_RUDDER			0x19C		// apInst(?					recd from AP cpu
+#define ST_RUDDER			0x19C		// apInst(1+1)				recd from AP cpu
 #define ST_ARRIVAL			0x1A2		// apInst(1)				recd
 #define ST_WP_DEF			0x19E		// 					o		got it once, could be bogus bytes
 #define ST_DEV_QUERY		0x1A4		// 					o		we don't respond (yet)

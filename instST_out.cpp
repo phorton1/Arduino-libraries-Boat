@@ -670,11 +670,14 @@ void apInst::sendSeatalk(bool port2)
 
 		// also send the ST_RUDDER datagram
 
-		dg[0] = ST_RUDDER;
-		dg[1] = (U << 4) | 0x1;				// U1
-		dg[2] = VW;							// VW
-		dg[3] = (uint8_t)rr8;				// RR  <--- this is where I'm at
-		queueDatagram(port2,dg);
+		if (1)
+		{
+			dg[0] = ST_RUDDER;
+			dg[1] = (U << 4) | 0x1;				// U1
+			dg[2] = VW;							// VW
+			dg[3] = (uint8_t)rr8;				// RR  <--- this is where I'm at
+			queueDatagram(port2,dg);
+		}
 	}
 	
 
