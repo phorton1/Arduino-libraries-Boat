@@ -9,6 +9,10 @@
 #include "timeLib.h"
 #include <myDebug.h>
 
+volatile int ap_linked = 0;
+
+
+
 #define dbg_data 		(inst_sim.g_MON[port2?PORT_ST2:PORT_ST1]>1 ? 0 : 1)
 
 #define WRITE_TIMEOUT			50
@@ -79,7 +83,7 @@ void sendDatagram(bool port2)
 	HardwareSerial &SERIAL_ST = port2 ?
 		SERIAL_ST2 :
 		SERIAL_ST1 ;
-		
+
 	uint16_t *dg = circ[port2][tail[port2]++];
 	if (tail[port2] > CIRC_BUF_SIZE)
 		tail[port2] = 0;
@@ -541,6 +545,25 @@ void apInst::sendSeatalk(bool port2)
 	// the NMEA0183/NMEA2000 instruments don't currently do.
 	// It can be "on" in "STANDBY" mode, and knows that "routing"==TRACK mode
 {
+
+	if (!ap_linked) return;
+	if (ap_linked == 1)
+	{
+		dg[0] = 0x198;
+		dg[1] = 0x00;
+		dg[2] = 0x00;
+		queueDatagram(port2,dg);
+		return;
+	}
+	else if (ap_linked < 5)
+	{
+		warning(0,"apInst setting ap_linked=%d",ap_linked);
+		ap_linked++;
+		return;
+	}
+	
+	
+
 	// This chunk of code "wakes up" the ST7000.
 	//
 	// If an "autopilot" apInst is being simulated, it is separate from
@@ -605,12 +628,14 @@ void apInst::sendSeatalk(bool port2)
 		//     SS & 0x10 : displays “LARGE XTE” on 600R
 		//     SS & 0x80 : Displays “Auto Rel” on 600R
 		//     TT : Always 0x08 on 400G computer, always 0x05 on 150(G) computer
+		
+		uint8_t ap_mode = boat_sim.getAutopilot();
 
-
-		uint8_t Z =										// mode nibble/byte
-			boat_sim.getRouting() ? 0xA :			// routing == TRACK mode
-			boat_sim.getAutopilot() ? 0x2 :		// autopilot engaged == AUTO mode
-			0;											// STANDBY mode
+		uint8_t Z =								// mode nibble/byte
+			boat_sim.getRouting() ? 0xA :		// routing == AUTO | TRACK mode
+			ap_mode == AP_MODE_VANE ? 0x6 :		// vane = AUTO | VANE mode
+			ap_mode == AP_MODE_AUTO ? 0x2 :		// autopilot engaged == AUTO mode
+			0;									// STANDBY mode
 
 		// get the heading and ap course and make them "true"
 
@@ -626,8 +651,8 @@ void apInst::sendSeatalk(bool port2)
 		// calculate the rudder posiition if autopilot enaged
 		// and set the "right" bit
 
-		int rudder = 0;
-		if (boat_sim.getAutopilot())
+		int rudder = boat_sim.getRudder();
+		if (ap_mode)			// vane mode not currently actually implemented
 		{
 			rudder = ap - hdg;
 			while (rudder > 180) rudder -= 360;
@@ -654,21 +679,8 @@ void apInst::sendSeatalk(bool port2)
 		uint16_t ap_rem    = (uint16_t)(ap - ap_coarse);
 		uint8_t  XY        = ap_rem * 2;
 
-		int8_t rr8 = (int8_t)rudder;     // signed 8?bit
+		int8_t rr8 = (int8_t)rudder;     // signed 8 bit
 
-		dg[0] = ST_AUTOPILOT;				// 0x184;
-		dg[1] = (U << 4) | 0x6;				// U6
-		dg[2] = VW;							// VW
-		dg[3] = XY;							// XY
-		dg[4] = Z;							// 0Z = Z = 'mode'.  0x02=AUTO
-		dg[5] = 0x00;						// 0M (no alarms)
-		dg[6] = (uint8_t)rr8;				// RR  <--- this is where I'm at
-		dg[7] = 0x00;       				// SS always zero in my case
-		dg[8] = 0x00;						// TT always zero in my case
-
-		queueDatagram(port2,dg);
-
-		// also send the ST_RUDDER datagram
 
 		if (1)
 		{
@@ -678,6 +690,23 @@ void apInst::sendSeatalk(bool port2)
 			dg[3] = (uint8_t)rr8;				// RR  <--- this is where I'm at
 			queueDatagram(port2,dg);
 		}
+		
+
+		dg[0] = ST_AUTOPILOT;				// 0x184;
+		dg[1] = (U << 4) | 0x6;				// U6
+		dg[2] = VW;							// VW
+		dg[3] = XY;							// XY
+		dg[4] = Z;							// 0Z = Z = 'mode'.
+		dg[5] = 0x00;						// 0M (no alarms)
+		dg[6] = (uint8_t)rr8;				// RR  <--- this is where I'm at
+		dg[7] = 0x00;       				// SS always zero in my case
+		dg[8] = 0x08;						// TT always zero in my case
+
+		queueDatagram(port2,dg);
+
+		// also send the ST_RUDDER datagram
+
+
 	}
 	
 

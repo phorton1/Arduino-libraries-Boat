@@ -45,6 +45,7 @@
 #define ST_AP_KEYSTROKE		0x186		//							recd from ST7000
 #define ST_HEADING			0x189		// compassInst(x)			recd
 #define ST_ST7000			0x197		//							recd from ST7000 error/query mode
+#define ST_AP_CPU			0x198		// apInst(1)				recd from AP cpu in response to ST7000
 #define ST_COMPASS_VAR		0x199		// 							recd
 #define ST_RUDDER			0x19C		// apInst(1+1)				recd from AP cpu
 #define ST_ARRIVAL			0x1A2		// apInst(1)				recd
@@ -66,6 +67,9 @@ extern void setLampIntensity(int value);	// sent to all ports, 0==off, 1=low, 2=
 
 extern void showDatagram(bool port2, bool out, const uint8_t *datagram);
 extern void showDatagram16(bool port2, bool out, const uint16_t *dg);
+
+extern volatile int ap_linked;
+
 
 
 // end of instST.h

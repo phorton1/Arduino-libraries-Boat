@@ -68,7 +68,7 @@ void boatSimulator::init()
 
 	m_inited 	= true;
 	// m_running 	= false;
-	m_autopilot = false;
+	m_autopilot = AP_MODE_OFF;
 	m_routing 	= false;
 	m_arrived 	= false;
 
@@ -79,6 +79,7 @@ void boatSimulator::init()
 	m_latitude = m_waypoints[0].lat;
 	m_longitude = m_waypoints[0].lon;
 	m_desired_heading = 90;	// 0;
+	m_rudder = -33;
 	
 	m_depth 	 	= 10;
 	m_heading		= 180;
@@ -267,7 +268,7 @@ const route_t *boatSimulator::getRoute(const char *name)
 void boatSimulator::setRoute(const char *name)
 {
 	m_sog = 0;
-	m_autopilot = false;
+	m_autopilot = AP_MODE_OFF;
 	m_routing = false;
 	m_arrived = false;
 	m_closest = CLOSEST_NONE;
@@ -338,17 +339,23 @@ void boatSimulator::setStartWPNum(uint8_t wp_num)
 	sendBinarySimState(!m_running);
 }
 
-void boatSimulator::setAutopilot(bool on)
+void boatSimulator::setAutopilot(uint8_t mode)
 {
-	if (m_autopilot != on)
+	const char *ap_mode =
+		mode == 2 ? "VANE" :
+		mode == 1 ? "AUTO" :
+		"OFF";
+
+	if (m_autopilot != mode)
 	{
 		m_arrived = false;
 		m_closest = CLOSEST_NONE;
+		display(0,"AUTOPILOT %s",ap_mode);
+		m_autopilot = mode;
 
-		display(0,"AUTOPILOT %s",(on?"ON":"OFF"));
-		m_autopilot = on;
+		// temoporarily implementaiton: VANE mode == AUTO mode
 
-		if (on)
+		if (mode)
 			m_heading = headingToWaypoint();
 		else if (m_routing)
 			setRouting(false);
@@ -356,8 +363,9 @@ void boatSimulator::setAutopilot(bool on)
 		sendBinarySimState(!m_running);
 	}
 	else
-		warning(0,"AUTOPILOT ALREADY %s",(on?"ON":"OFF"));
+		warning(0,"AUTOPILOT ALREADY %s",ap_mode);
 }
+
 
 void boatSimulator::setRouting(bool on)
 {
@@ -366,8 +374,8 @@ void boatSimulator::setRouting(bool on)
 		display(0,"ROUTING %s",(on?"ON":"OFF"));
 		m_routing = on;
 
-		if (on && !m_autopilot)
-			setAutopilot(true);
+		if (on && m_autopilot != AP_MODE_AUTO)
+			setAutopilot(AP_MODE_AUTO);	// AUTO
 
 		sendBinarySimState(!m_running);
 	}
@@ -600,7 +608,7 @@ void boatSimulator::doAutopilot()
 					m_water_speed = 0;                          // stop the boat
 					m_rpm = 0;
 					m_routing = false;                          // turn off routing
-					m_autopilot = false;
+					m_autopilot = AP_MODE_OFF;					// turn off autopilot
 					m_arrived = false;
 					m_desired_heading = 0;
 					calculate(1);
@@ -934,7 +942,7 @@ void boatSimulator::sendBinarySimState(bool doit /*=1*/)
 	int offset = startBinary(buf,BINARY_TYPE_SIM);
 
 	offset = binaryBool		(buf,offset,m_running);
-	offset = binaryBool		(buf,offset,m_autopilot);
+	offset = binaryUint8	(buf,offset,m_autopilot);
 	offset = binaryBool		(buf,offset,m_routing);
 	offset = binaryBool		(buf,offset,m_arrived);
 	offset = binaryFixStr	(buf,offset,m_route_name, 16);
@@ -951,6 +959,7 @@ void boatSimulator::sendBinarySimState(bool doit /*=1*/)
 	offset = binaryFloat  	(buf,offset,distanceToWaypoint());
 
 	offset = binaryFloat	(buf,offset,m_desired_heading);
+	offset = binaryFloat	(buf,offset,m_rudder);
 	
 	offset = binaryFloat	(buf,offset,m_depth);
 	offset = binaryFloat	(buf,offset,m_heading);

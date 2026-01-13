@@ -62,6 +62,7 @@ const st_info_type st_known[] =
 	/* 0x186 */ { ST_AP_KEYSTROKE,	"AP_KEY",		},
 	/* 0x189 */ { ST_HEADING,		"HEADING",		},
 	/* 0x197 */	{ ST_ST7000,		"ST7000",		},
+	/* 0x198 */ { ST_AP_CPU,		"AP_CPU",		},
 	/* 0x199 */ { ST_COMPASS_VAR,	"COMPASS_VAR",	},
 	/* 0x19c */ { ST_RUDDER,		"RUDDER",		},
 	/* 0x19e */	{ ST_WP_DEF,		"WP_DEF",		},
@@ -469,6 +470,8 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 	}
 	else if (st == ST_AP_KEYSTROKE)	// 0x186
 	{
+		// This long comment eventually belongs in documentation and not in the code
+		//
 		// tested ST7000 is complicated
 		//		- buttons are not simple "sends"; some affect the state of the ST7000 itself
 		//		- buttons are sometimes modal and affect the state of the ST7000 depending on the mode
@@ -477,65 +480,13 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 		//      - the ST7000 appears to send out the ST_ST7000=0x197 00 00 datagram in some error combinations
 		//		  possibly to get the cpu to affirm its state (even though I believe the cpu sends state once per second)
 		//
-		// byte2 seems to be the only relevant byte and
-		// byte3 appears to be a checksum = 0xff minus byte2
-		// here we assert the checksum
-
-		uint8_t key = dg[2];
-		uint8_t cs  = 0xff - key;
-		if (dg[3] != cs) warning(0,"invalid key(0x%02x) checksum(0x%02x) expected(0x%02x)",key,cs,dg[3]);
-
-		// A long press seems to be indicated by the 0x40 bit
-		// I would like to remove it from the key and then proceed, but
-		// 		unfortunately combination presses don't work that way, so
-		// 		to help me find patterns I will get it and remove it into an
-		// 		additional variable called "single_key" that will not be valid
-		// 		for multi-key combinations.
-
-		#define LONG_BIT 0x40
-		bool longpress = key & LONG_BIT ? 1 : 0;
-		uint8_t single_key = key & ~LONG_BIT;
-
-		// The following appear to map to the long_press convention
-		// 01 = Auto
-		// 02 = Standby
-		// 03 = Track
-		// 04 = Display
-		// 05 = -1
-		// 06 = -10
-		// 07 = +1
-		// 08 = +10
-		// 09 = Resp-
-		// 0a = Resp+
-
-		display(dbg_st7000,"key(0x%02x) long(%d) single_key(0x%02x)",key,longpress,single_key);
-
-
-		// old
-
-		// Combinations are tricky to affirm and apparently modal.
-		//		- appear to include the STANDBY button, possibly because in any mode as STANDBY (would?) turn off any other mode
-		//		- appear to include the AUTO button (only?) in AUTO mode
-		// Usually, but possibly not always, you get the SHIFT Key first, then the combination
-		//		- some messages are sent on the press, some on the key up, some after a time interval
-		// The head appears to output ST7000=0x197 in some error combinations
-		//		possibly to prompt a resend of info from the AP cpu
-		//
-		// 23 = Standby & Auto
-		// 63 = Standby & Auto long
-		// 30 = Standby & -1
-		// 70 = Standby & -1 long
-		// 25 = Standby & -10
-		// 65 = Standby & -10 long
-
-
-		// At this point I referred back to the ST7000 "operation handbook" to see what valid
+		// I referred back to the ST7000 "operation handbook" to see what valid
 		// combinations they present:
 		//
-		// Autotack - operates in both "compass=audo" and "vane" modes
+		// Autotack - operates in both "compass=AUTO" and "VANE" modes
 		//		+1 & +10 = tack 100 degrees to starboard
-		//		-1 & -20 = tack 100 degrees to port
-		// Wind Trim = "vane" mod
+		//		-1 & -10 = tack 100 degrees to port
+		// Wind Trim = "vane" mode
 		//		STANDBY & AUTO = enter "vane" mode and maintain current apparent wind angle
 		//			If the calculated ap_heading changes by more than 15 degrees a
 		//			WIND_CHANGE_ALARM will be issued, and STANDBY & AUTO (brief) will
@@ -546,7 +497,11 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 		//			but the documentation is unclear as it apears to labelled "Previous Automatic Heading"
 		//			and appears to possibly return to "auto" mode.
 		//
-		// And from the "installation handbook" the following about "calibration"
+		// And from the "installation handbook"
+		//
+		//	TRACK and DISPLAY (short) then RESP+/- to adjust Display Contrast
+		//
+		//	the following about "calibration"
 		//		in STANDBY mode (press STANDBY first)
 		//
 		//		"to select calibration mode"
@@ -556,42 +511,173 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 		//			I am not 100% sure they meant to repeat this as it appears that you
 		//			can edit values possibly in "calibration display mode"
 		//		"to save changes  made in calibration mode"
-		//			TRACK and DISPLAY long (again 2 seconds) to entier calibration mode
+		//			TRACK and DISPLAY long (again 2 seconds) to save mode
 		//		"to exit calibration display/modification modes without saving"
 		//			press STANDBY
 		//
-		// When in calibration mode, the DISPLAY button will traverse through values and
-		//		RESP+ and RESP- will modify them.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-		// 30 = Standby & Display
-		// 6b = Standby & Track
+		// 		When in calibration mode, the DISPLAY button will traverse through values and
+		//			RESP+ and RESP- will modify them.
 		//
+		//	Rudder Gain Adjustment
+		//		Pressing Resp+ and Resp- for one second will go into Rudder Gain Adjustment
+		//		mode which will "adjust to either side of the calibrated setting" for
+		//		"optimal autopilot steering".
 		//
+		// IMPLEMENTATION
 		//
+		//	The Seatalk Autopilot instrument is special, and is the only case where
+		//		an "input" message affects the "state" of a virtual simulated instrument.
+		//		IFF a Seatalk apInst is being simulated on the ST1 port (which *may* be
+		//		forwarded to the E80 on the ST2 port) then
 		//
+		//		- it "responds" to keypresses
+		//		- it "drives" the boatSimulator autopilot to some degreee
+		//		- it has the ability to emulate parameter setting mode
+		//		- it generally emulates a subset of the real ap-cpu to facilitate
+		//		  testing of the ST7000.
 		//
+		//	This allows me to work on, understand, and verify encoding and decoding
+		//		of the ST7000<->ap-cpu conversation while working on my desk instead of
+		//		the cramped confines of the nav station.
 		//
+		// 	To implement this and understand the keystrokes, I first modified boatSimulator
+		//		m_autopilot to be a uint8_t and added 2=AP_VANE_MODE, currently unimplemented
+		//		in the boatSimulator, to the to be able to set "VANE" mode on the ST7000.
+		
+
+		//--------------------------------------------------------
+		// This description supercede's Knauf's description
+		//--------------------------------------------------------
+		// byte2 is the only relevant byte
+		// byte3 is a checksum = 0xff minus byte2
+		// here we assert the checksum
+
+		uint8_t key = dg[2];
+		uint8_t cs  = 0xff - key;
+		if (dg[3] != cs) warning(0,"invalid key(0x%02x) checksum(0x%02x) expected(0x%02x)",key,cs,dg[3]);
+
+		// A long press is indicated by the 0x40 bit
+
+		#define LONG_BIT 0x40
+		bool longpress = key & LONG_BIT ? 1 : 0;
+		uint8_t single_key = key & ~LONG_BIT;
+
+		// Single Keys
+		//		These are modeless in terms of being output
+		//			- they beep and possibly output a short press in any mode
+		//			  NOT ALL KEYS OUTPUT SHORTS BEFORE LONGS
+		//			- they will beep and output a long press in any mode
+		//		They do not, in general, affect the state of the ST7000,
+		//			with the exception of Display when in AUTO/VANE/TRACK modes
+		//			which will affect the display, but not the behavior, of the ST7000
+		//		Not all Single Keys "do" something in any mode.
+		//			Behavior is byond the scope of this comment to describe.
 		//
+		//		Name			Ref			SHORT_BEFORE_LONG
+		//		-------------------------------------------------------------
+		// 		01 = Auto					yes
+		// 		02 = Standby				no
+		// 		03 = Track					no
+		// 		04 = Display				no
+		// 		05 = Minus1		-1			yes
+		// 		06 = Minus10	-10			yes
+		// 		07 = Plus1		+1			yes
+		// 		08 = Plus10		+10			yes
+		// 		09 = MinusResp	-Resp		yes
+		// 		0a = PlusResp	+Resp		yes
 		//
+		// Combined Keys
 		//
+		//		KEY_NAME 				Ref			SHORT_B4_LONG	Notes
+		//		------------------------------------------------------------------
+		// 		20 = Minus1_Plus1		-1 & +1		yes
+		//		21 = Minus1_Minus10		-1 & -10	yes
+		//		22 = Plus1_Plus10		+1 & +10	yes
+		// 		23 = Standby_Auto					yes
+		//    	24 = Display_Track					no			longpress outputs 0x40 | 0x28 !!!
+		// 		25 = Standby_Minus10				yes
+		// 		28 = Minus10_Plus10		-10 & +10	no 			longpress outputs 0x40 | 0x24 !!!
+		//		2e = MinsResp_PlusResp	-Resp&+Resp	long_only	"Rudder Gain Adjustment" for planing vessels
+		// 		30 = Standby_Minus1					yes			not reliable; enters funny mode; crashes
+		//
+		// Notes:
+		//
+		//		- Display_Track(short) will output the keystroke, then enter a
+		//		  	local ST7000 mode to adjust the Display Contrast using Resp-/+
+		//		  	and or the +/- 1 & 10 keys.
+		//		  While in this mode the Resp-/+ keys are eaten by the ST7000
+		//			wheras the 1/10 and other keys are not.
+		//		  The mode is left by pressing Display_Track(short) again
+		//			or Standby; other keys do not leave this local mode.
+		//		- There does not seem to be a "Factory Reset Button'.
+		//		- Backlight: The documentation says to press the Display button for
+		//		  one second, then press the Display button again within 10 seconds
+		//		  to toggle through illumination values.  This does not happen locally
+		//		  on the ST7000 as you might expect, so it must be that the ap-cpu is
+		//		  interpreting those keys and putting the ST_LAMP datagrams on the bus.
+		//      - Funny Mode
+		//	    	The Standby_Minus1 button ia not reliable and repeated
+		//				presses of it have led to the ST7000 backlights coming on
+		//				and the display showing all segments and/or crashing and
+		//				possibly rebooting the ST7000
+		//		- A search for the "missing" 0x26,0x27, and 0x29 or other
+		//			combined keycode values did not yield any fruitful results.
 
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+		//
+		//		KEY_NAME 							OUTPUT MODES		Cannonical Function (not always)
+		//		---------------------------------------------------------------------------------
+		// 		20 = Minus1_Minus10		-1 & -10	AUTO/VANE			AutoTack_Port
+		//		21 = Minus1_Plus1		-1 & +1
+		//		22 = Plus1_Plus10		+1 & +10
+		//
+		// 		23 = Standby_Auto					AUTO/VANE			long = enter VANE Mode	or 	"return to previous auto mode/angle?"
+		// 		30 = Standby_Minus1
+		// 		25 = Standby_Minus10
+		// 		28 = Plus1_Plus10		+1 & +10	AUTO/VANE			AutoTack_Stbd
+		//    	24 = Display_Track					STANDBY				Enter Calibration Mode / Save Calibratiion settings
+
+
+		//		These are only output in certain modes
+		//		The ST7000 has "expectations" for certain of them and
+		//			the ST7000 will sometimes output a 0x197 ST_ST7000 error/query
+		//			message if those expectations are not met
+		//		The overall behavior of the ST7000 is beyond the scope of this comment.
+
+
+		display(dbg_st7000,"key(0x%02x) long(%d) single_key(0x%02x)",key,longpress,single_key);
 
 	}
 	else if (st == ST_HEADING)		// 0x189
@@ -608,8 +694,15 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 	}
 	else if (st == ST_ST7000)		// 0x197	undocumented by Knauf
 	{
-		// ST7000 sends 0x197 00 00 at startup, and as error/query to the AP cpu
+		warning(0,"ST_ST7000 setting ap_linked=1",0);
+		ap_linked = 1;
 		retval = "ST7000";
+	}
+	else if (st == ST_AP_CPU)		// 0x198	undocumented by Knauf
+	{
+		warning(0,0,"ST_AP CPU setting ap_linked=2",0);
+		ap_linked = 2;
+		retval = "AP_CPU";
 	}
 	else if (st == ST_COMPASS_VAR)	// 0x199
 	{

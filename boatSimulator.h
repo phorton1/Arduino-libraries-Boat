@@ -36,6 +36,12 @@ extern const int simulator_num_routes __attribute__((weak));
 #define TANK1_CAPACITY  72.0
 #define TANK2_CAPACITY  72.0
 
+// autopilot modes
+
+#define AP_MODE_OFF		0
+#define AP_MODE_AUTO	1
+#define AP_MODE_VANE	2
+
 	
 class boatSimulator {
 
@@ -59,6 +65,7 @@ public:
 	float 	 getCurrentSet()		{ return m_current_set; }		// direction current is going to
 	float 	 getCurrentDrift()		{ return m_current_drift; }		// speed of the current
 	double	 getDesiredHeading()	{ return m_desired_heading; }	// for AP, separate from routing
+	float	 getRudder()			{ return m_rudder; }			// unsophisticated number sent directly at this time (-30..30)
 
 	float	 getSOG()				{ return m_sog; }				// CALCULATED knots
 	float	 getCOG()				{ return m_cog; }				// CALCULATED true
@@ -101,7 +108,7 @@ public:
 		return 0;
 	}
 
-	bool getAutopilot()			{ return m_autopilot; }
+	uint8_t getAutopilot()		{ return m_autopilot; }		// 1=AUTO, 2=VANE for ST7000 testing
 	bool getRouting()			{ return m_routing; }
 	bool getArrived()			{ return m_arrived; }
 		// get the autopilot, routing, and arrival status
@@ -125,6 +132,7 @@ public:
 	void setWindAngle	(float angle);
 	void setWindSpeed 	(float speed);
 	void setDesiredHeading(float angle) 	{m_desired_heading = angle;}
+	void setRudder		(float angle)		{if (angle>30.0) angle=30.0; if (angle<-40.0) angle=-40; m_rudder = angle;}
 
 	void setTripOn		(bool on)			{m_trip_on = on;}
 	void setTripDistance(float distance)	{m_trip_distance = distance;}
@@ -151,7 +159,9 @@ public:
 		// Does nothing and reports an error if wp_num<0 or wp_num>getNumWaypoints()-1
 		// Resets m_arrived and m_closest
 
-	void setAutopilot(bool on);
+	void setAutopilot(uint8_t mode);	// 0=off, 1=AUTO, 2=VANE
+		// VANE is not really implemeted yet; it is only used to drive instST_out.cpp at this time.
+		//
 		// While on, the simulator automatically sets heading to the
 		// next waypoint in each time slice and starts watching for arrivals,
 		// A completed arrival will turn off the autopilot if not routing.
@@ -186,7 +196,7 @@ private:
 
 	bool	 m_inited;
 	bool	 m_running;
-	bool	 m_autopilot;
+	uint8_t  m_autopilot;
 	bool	 m_routing;
 	const char *m_route_name;
 
@@ -198,6 +208,7 @@ private:
 	float	 m_water_speed;
 	float	 m_current_set;		// absolute angle the current is going TO
 	float	 m_current_drift;	// absolute speed of the current
+	float	 m_rudder;
 	
 	float	 m_sog;
 	float	 m_cog;
