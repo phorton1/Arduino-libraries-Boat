@@ -75,10 +75,10 @@ void queueDatagram(bool port2, const uint16_t *dg)
 
 
 
-void sendDatagram(bool port2)
+bool sendDatagram(bool port2)
 {
 	if (tail[port2] == head[port2])
-		return;
+		return false;
 
 	HardwareSerial &SERIAL_ST = port2 ?
 		SERIAL_ST2 :
@@ -126,9 +126,11 @@ void sendDatagram(bool port2)
 		else if (millis() - send_time >= WRITE_TIMEOUT)
 		{
 			my_error("READBACK TIMEOUT at chr(%d)",got);
-			return;
+			return true;
 		}
 	}
+
+	return true;
 }
 
 
@@ -288,7 +290,7 @@ void compassInst::sendSeatalk(bool port2)
 
 	// The compass only sends out a Heading (magnetic)
 	// and does not know the COG
-	
+
 	dg[0] = ST_HEADING;
 	dg[1] = 2 | (nineties << 4) | (halfs<<6);
 	dg[2] = twos;
@@ -545,24 +547,106 @@ void apInst::sendSeatalk(bool port2)
 	// the NMEA0183/NMEA2000 instruments don't currently do.
 	// It can be "on" in "STANDBY" mode, and knows that "routing"==TRACK mode
 {
+	// Effort to get ST7000 to show rudder indicator
+	//
+	// We do nothing until the ST7000 sends the 0x197 message
 
 	if (!ap_linked) return;
+
+	// When the 0x197 message has been sent the ap-cpu responds with these messages:
+
+	//	2      <-> S21_AUTOPILOT   84 06 00 00 00 00 00 00 08        STBY head(0) rud(0) right(0) ap(0.0) alarm(0) flags(0) TT(8)
+	//	3      <-> S21_AP_CPU      98 00 00                          AP_CPU
+	//  4      <-> S21_RUDDER      9c 81 1d df
+
 	if (ap_linked == 1)
 	{
+		dg[0] = 0x184;
+        dg[1] = 0x06;
+        dg[2] = 0x00;
+        dg[3] = 0x00;
+        dg[4] = 0x00;
+        dg[5] = 0x00;
+        dg[6] = 0x00;
+        dg[7] = 0x00;
+        dg[8] = 0x08;
+		queueDatagram(port2,dg);
+		sendDatagram(port2);
+
 		dg[0] = 0x198;
 		dg[1] = 0x00;
 		dg[2] = 0x00;
 		queueDatagram(port2,dg);
-		return;
-	}
-	else if (ap_linked < 5)
-	{
-		warning(0,"apInst setting ap_linked=%d",ap_linked);
+		sendDatagram(port2);
+
+		dg[0] = 0x19c;
+        dg[1] = 0x81;
+        dg[2] = 0x1d;
+        dg[3] = 0xdf;
+		queueDatagram(port2,dg);
+		sendDatagram(port2);
+
 		ap_linked++;
 		return;
 	}
-	
-	
+
+	// then it sends these messages
+	//	5      <-> S21_RUDDER      9c 11 0a df                       head(110) rud(-33) right(0)
+	//	6      <-> S21_AUTOPILOT   84 56 0b 00 40 00 df 00 08        STBY head(113) rud(-33) right(0) ap(0.0) alarm(0) flags(0) TT(8)
+
+	else if (ap_linked == 2)
+	{
+		dg[0] = 0x19c;
+        dg[1] = 0x11;
+        dg[2] = 0x0a;
+        dg[3] = 0xdf;
+		queueDatagram(port2,dg);
+		sendDatagram(port2);
+
+		dg[0] = 0x184;
+        dg[1] = 0x56;
+        dg[2] = 0x0b;
+        dg[3] = 0x00;
+        dg[4] = 0x40;
+        dg[5] = 0x00;
+        dg[6] = 0xdf;
+        dg[7] = 0x00;
+        dg[8] = 0x08;
+		queueDatagram(port2,dg);
+		sendDatagram(port2);
+		ap_linked++;
+		return;
+	}
+
+	// before stabilizing into this pattern
+	//	7      <-> S21_RUDDER      9c d1 0b df                       head(113) rud(-33) right(1)
+	//	8      <-> S21_AUTOPILOT   84 d6 0b 00 40 00 df 00 08        STBY head(113) rud(-33) right(1) ap(0.0) alarm(0) flags(0) TT(8)
+
+	else if (1)
+	{
+		dg[0] = 0x19c;
+        dg[1] = 0xd1;
+        dg[2] = 0x0b;
+        dg[3] = 0xdf;
+		queueDatagram(port2,dg);
+
+		dg[0] = 0x184;
+        dg[1] = 0xd6;
+        dg[2] = 0x0b;
+        dg[3] = 0x00;
+        dg[4] = 0x40;
+        dg[5] = 0x00;
+        dg[6] = 0xdf;
+        dg[7] = 0x00;
+        dg[8] = 0x08;
+		queueDatagram(port2,dg);
+		ap_linked++;
+		return;
+	}
+
+
+
+
 
 	// This chunk of code "wakes up" the ST7000.
 	//
@@ -628,7 +712,7 @@ void apInst::sendSeatalk(bool port2)
 		//     SS & 0x10 : displays “LARGE XTE” on 600R
 		//     SS & 0x80 : Displays “Auto Rel” on 600R
 		//     TT : Always 0x08 on 400G computer, always 0x05 on 150(G) computer
-		
+
 		uint8_t ap_mode = boat_sim.getAutopilot();
 
 		uint8_t Z =								// mode nibble/byte
@@ -690,7 +774,7 @@ void apInst::sendSeatalk(bool port2)
 			dg[3] = (uint8_t)rr8;				// RR  <--- this is where I'm at
 			queueDatagram(port2,dg);
 		}
-		
+
 
 		dg[0] = ST_AUTOPILOT;				// 0x184;
 		dg[1] = (U << 4) | 0x6;				// U6
@@ -708,7 +792,7 @@ void apInst::sendSeatalk(bool port2)
 
 
 	}
-	
+
 
 
 	//------------------------------------------------------------

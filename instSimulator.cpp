@@ -189,7 +189,7 @@ void instSimulator::sendBinaryState()
 	}
 	offset = binaryUint8(buf,offset,g_FWD);
 	offset = binaryUint8(buf,offset,getE80Filter());
-	
+
 	endBinary(buf,offset);
 	display_bytes(send_state+1,"sending",buf,offset);
 	proc_leave();
@@ -220,7 +220,7 @@ void instSimulator::init()
 		// Uses "normal" data when using the opto-isolater as wired!
 		// Note that there is also SERIAL_9N1_RXINV_TXINV which *might*
 		// work with inverted signal (different circuit).
-	
+
 	SERIAL_83A.begin(38400);
 	SERIAL_83B.begin(38400);
 
@@ -269,7 +269,7 @@ void instSimulator::init()
 	// saveToEEPROM();
 
 	loadFromEEPROM();
-	
+
 	proc_leave();
 	display(0,"instSimulator::init() finished",0);
 }

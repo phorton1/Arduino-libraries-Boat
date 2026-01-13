@@ -59,7 +59,7 @@
 
 extern void queueDatagram(bool port2, const uint16_t *dg);
 extern void queueDatagram8(bool port2, const uint8_t *dg, bool quiet);
-extern void sendDatagram(bool port2);
+extern bool sendDatagram(bool port2);
 extern void clearSTQueues();
 extern void setLampIntensity(int value);	// sent to all ports, 0==off, 1=low, 2=medium, 3=high
 

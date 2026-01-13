@@ -543,7 +543,7 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 		// 	To implement this and understand the keystrokes, I first modified boatSimulator
 		//		m_autopilot to be a uint8_t and added 2=AP_VANE_MODE, currently unimplemented
 		//		in the boatSimulator, to the to be able to set "VANE" mode on the ST7000.
-		
+
 
 		//--------------------------------------------------------
 		// This description supercede's Knauf's description
@@ -700,8 +700,8 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 	}
 	else if (st == ST_AP_CPU)		// 0x198	undocumented by Knauf
 	{
-		warning(0,0,"ST_AP CPU setting ap_linked=2",0);
-		ap_linked = 2;
+		// warning(0,"ST_AP CPU setting ap_linked=2",0);
+		// ap_linked = 2;
 		retval = "AP_CPU";
 	}
 	else if (st == ST_COMPASS_VAR)	// 0x199
