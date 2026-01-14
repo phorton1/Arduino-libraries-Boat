@@ -171,6 +171,9 @@ void instSimulator::setFWD(int fwd)
 
 void instSimulator::sendBinaryState()
 {
+	if (!(g_BINARY & BINARY_TYPE_PROG))
+		return;
+	
 	display(send_state,"sendBinaryState()",0);
 	proc_entry();
 	uint8_t buf[BINARY_HEADER_LEN + NUM_INSTRUMENTS + NUM_PORTS + 2];

@@ -114,7 +114,7 @@ void boatSimulator::init()
 	m_fuel_level1 		= 0.48;
 	m_fuel_level2 		= 0.52;
 
-	m_genset 			= 1;	// false;
+	m_genset 			= 0;	
 	m_gen_rpm 			= 0;
 	m_gen_oil_pressure	= 0;
 	m_gen_cool_temp		= 0;
