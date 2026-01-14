@@ -196,8 +196,8 @@ void logInst::sendSeatalk(bool port2)
 
 	if (0)
 	{
-		double trip_distance = boat_sim.getTripDistance() * 100;
-		uint32_t trip_int = trip_distance;;
+		double trip_distance = boat_sim.getTripDistance();
+		uint32_t trip_int = round(trip_distance * 100.0);
 
 		dg[0] = ST_TRIP;
 		dg[1] = 0x02;
@@ -208,8 +208,8 @@ void logInst::sendSeatalk(bool port2)
 	}
 	if (0)
 	{
-		double total_distance = boat_sim.getLogTotal() * 10;
-		uint32_t total_int = total_distance;;
+		double total_distance = boat_sim.getLogTotal();
+		uint32_t total_int = round(total_distance * 10.0);
 
 		dg[0] = ST_LOG_TOTAL;
 		dg[1] = 0x02;
@@ -220,10 +220,10 @@ void logInst::sendSeatalk(bool port2)
 	}
 	if (1)
 	{
-		double total_distance = boat_sim.getLogTotal() * 10;
-		double trip_distance = boat_sim.getTripDistance() * 100;
-		uint32_t total_int = total_distance;;
-		uint32_t trip_int = trip_distance;;
+		double trip_distance = boat_sim.getTripDistance();
+		double total_distance = boat_sim.getLogTotal();
+		uint32_t trip_int = round(trip_distance * 100.0);
+		uint32_t total_int = round(total_distance * 10.0);
 
 		dg[0] = ST_TRIP_TOTAL;
 		dg[1] = 0x04;
@@ -236,7 +236,8 @@ void logInst::sendSeatalk(bool port2)
 		dg[6] = (trip_int >> 16) & 0x0f;
 		dg[6] |= 0xA0;
 		queueDatagram(port2,dg);
-	}}
+	}
+}
 
 
 
@@ -259,7 +260,7 @@ void windInst::sendSeatalk(bool port2)
 
 	display(dbg_data,"st%d WindAngle(%0.1f)",port2,angle);
 
-	int a2 = angle * 2;
+	int a2 = round(angle * 2.0);
 	dg[0] = ST_WIND_ANGLE;
 	dg[1] = 0x01;
 	dg[2] = (a2 >> 8) & 0xff;
@@ -279,14 +280,16 @@ void compassInst::sendSeatalk(bool port2)
 	if (degrees > 360.0) degrees = degrees - 360.0;
 		// added to send 'proper' magnetic version via ST_HEADING
 
-	int idegrees = degrees;
-	int nineties = idegrees / 90;
-	idegrees = idegrees - (nineties * 90);
-	int twos = idegrees / 2;
-	idegrees = idegrees - (twos * 2);
-	int halfs = idegrees * 2;
+	double r_degrees = roundf(degrees * 10.0f) / 10.0f;
+		// round to one decimal place
 
-	display(dbg_data,"st%d Heading(%0.1f) = nineties(%d) twos(%d) halfs(%d)",port2,degrees,nineties,twos,halfs);
+	int halfs = r_degrees * 2;
+	int nineties = halfs / 180;
+	halfs = halfs - (nineties * 180);
+	int twos = halfs / 4;
+	halfs = halfs - (twos * 4);
+
+	display(dbg_data,"st%d Heading(%0.4f) = r_degrees(%0.1f) nineties(%d) twos(%d) halfs(%d)",port2,degrees,r_degrees,nineties,twos,halfs);
 
 	// The compass only sends out a Heading (magnetic)
 	// and does not know the COG
@@ -335,8 +338,8 @@ void gpsInst::sendSeatalk(bool port2)
 	float min_lon = frac_lon * 60.0;
 
 	// times 1000 into integers
-	int imin_lat = min_lat * 1000;
-	int imin_lon = min_lon * 1000;
+	int imin_lat = round(min_lat * 1000.0);
+	int imin_lon = round(min_lon * 1000.0);
 
 	proc_entry();
 	display(dbg_data+1,"i_lat(%d) frac_lat(%0.6f) min_lat(%0.6f) imin_lat(%d)",i_lat,frac_lat,min_lat,imin_lat);
@@ -463,17 +466,15 @@ void gpsInst::sendSeatalk(bool port2)
 	if (1)	// GPS Instrument sends out SOG/COG
 	{
 		double degrees = boat_sim.getCOG();
-
 		degrees += boat_sim.getMagneticVariance();
 		if (degrees > 360.0) degrees = degrees - 360.0;
 			// added to send 'proper' magnetic version via ST_COG
 
-		int idegrees = degrees;
-		int nineties = idegrees / 90;
-		idegrees = idegrees - (nineties * 90);
-		int twos = idegrees / 2;
-		idegrees = idegrees - (twos * 2);
-		int halfs = idegrees * 2;
+		int halfs_total = round(degrees * 2.0);
+		int nineties = halfs_total / 180;
+		int rem = halfs_total % 180;
+		int twos = rem / 4;
+		int halfs = rem % 4;
 
 		display(dbg_data,"st%d COG(%0.1f) = nineties(%d) twos(%d) halfs(%d)",port2,degrees,nineties,twos,halfs);
 
