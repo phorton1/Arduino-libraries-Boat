@@ -77,6 +77,31 @@ const st_info_type st_known[] =
 
 
 
+static const char* keyName(bool longpress, uint8_t key_code)
+{
+	if (key_code == 0x01) return "Auto";
+	if (key_code == 0x02) return "Standby";
+	if (key_code == 0x03) return "Track";
+	if (key_code == 0x04) return "Display";
+	if (key_code == 0x05) return "-1";
+	if (key_code == 0x06) return "-10";
+	if (key_code == 0x07) return "+1";
+	if (key_code == 0x08) return "+10";
+	if (key_code == 0x09) return "-Resp";
+	if (key_code == 0x0a) return "+Resp";
+	if (key_code == 0x20) return "-1+1";
+	if (key_code == 0x21) return "-1+10";
+	if (key_code == 0x22) return "+1+10";
+	if (key_code == 0x23) return "StandbyAuto";
+	if (key_code == 0x24) return (longpress ? "-10+10" : "DisplayTrack");			// DisplayTrack longpress outputs 0x40 | 0x28 !!!
+	if (key_code == 0x25) return "Standby-10";
+	if (key_code == 0x28) return (longpress ? "DisplayTrack": "-10+10");			// -10+10 longpress outputs 0x40 | 0x24 !!!
+	if (key_code == 0x2e) return "-Resp+Resp";
+	if (key_code == 0x30) return "Standby-1";
+	return "UNKNOWN";
+}
+
+
 
 static String decodeST(uint16_t st, const uint8_t *dg)
 {
@@ -575,32 +600,32 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 		//		Not all Single Keys "do" something in any mode.
 		//			Behavior is byond the scope of this comment to describe.
 		//
-		//		Name			Ref			SHORT_BEFORE_LONG
+		//		Name			SHORT_BEFORE_LONG
 		//		-------------------------------------------------------------
-		// 		01 = Auto					yes
-		// 		02 = Standby				no
-		// 		03 = Track					no
-		// 		04 = Display				no
-		// 		05 = Minus1		-1			yes
-		// 		06 = Minus10	-10			yes
-		// 		07 = Plus1		+1			yes
-		// 		08 = Plus10		+10			yes
-		// 		09 = MinusResp	-Resp		yes
-		// 		0a = PlusResp	+Resp		yes
+		// 		01 = Auto		yes
+		// 		02 = Standby	no
+		// 		03 = Track		no
+		// 		04 = Display	no
+		// 		05 = -1			yes
+		// 		06 = -10		yes
+		// 		07 = +1			yes
+		// 		08 = +10		yes
+		// 		09 = -Resp		yes
+		// 		0a = +Resp		yes
 		//
 		// Combined Keys
 		//
 		//		KEY_NAME 				Ref			SHORT_B4_LONG	Notes
 		//		------------------------------------------------------------------
-		// 		20 = Minus1_Plus1		-1 & +1		yes
-		//		21 = Minus1_Minus10		-1 & -10	yes
-		//		22 = Plus1_Plus10		+1 & +10	yes
-		// 		23 = Standby_Auto					yes
-		//    	24 = Display_Track					no			longpress outputs 0x40 | 0x28 !!!
-		// 		25 = Standby_Minus10				yes
-		// 		28 = Minus10_Plus10		-10 & +10	no 			longpress outputs 0x40 | 0x24 !!!
-		//		2e = MinsResp_PlusResp	-Resp&+Resp	long_only	"Rudder Gain Adjustment" for planing vessels
-		// 		30 = Standby_Minus1					yes			not reliable; enters funny mode; crashes
+		// 		20 = -1+1				yes
+		//		21 = -1+10				yes
+		//		22 = +1+10				yes
+		// 		23 = StandbyAuto		yes
+		//    	24 = DisplayTrack		no			longpress outputs 0x40 | 0x28 !!!
+		// 		25 = Standby-10			yes
+		// 		28 = -10+10				no 			longpress outputs 0x40 | 0x24 !!!
+		//		2e = -Resp+Resp			long_only	"Rudder Gain Adjustment" for planing vessels
+		// 		30 = Standby-1			yes			not reliable; enters funny mode; crashes
 		//
 		// Notes:
 		//
@@ -625,61 +650,11 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 		//		- A search for the "missing" 0x26,0x27, and 0x29 or other
 		//			combined keycode values did not yield any fruitful results.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-		//
-		//		KEY_NAME 							OUTPUT MODES		Cannonical Function (not always)
-		//		---------------------------------------------------------------------------------
-		// 		20 = Minus1_Minus10		-1 & -10	AUTO/VANE			AutoTack_Port
-		//		21 = Minus1_Plus1		-1 & +1
-		//		22 = Plus1_Plus10		+1 & +10
-		//
-		// 		23 = Standby_Auto					AUTO/VANE			long = enter VANE Mode	or 	"return to previous auto mode/angle?"
-		// 		30 = Standby_Minus1
-		// 		25 = Standby_Minus10
-		// 		28 = Plus1_Plus10		+1 & +10	AUTO/VANE			AutoTack_Stbd
-		//    	24 = Display_Track					STANDBY				Enter Calibration Mode / Save Calibratiion settings
-
-
-		//		These are only output in certain modes
-		//		The ST7000 has "expectations" for certain of them and
-		//			the ST7000 will sometimes output a 0x197 ST_ST7000 error/query
-		//			message if those expectations are not met
-		//		The overall behavior of the ST7000 is beyond the scope of this comment.
-
-
-		display(dbg_st7000,"key(0x%02x) long(%d) single_key(0x%02x)",key,longpress,single_key);
+		const char *key_name = keyName(longpress,single_key);
+		char buf[50];
+		sprintf(buf,"key(0x%02x) long(%d) single_key(0x%02x) = %s",key,longpress,single_key,key_name);
+		retval = buf;
+		display(dbg_st7000,buf,0);
 
 	}
 	else if (st == ST_HEADING)		// 0x189
