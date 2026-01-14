@@ -707,6 +707,16 @@ void boatSimulator::doAutopilot()
 		turn_rate,
 		heading_error);
 
+	// convert heading adjustment into rudder angle
+	// and clamp to physical limits for rudimentary testing
+
+	m_rudder = adjustment * 3.0f;   // scale factor: 10° adj = 30° rudder
+	if (m_rudder > 30.0f)  m_rudder = 30.0f;
+	if (m_rudder < -30.0f) m_rudder = -30.0f;
+	display(dbg_ap+2, "rudder(%0.1f)", m_rudder);
+
+	// apply the adjustment
+
 	m_heading += adjustment;
 	if (m_heading < 0) m_heading += 360;
 	if (m_heading >= 360) m_heading -= 360;

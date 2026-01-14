@@ -58,6 +58,14 @@ public:
 	bool	 running()				{ return m_running; }		// true while simulator is running
 
 	float    getMagneticVariance()	{ return 3.0; }				// in Bocas; On the E80; needed for ST_HEADING output calculations
+	float 	 makeMagnetic(float degrees_true)
+	{
+	    float f = degrees_true + getMagneticVariance();
+	    while (f < 0.0) f += 360.0;
+		while (f >= 360.0) f -= 360.0;
+		return f;
+	}
+
 
 	float	 getDepth()				{ return m_depth; }				// feet below surface
 	float	 getHeading()			{ return m_heading; }			// the true direction the boat is pointing

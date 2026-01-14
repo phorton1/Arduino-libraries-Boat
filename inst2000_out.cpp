@@ -172,6 +172,13 @@ void apInst::send2000()
 	// nor to get the arrival alarm to beep when I get to a waypoint.
 {
 	tN2kMsg msg;
+
+	double rudder = boat_sim.getRudder();   // -30..30 degrees
+	tN2kRudderDirectionOrder rudder_dir =
+	    rudder > 0.1  ? N2kRDO_MoveToStarboard :
+	    rudder < -0.1 ? N2kRDO_MoveToPort :
+        N2kRDO_NoDirectionOrder;
+
 	SetN2kPGN127237(		// PGN_HEADING_TRACK_CONTROL
 		msg,
 		N2kOnOff_Unavailable,           // RudderLimitExceeded
@@ -181,8 +188,8 @@ void apInst::send2000()
 		N2kSM_HeadingControl,           // SteeringMode
 		N2kTM_RudderLimitControlled,    // TurnMode (safe default)
 		N2khr_true,                 	// HeadingReference
-		N2kRDO_NoDirectionOrder,        // CommandedRudderDirection
-		N2kDoubleNA,                    // CommandedRudderAngle
+		rudder_dir,        				// CommandedRudderDirection
+		DegToRad(rudder),               // CommandedRudderAngle
 		DegToRad(boat_sim.getDesiredHeading()),		  // HeadingToSteerCourse
 		N2kDoubleNA,                    // Track
 		N2kDoubleNA,                    // RudderLimit

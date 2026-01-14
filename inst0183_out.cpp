@@ -542,6 +542,17 @@ void apInst::send0183(bool portB)
 	}
 
 
+    if (1)
+	{
+		// RSA requires port and starboard angles separately.
+		// Convention: positive = starboard, negative = port.
+		float rudder = boat_sim.getRudder();   // -30..30 degrees
+		float stbd = rudder > 0 ? rudder : 0.0f;
+		float port = rudder < 0 ? -rudder : 0.0f;
+		sprintf(nmea_buf, "$APRSA,%.1f,A,%.1f,A", stbd, port);
+		checksum();
+		sendNMEA0183(portB);
+	}
 }
 
 

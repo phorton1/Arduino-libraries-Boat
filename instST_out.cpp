@@ -272,33 +272,36 @@ void windInst::sendSeatalk(bool port2)
 void compassInst::sendSeatalk(bool port2)
 {
 	// what a weird encoding
-	// .... ........
-	// HH99   222222
 
-	double degrees = boat_sim.getHeading();
-	degrees += boat_sim.getMagneticVariance();
-	if (degrees > 360.0) degrees = degrees - 360.0;
-		// added to send 'proper' magnetic version via ST_HEADING
+	// get true hading, convert to magnetic version via getMagneticVariance
+	// round to one decimal place
 
-	double r_degrees = roundf(degrees * 10.0f) / 10.0f;
-		// round to one decimal place
+	float heading = boat_sim.makeMagnetic(boat_sim.getHeading());
+	double f_heading = roundf(heading * 10.0f) / 10.0f;
 
-	int halfs = r_degrees * 2;
-	int nineties = halfs / 180;
-	halfs = halfs - (nineties * 180);
-	int twos = halfs / 4;
-	halfs = halfs - (twos * 4);
+	// calculate weird ninetees, twos, and halfs encoding
 
-	display(dbg_data,"st%d Heading(%0.4f) = r_degrees(%0.1f) nineties(%d) twos(%d) halfs(%d)",port2,degrees,r_degrees,nineties,twos,halfs);
+	int h_halfs = f_heading * 2;
+	int h_nineties = h_halfs / 180;
+	h_halfs = h_halfs - (h_nineties * 180);
+	int h_twos = h_halfs / 4;
+	h_halfs = h_halfs - (h_twos * 4);
 
-	// The compass only sends out a Heading (magnetic)
-	// and does not know the COG
+	display(dbg_data,"st%d Heading(%0.4f) = f_heading(%0.1f) nineties(%d) twos(%d) halfs(%d)",port2,heading,f_heading,h_nineties,h_twos,h_halfs);
 
-	dg[0] = ST_HEADING;
-	dg[1] = 2 | (nineties << 4) | (halfs<<6);
-	dg[2] = twos;
-	dg[3] = 0x00;	// unuaed by me at this time
-	dg[4] = 0x20;	// unuaed by me at this time
+	// put encoding into the two bytes
+	// according to knauff
+	//
+	//   U    2         VW
+	// .... ....     ........
+	// HHNN 0010       TTTTTT
+	// halfs  2         twos
+
+	dg[0] = ST_HEADING;									// 0x189
+	dg[1] = 2 | (h_nineties << 4) | (h_halfs<<6);		// U2
+	dg[2] = h_twos;										// VW
+	dg[3] = 0x00;										// XY - unuaed by me at this time
+	dg[4] = 0x20;										// 2Z - unuaed by me at this time
 	queueDatagram(port2,dg);
 }
 
@@ -465,12 +468,9 @@ void gpsInst::sendSeatalk(bool port2)
 
 	if (1)	// GPS Instrument sends out SOG/COG
 	{
-		double degrees = boat_sim.getCOG();
-		degrees += boat_sim.getMagneticVariance();
-		if (degrees > 360.0) degrees = degrees - 360.0;
-			// added to send 'proper' magnetic version via ST_COG
+		float degrees = boat_sim.makeMagnetic(boat_sim.getCOG());
 
-		int halfs_total = round(degrees * 2.0);
+		int halfs_total = roundf(degrees * 2.0);
 		int nineties = halfs_total / 180;
 		int rem = halfs_total % 180;
 		int twos = rem / 4;
@@ -583,171 +583,155 @@ void apInst::sendSeatalk(bool port2)
 	uint8_t ap_mode = boat_sim.getAutopilot();
 	bool	routing = boat_sim.getRouting();
 
-	if (1)	// 0x184 ST_AUTOPILOT (should be ST_AP_COMPUTER) and ST_RUDDER
-	{
-		// KNAUFS DESCRIPTION:
-		//
-		// 84  U6  VW  XY 0Z 0M RR SS TT  Compass heading  Autopilot course and
-		//     Rudder position (see also command 9C)
-		//     Compass heading in degrees:
-		//       The two lower  bits of  U * 90 +
-		//       the six lower  bits of VW *  2 +
-		//       number of bits set in the two higher bits of U =
-		//       (U & 0x3)* 90 + (VW & 0x3F)* 2 + (U & 0xC ? (U & 0xC == 0xC ? 2 : 1): 0)
-		//     Turning direction:
-		//       Most significant bit of U = 1: Increasing heading, Ship turns right
-		//       Most significant bit of U = 0: Decreasing heading, Ship turns left
-		//     Autopilot course in degrees:
-		//       The two higher bits of  V * 90 + XY / 2
-		//     Z & 0x2 = 0 : Autopilot in Standby-Mode
-		//     Z & 0x2 = 2 : Autopilot in Auto-Mode
-		//     Z & 0x4 = 4 : Autopilot in Vane Mode (WindTrim), requires regular "10" datagrams
-		//     Z & 0x8 = 8 : Autopilot in Track Mode
-		//     M: Alarms + audible beeps
-		//       M & 0x04 = 4 : Off course
-		//       M & 0x08 = 8 : Wind Shift
-		//     Rudder position: RR degrees (positive values steer right,
-		//       negative values steer left. Example: 0xFE = 2° left)
-		//     SS & 0x01 : when set, turns off heading display on 600R control.
-		//     SS & 0x02 : always on with 400G
-		//     SS & 0x08 : displays “NO DATA” on 600R
-		//     SS & 0x10 : displays “LARGE XTE” on 600R
-		//     SS & 0x80 : Displays “Auto Rel” on 600R
-		//     TT : Always 0x08 on 400G computer, always 0x05 on 150(G) computer
-		//
-		// MY NOTES:
-		//
-		//	Knauf's description was probably written before the ST7000 came out
-		//
-		//		(1)	THE HIGH NIBBLE OF THE Z BYTE MUST BE 4 (i.e. 4Z) for
-		//			the ST7000!! Knauf uses "0Z" in his header line, implying
-		//			that the high order nibble of the Z byte should be zero.
-		//			THIS DOES NOT WORK WITH THE ST7000 and it took me a full
-		//			day to figure it out. My 400G ap-cpu always sends '4Z'.
-		//			If the high nibble of the Z BYTE is zero, the ST7000 DOES
-		//			NOT DISPLAY THE RUDDER INDICATOR.
-		//		(2) I believe there IS NO "RIGHT" bit. Knauf's description
-		//			clearly overuses the high order bit of the U nibble when
-		//			he also says "number of bits set in the two higher bits of U =
-		//       	(U & 0x3)* 90 + (VW & 0x3F)* 2 + (U & 0xC ? (U & 0xC == 0xC ? 2 : 1): 0)".
-		//			I now believe that the encoding is simpler, and the same
-		//			as the ST_HEADING encoding above. That:
-		//
-		//			THE TWO HIGH BITS OF U ENCODE THE NUMBER OF HALF DEGREES
-		//			IN THE HEADING after the six low bits of VW encoded the
-		//			number of "twos" in the heading.
-		//
-		//			This *may* be a ST7000/E80 genrerational issue, or perhaps
-		//			more likely, Knauf just got it completely wrong.  In any case,
-		//			treating those bits as half degrees works with the E80 AND the
-		//			ST7000 when the E80 was NOT working correctly with the vestiges
-		//			of Knauf's description.
-		//
-		//--------------------------------------------------------------------------
+	//-----------------------------------------------------------------------
+	// ST_AUTOPILOT and ST_RUDDER datagrams regardless if autopilot engaged
+	//-----------------------------------------------------------------------
+	// KNAUFS DESCRIPTION:
+	//
+	// 84  U6  VW  XY 0Z 0M RR SS TT  Compass heading  Autopilot course and
+	//     Rudder position (see also command 9C)
+	//     Compass heading in degrees:
+	//       The two lower  bits of  U * 90 +
+	//       the six lower  bits of VW *  2 +
+	//       number of bits set in the two higher bits of U =
+	//       (U & 0x3)* 90 + (VW & 0x3F)* 2 + (U & 0xC ? (U & 0xC == 0xC ? 2 : 1): 0)
+	//     Turning direction:
+	//       Most significant bit of U = 1: Increasing heading, Ship turns right
+	//       Most significant bit of U = 0: Decreasing heading, Ship turns left
+	//     Autopilot course in degrees:
+	//       The two higher bits of  V * 90 + XY / 2
+	//     Z & 0x2 = 0 : Autopilot in Standby-Mode
+	//     Z & 0x2 = 2 : Autopilot in Auto-Mode
+	//     Z & 0x4 = 4 : Autopilot in Vane Mode (WindTrim), requires regular "10" datagrams
+	//     Z & 0x8 = 8 : Autopilot in Track Mode
+	//     M: Alarms + audible beeps
+	//       M & 0x04 = 4 : Off course
+	//       M & 0x08 = 8 : Wind Shift
+	//     Rudder position: RR degrees (positive values steer right,
+	//       negative values steer left. Example: 0xFE = 2° left)
+	//     SS & 0x01 : when set, turns off heading display on 600R control.
+	//     SS & 0x02 : always on with 400G
+	//     SS & 0x08 : displays “NO DATA” on 600R
+	//     SS & 0x10 : displays “LARGE XTE” on 600R
+	//     SS & 0x80 : Displays “Auto Rel” on 600R
+	//     TT : Always 0x08 on 400G computer, always 0x05 on 150(G) computer
+	//
+	// MY NOTES:
+	//
+	//	Knauf's description was probably written before the ST7000 came out
+	//
+	//		(1)	THE HIGH NIBBLE OF THE Z BYTE MUST BE 4 (i.e. 4Z) for
+	//			the ST7000!! Knauf uses "0Z" in his header line, implying
+	//			that the high order nibble of the Z byte should be zero.
+	//			THIS DOES NOT WORK WITH THE ST7000 and it took me a full
+	//			day to figure it out. My 400G ap-cpu always sends '4Z'.
+	//			If the high nibble of the Z BYTE is zero, the ST7000 DOES
+	//			NOT DISPLAY THE RUDDER INDICATOR.
+	//		(2) I believe there IS NO "RIGHT" bit. Knauf's description
+	//			clearly overuses the high order bit of the U nibble when
+	//			he also says "number of bits set in the two higher bits of U =
+	//       	(U & 0x3)* 90 + (VW & 0x3F)* 2 + (U & 0xC ? (U & 0xC == 0xC ? 2 : 1): 0)".
+	//			I now believe that the encoding is simpler, and the same
+	//			as the ST_HEADING encoding above. That:
+	//
+	//			THE TWO HIGH BITS OF U ENCODE THE NUMBER OF HALF DEGREES
+	//			IN THE HEADING after the six low bits of VW encoded the
+	//			number of "twos" in the heading.
+	//
+	//			This *may* be a ST7000/E80 genrerational issue, or perhaps
+	//			more likely, Knauf just got it completely wrong.  In any case,
+	//			treating those bits as half degrees works with the E80 AND the
+	//			ST7000 when the E80 was NOT working correctly with the vestiges
+	//			of Knauf's description.
 
-		// set the mode byte Z
+	// set the mode_byte
 
-		uint8_t Z =								// mode nibble/byte
-			routing ? 0xA :					    // routing == AUTO | TRACK mode
-			ap_mode == AP_MODE_VANE ? 0x6 :		// vane = AUTO | VANE mode
-			ap_mode == AP_MODE_AUTO ? 0x2 :		// autopilot engaged == AUTO mode
-			0;									// STANDBY mode
+	uint8_t mode_byte =						// 0x4Z mode byte Z nibble
+		routing ? 0xA :					    // routing == AUTO | TRACK mode
+		ap_mode == AP_MODE_VANE ? 0x6 :		// vane = AUTO | VANE mode
+		ap_mode == AP_MODE_AUTO ? 0x2 :		// autopilot engaged == AUTO mode
+		0;									// STANDBY mode
+	mode_byte |= 0x40;						// THIS IS REQUIRED FOR THE ST7000 to show the Rudder Bar
 
-		Z |= 0x40;		// THIS IS REQUIRED FOR THE ST7000 to show the Rudder Bar
+	// get the Rudder position. It is up to the boatSimulator
+	// to modify it realistically if the autopilot is engaged
 
-		// get the True heading and ap course and make them Magnetic
-		// THE ST7000 head ONLY shows MAGNETIC HEADINGS
+	int rudder = boat_sim.getRudder();
+	int8_t rr8 = (int8_t)rudder;     // signed 8 bit
 
-		uint16_t hdg = boat_sim.getHeading();	// heading only encodes integer values
-		hdg += boat_sim.getMagneticVariance();
-		if (hdg > 360) hdg = hdg - 360;
+	// copied from ST_HEADING
+	// get true hading, convert to magnetic version via getMagneticVariance
+	// round to one decimal place
 
-		double ap_course = 0;						// ap course encodes 1/2 degrees so we use a float
-		if (ap_mode)						// if the autopilot is engaged
-		{
-			ap_course = boat_sim.getDesiredHeading();
-			ap_course += boat_sim.getMagneticVariance();
-			if (ap_course > 360.0) ap_course = ap_course - 360.0;
-		}
+	float heading = boat_sim.makeMagnetic(boat_sim.getHeading());
+	double f_heading = roundf(heading * 10.0f) / 10.0f;
 
-		// get the Rudder position. It is up to the boatSimulator
-		// to modify it realistically if the autopilot is engaged
-		
-		int rudder = boat_sim.getRudder();
-		int8_t rr8 = (int8_t)rudder;     // signed 8 bit
+	// calculate weird ninetees, twos, and halfs encoding
 
-		// do the weird ninetees, twos, and odd bit encoding
-		// for the heading into U and W
+	int h_halfs = f_heading * 2;
+	int h_nineties = h_halfs / 180;
+	h_halfs = h_halfs - (h_nineties * 180);
+	int h_twos = h_halfs / 4;
+	h_halfs = h_halfs - (h_twos * 4);
 
-		uint8_t U = (hdg / 90);   					// U = 'ninetees' == quadrant 0..3
-		uint8_t VW = (hdg - U * 90) / 2;			// twos = 0..44 (six bits)
-		uint8_t odd = hdg & 0x1;					// odd = 0 or 1
-		U += (odd << 3);							// note that I DONT set the high order "right" bit
+	// calculate ap_course in ninetees and halfs if ap engaged
 
-		// do similar weird encoding of ap_course nineties into V and halfs into XY, sheesh
-
-		uint8_t Vh = (uint8_t)(ap_course / 90.0);    		// quadrant 0..3
-		uint16_t ap_rem    = (uint16_t)(ap_course - Vh * 90);
-		uint8_t  XY        = ap_rem * 2;
-
-		// The 500G autopilot cpu sends the ST_RUDDER message first
-
-		dg[0] = ST_RUDDER;
-		dg[1] = (U << 4) | 0x1;				// U1
-		dg[2] = VW;							// VW without the AP course bits
-		dg[3] = (uint8_t)rr8;				// RR
-		queueDatagram(port2,dg);
-
-		// Then sends the ST_AUTOPILOT message
-
-		dg[0] = ST_AUTOPILOT;				// 0x184;
-		dg[1] = (U << 4) | 0x6;				// U6
-		dg[2] = VW	| (Vh << 6);			// VW with the AP course bits
-		dg[3] = XY;							// XY
-		dg[4] = Z;							// 0Z = Z = 'mode'.
-		dg[5] = 0x00;						// 0M (no alarms)
-		dg[6] = (uint8_t)rr8;				// RR  <--- this is where I'm at
-		dg[7] = 0x00;       				// SS always zero in my case
-		dg[8] = 0x08;						// TT always zero in my case
-		queueDatagram(port2,dg);
-
-	}	// ST_AUTOPILOT && ST_RUDDER (even if not engaged)
-
-
-
-	//------------------------------------------------------------
-	// From here down, the autopilot is "engaged"
-	//------------------------------------------------------------
-	// It is somewhat questionable to me that we send waypoint and XTE
-	// information when we are not routing.  This code was written
-	// before I added boat_sim.getDesiredHeading(), and needs to be reworked.
-
+	int a_ninetees = 0;
+	int a_halfs    = 0;
 	if (ap_mode)
 	{
-		int wp_num = boat_sim.getTargetWPNum();
-		const waypoint_t *wp = boat_sim.getWaypoint(wp_num);
+		double ap_course = boat_sim.getDesiredHeading();
+		ap_course += boat_sim.getMagneticVariance();
+		if (ap_course > 360.0) ap_course = ap_course - 360.0;
+		a_halfs = ap_course * 2;
+		a_ninetees = a_halfs / 180;
+		a_halfs = a_halfs - (a_ninetees * 180);
+	}
 
-		String name(wp->name);
-		int len = name.length();
+	// The 500G autopilot cpu sends the ST_RUDDER message first
 
-		while (len < 4)
-		{
-			name += '0';
-			len++;
-		}
+	if (1)
+	{
+		dg[0] = ST_RUDDER;									// 0x19c
+		dg[1] = 1 | (h_nineties << 4) | (h_halfs<<6);		// U1
+		dg[2] = h_twos;										// VW
+		dg[3] = (uint8_t)rr8;;								// RR
+		queueDatagram(port2,dg);
+	}
 
-		int at = len-4;
-		String name4 = name.substring(at,at+4);
-		name4 = name4.toUpperCase();
+	// Then sends the ST_AUTOPILOT message
 
-		if (1)
+	if (1)
+	{
+		dg[0] = ST_AUTOPILOT;								// 0x184;
+		dg[1] = 6 | (h_nineties << 4) | (h_halfs<<6);		// U6
+		dg[2] = h_twos | (a_ninetees << 6);					// VW with the ap_course ninetiees
+		dg[3] = a_halfs;									// XY = halfs
+		dg[4] = mode_byte;									// 4Z = mode_byte.
+		dg[5] = 0x00;										// 0M (no alarms)
+		dg[6] = (uint8_t)rr8;								// RR
+		dg[7] = 0x00;       								// SS always zero in my case
+		dg[8] = 0x08;										// TT always zero in my case
+		queueDatagram(port2,dg);
+	}
+
+
+	//------------------------------------------------------------
+	// ST_NAV_TO_WP, ST_TARGET_NAME, and ST_ARRIVAL only if routing
+	//------------------------------------------------------------
+	// routing == TRACK mode
+	// getDesiredHeading() returns headingToWaypoint()
+
+	if (routing)
+	{
+		if (1)	
 		{
 			// ST_NAV_TO_WP	0x185 "should be sent before ST_TARGET_NAME	0x182"
 			//	85  X6  XX  VU ZW ZZ YF 00 yf   Navigation to waypoint information
 			//		Cross Track Error: XXX/100 nautical miles
-			//		Example: X-track error 2.61nm => 261 dec => 0x105 => X6XX=5_10
+			//			Example: X-track error 2.61nm => 261 dec => 0x105 => X6XX=5_10
 			//		Bearing to destination: (U & 0x3) * 90° + WV / 2°
-			//		Example: GPS course 230°=180+50=2*90 + 0x64/2 => VUZW=42_6
+			//			Example: GPS course 230°=180+50=2*90 + 0x64/2 => VUZW=42_6
 			//		U&8: U&8 = 8 -> Bearing is true, U&8 = 0 -> Bearing is magnetic
 			//		Distance to destination:
 			//			Distance 0-9.99nm: ZZZ/100nm, Y & 1 = 1
@@ -770,63 +754,64 @@ void apInst::sendSeatalk(bool port2)
 			//		In case of a waypoint change, sentence 85, indicating the new bearing and distance,
 			//		should be transmitted prior to sentence 82 (which indicates the waypoint change).
 			//		Corresponding NMEA sentences: RMB, APB, BWR, BWC, XTE
+			//
+			// PRH NOTES
+			//
+			//	- we dont set 0x8 int0 U nibble as we are using a magnetic bearing
+			//  - we do not currently ever set the 'right' 0x4 bit into Y
 
-			double head = boat_sim.headingToWaypoint();
+			uint16_t XXX = round(boat_sim.getCrossTrackError() * 100);		// xte_error in hundredths
+
+			int b_halfs = f_heading * 2;									// bearing halfs based on d_heading == desired heading set by ap simulator
+			int b_nineties = b_halfs / 180;									// bearing ninetees
+			b_halfs = b_halfs - (b_nineties * 180);							// adjust bearing halfs minus nineties
+
+			uint8_t Y = 0;													// distance is in 10'ths of NM
 			double dist = boat_sim.distanceToWaypoint();
-			uint16_t xte_hundreths = boat_sim.getCrossTrackError() * 100;
-
-			display(dbg_data,"st%d NavToWp head(%0.1f) dist(%0.3f) xte(%0.2f)",port2,head,dist,((float) xte_hundreths)/100.0);
-			proc_entry();
-
-			uint8_t X6 = (xte_hundreths & 0xf) << 4;
-			X6 |= 6;
-			xte_hundreths >>= 4;
-			uint8_t XX = xte_hundreths;
-
-			int h90s = (head / 90.0);								// number of 90's in the heading
-			double remainder = head - ((float) h90s) * 90.0;		// remaining degrees 0..90
-			int halfs = ((remainder + 0.25) * 2);					// number of half degress in remainder
-			uint8_t U  = 0x08 | h90s;	// 0x08=true (0x00 would equal magnetic) + number of 90's
-			uint8_t WV = halfs;			// number of halfs in the bearing
-			uint8_t Y = 0;				// no direction to steer 0x0f
-
-			display(dbg_data+1,"h90s(%d) halfs(%d) head rebuilt(%0.1f)",
-				h90s,
-				halfs,
-				(float) (((float)h90s)*90.0) + (((float)halfs)/2.0) );
-
-			uint8_t ZZZ = (dist * 10.0);	// 10ths of NMs
+			uint8_t ZZZ = round(dist * 10.0);								// 10ths of NMs
 			if (dist < 10.0)
 			{
-				Y |= 1;						// distance < 10.0 is in 100ths of an NM
-				ZZZ = (dist * 100.0);		// 100's of NMs
+				Y |= 1;														// distance < 10.0 is in 100ths of an NM
+				ZZZ = round(dist * 100.0);									// 100's of NMs
 			}
 
-			display(dbg_data,"ZZZ(%d) in %s dist rebuilt(%0.3f)",
-				ZZZ,
-				Y & 1 ? "100ths" : "10ths",
-				(float) ((Y&1) ? (((float)ZZZ) / 100.0) : (((float)ZZZ) / 10.0)) );
-			proc_leave();
 
-			uint8_t F = 0x01 | 0x02 | 0x04;		// XTE, bearing, distance present; 0x08 not set because XTE < 0.3nm;
+			uint8_t F = 0x01 | 0x02 | 0x04;									// XTE, bearing, distance present
+			if (XXX > 300) F |= 0x08;										// 0x08 set if XTE > 0.3nm
 
-			uint8_t VU = (WV << 4) | U;						// VU = V=bottom four bits of WV and bottom (all) four bits of U
-			uint8_t ZW = (WV >> 4) | ((ZZZ & 0x0f) << 4);  	// ZW = W=high four bits of WV and low 4 bits of ZZZZ
-			uint8_t ZZ = ZZZ >> 4;							// ZZ = high 8 bits of ZZZ
+			uint8_t VU = ((b_halfs & 0x0f) << 4) | b_nineties;				// VU = V=bottom four bits of b_halfs; top two bits of U=0 as its magnetic, and lower two bits are the b_ninetees
+			uint8_t ZW = ((b_halfs & 0xf0) >> 4) | ((ZZZ & 0x0f) << 4);  	// ZW = W=high four bits of WV=b_halfs and low 4 bits of ZZZ
+			uint8_t ZZ = ZZZ >> 4;											// ZZ = high 8 bits of ZZZ
 
 			dg[0] = ST_NAV_TO_WP;
-			dg[1] = X6;						// X6  X = low 4 bits of xte_hundreths
-			dg[2] = XX;						// XX  XX = high 8 bits of xte_hundreths
-			dg[3] = VU;						// VU = V=bottom four bits of WV and bottom (all) four bits of U
-			dg[4] = ZW;						// ZW = W=high four bits of WV and low 4 bits of ZZZZ
-			dg[5] = ZZ;						// ZZ = high 8 bits of ZZZ
-			dg[6] = (Y<<4) | F;				// YF = 4 bits of Y and 4 bits of F
-			dg[7] = 0xff - dg[6];			// yf undocumented presumed weird checksum
-
+			dg[1] = 6 | ((XXX & 0xf)<<4);					// X6  X = low 4 bits of xte_hundreths
+			dg[2] = XXX >> 4;								// XX  XX = high 8 bits of xte_hundreths
+			dg[3] = VU;										// VU = V=bottom four bits of WV=b_halfs and bottom (all) four bits of U=>0x0_ mag flag, and b_ninetees
+			dg[4] = ZW;										// ZW = W=high four bits of WV and low 4 bits of ZZZZ
+			dg[5] = ZZ;										// ZZ = high 8 bits of ZZZ
+			dg[6] = (Y<<4) | F;								// YF = 4 bits of Y and 4 bits of F
+			dg[7] = 0xff - dg[6];							// yf = undocumented presumed checksum
 			queueDatagram(port2,dg);
-
 		}
+		
 
+		// get the waypoint structure and massage the name
+		// for use in ST_TARGET NAME and ST_ARRIVAL blocks
+
+		int wp_num = boat_sim.getTargetWPNum();
+		const waypoint_t *wp = boat_sim.getWaypoint(wp_num);
+		String name(wp->name);
+		int len = name.length();
+		while (len < 4)
+		{
+			name += '0';
+			len++;
+		}
+		int at = len-4;
+		String name4 = name.substring(at,at+4);
+		name4 = name4.toUpperCase();
+
+		display(dbg_data,"st%d TargetName(%s) name4(%s)",port2,name.c_str(),name4.c_str());
 
 		if (1)
 		{
@@ -840,9 +825,6 @@ void apInst::sendSeatalk(bool port2)
 			//		(ZZ&0x3)*16+(YY&0xF0)/16: char3
 			//		(ZZ&0xFC)/4: char4
 			//		Corresponding NMEA sentences: RMB, APB, BWR, BWC
-
-
-			display(dbg_data,"st%d TargetName(%s) name4(%s)",port2,name.c_str(),name4.c_str());
 
 			// another weird 6 bit character encoding
 			// with additionally weird checksumming
@@ -882,7 +864,6 @@ void apInst::sendSeatalk(bool port2)
 			//			Takes the last 4 chars of name, assumes upper case only
 			//		Corresponding NMEA sentences: APB, AA
 
-
 			// What I see is a bit different.
 			// It looks like WW XX YY ZZ follow X4 immediately
 			// and there is an extra flag byte at the end.
@@ -896,7 +877,9 @@ void apInst::sendSeatalk(bool port2)
 			dg[6] = name4.charAt(3); // - 0x30;
 			queueDatagram(port2,dg);
 		}
-	}	// Autopilot engaged
+	}	// routing = TRACK mode
+
+	
 }	// apInst::sendSeatalk()
 
 
