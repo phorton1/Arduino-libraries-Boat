@@ -373,48 +373,50 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 	}
 	else if (st == ST_AUTOPILOT)	// 0x184
 	{
-		// PRH: see notes in instST_out.cpp regarding of the ST_AUTOPILOT
-		//		datagram for what I perceive to be an inherent bug in knauf's
-		//		description and his overloading of the high bit of the U nibble
+		// see notes in instST_out.cpp regarding of the ST_AUTOPILOT
+		// datagram for what I perceive to be an inherent bug in knauf's
+		// description and his overloading of the high bit of the U nibble
 
 		uint8_t U  = dg[1] >> 4;
 		uint8_t VW = dg[2];
 		uint8_t XY = dg[3];
-		uint8_t Z  = dg[4];
+		uint8_t Z  = dg[4];				// Always 0x4Z on my ST7000
 		uint8_t M  = dg[5];
 		uint8_t RR = dg[6];
 		uint8_t SS = dg[7];
-		uint8_t TT = dg[8];
+		uint8_t TT = dg[8];				// TT is always 0x08 from my ST7000 ap-cpu
 		uint8_t V  = VW >> 4;
 
-		uint16_t heading = (U & 0x3)*90;
-		heading += (VW & 0x3F)*2;
-		heading += (U >> 2) & 0x1;		// <-- prh: this is my interpretation
-		heading %= 360;
+		// Decode heading using my corrected interpretation:
+		//   - low 2 bits of U = quadrant
+		//   - low 6 bits of VW = "twos"
+		//   - high 2 bits of U = half-degrees (0..3)
 
-		bool right = (U & 0x8) != 0;
+		float heading = (U & 0x3) * 90.0f;			// quadrant
+		heading += (VW & 0x3F) * 2.0f;				// twos
+		heading += ((U >> 2) & 0x3) * 0.5f;			// half-degrees
+		if (heading >= 360.0f) heading -= 360.0f;
+
 		float course = (V >> 2)*90 + ((float)XY / 2.0f);
 		int8_t rudder = (int8_t)RR;
+
+		// Note that the Z BYTE always has 0x40 (4 in the high nibble) from my ST7000 ap-cpu
+		// and that the ST7000 head DEPENDS on it to properly display the rudder indicator
 
 		const char *mode="STBY";
 		if (Z & 0x08) mode = "TRACK";
 		else if (Z & 0x04) mode = "VANE";
 		else if (Z & 0x02) mode = "AUTO";
 
-		char course_buf[12];
-		sprintf(course_buf,"%0.1f",course);
-
 		// --- Build retval ---
 		retval  = mode;
 		retval += " head(";
 		retval += heading;
-		retval += ") rud(";
+		retval += " mag) rud(";
 		retval += rudder;
-		retval += ") right(";
-		retval += (right ? 1 : 0);
 		retval += ") ap(";
-		retval += course_buf;
-		retval += ") alarm(";
+		retval += course;
+		retval += " mag) alarm(";
 		retval += M;
 		retval += ") flags(";
 		retval += SS;
@@ -694,14 +696,23 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 	}
 	else if (st == ST_ST7000)		// 0x197	undocumented by Knauf
 	{
+		// The ST7000 autopilot head sends 0x197 00 00 at startup
+		// and under certain keystroke error conditions as a probe
+		// to determine if the autopilot cpu is present.
+		//
+		// As a first step towards possibly emulating the conversation
+		// between the ap-cpu (our simlated Seatalk apInst), we use a
+		// global variable here in instST_in.cpp to communicate with
+		// instST_out.cpp to emulate the handshaking.
+
 		warning(0,"ST_ST7000 setting ap_linked=1",0);
 		ap_linked = 1;
 		retval = "ST7000";
 	}
 	else if (st == ST_AP_CPU)		// 0x198	undocumented by Knauf
 	{
-		// warning(0,"ST_AP CPU setting ap_linked=2",0);
-		// ap_linked = 2;
+		// The ST7000 autopilot cpu (model 400?) sends 0x198 00 00 in
+		// response to receiving the ST_ST7000 0x197 00 00 datagram.
 		retval = "AP_CPU";
 	}
 	else if (st == ST_COMPASS_VAR)	// 0x199
@@ -719,42 +730,46 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 	}
 	else if (st == ST_RUDDER)		// 0x19c
 	{
-		// 9C  U1  VW  RR	- see 0x184 above
+		// 9C  U1  VW  RR  - see 0x184 above
 		// note that I had done this using floats previously
 		// in my original earliest ST_HEADING block above.
 		//
-		// PRH: see notes in instST_out.cpp regarding of the ST_AUTOPILOT
-		//		datagram for what I perceive to be an inherent bug in knauf's
-		//		description and his overloading of the high bit of the U nibble
+		// see notes in instST_out.cpp regarding of the ST_AUTOPILOT
+		// datagram for what I perceive to be an inherent bug in knauf's
+		// description and his overloading of the high bit of the U nibble
 
 		uint8_t U  = dg[1] >> 4;
 		uint8_t VW = dg[2];
 		uint8_t RR = dg[3];
 
-		bool right = (U & 0x8) != 0;
-		int8_t rudder = (int8_t) RR;
+		int8_t rudder = (int8_t)RR;
 
-		uint16_t heading = (U & 0x3)*90;
-		heading += (VW & 0x3F)*2;
-		heading += (U >> 2) & 0x1;		// <-- prh: this is my interpretation
-		heading %= 360;
+		// Decode heading using my corrected interpretation:
+		//   - low 2 bits of U = quadrant
+		//   - low 6 bits of VW = "twos"
+		//   - high 2 bits of U = half-degrees (0..3)
+		//
+		// Knauf's "odd bit" description is wrong for the ST7000/E80 generation.
+
+		float heading = (U & 0x3) * 90.0f;			// quadrant
+		heading += (VW & 0x3F) * 2.0f;				// twos
+		heading += ((U >> 2) & 0x3) * 0.5f;			// half-degrees
+		if (heading >= 360.0f) heading -= 360.0f;
 
 		retval = "head(";
 		retval += heading;
 		retval += ") rud(";
 		retval += rudder;
-		retval += ") right(";
-		retval += right;
 		retval += ")";
 	}
 	else if (st == ST_ARRIVAL)		// 0x1a2
 	{
 		// #define ST_ARRIVAL		0x1A2
-		//	A2  X4  00  WW XX YY ZZ Arrival Info
-		//					X&0x2=Arrival perpendicular passed, X&0x4=Arrival circle entered
-		//					WW,XX,YY,ZZ = Ascii char's of waypoint id.   (0..9,A..Z)
-		//									Takes the last 4 chars of name, assumes upper case only
-		//					Corresponding NMEA sentences: APB, AA
+		//	A2 X4 00 WW XX YY ZZ Arrival Info
+		//		X&0x2=Arrival perpendicular passed, X&0x4=Arrival circle entered
+		//		WW,XX,YY,ZZ = Ascii char's of waypoint id.   (0..9,A..Z)
+		//		   Takes the last 4 chars of name, assumes upper case only
+		//		Corresponding NMEA sentences: APB, AA
 
 		bool perp = dg[1] & 0x20 ? 1 : 0;
 		bool circ = dg[1] & 0x40 ? 1 : 0;
@@ -895,4 +910,4 @@ void showDatagram(bool port2, bool out, const uint8_t *dg)
 }
 
 
-// end of decode.cpp
+// end of instST_in.cpp

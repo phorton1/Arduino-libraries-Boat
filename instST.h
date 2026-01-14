@@ -69,6 +69,10 @@ extern void showDatagram(bool port2, bool out, const uint8_t *datagram);
 extern void showDatagram16(bool port2, bool out, const uint16_t *dg);
 
 extern volatile int ap_linked;
+	// global variable for linking datagrams received in instST_in.cpp to
+	// the apInst() in instST_out.cpp for nascent, optional, emulation
+	// of ST7000<->ap-cpu communications, which *may* grow to include
+	// calibration  mode, etc for further testing of the ST7000
 
 
 

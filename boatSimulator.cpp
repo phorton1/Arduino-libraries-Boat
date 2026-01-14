@@ -79,7 +79,7 @@ void boatSimulator::init()
 	m_latitude = m_waypoints[0].lat;
 	m_longitude = m_waypoints[0].lon;
 	m_desired_heading = 90;	// 0;
-	m_rudder = -33;
+	m_rudder = 0;
 	
 	m_depth 	 	= 10;
 	m_heading		= 180;

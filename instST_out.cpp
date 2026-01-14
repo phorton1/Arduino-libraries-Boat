@@ -543,155 +543,56 @@ void aisInst::sendSeatalk(bool port2)
 
 
 void apInst::sendSeatalk(bool port2)
-	// Note that the Seatalk Autopilot "instrument" does something that
-	// the NMEA0183/NMEA2000 instruments don't currently do.
-	// It can be "on" in "STANDBY" mode, and knows that "routing"==TRACK mode
-{
-	// Effort to get ST7000 to show rudder indicator
-	//
-	// We do nothing until the ST7000 sends the 0x197 message
-
-	if (!ap_linked) return;
-
-	// When the 0x197 message has been sent the ap-cpu responds with these messages:
-
-	//	2      <-> S21_AUTOPILOT   84 06 00 00 00 00 00 00 08        STBY head(0) rud(0) right(0) ap(0.0) alarm(0) flags(0) TT(8)
-	//	3      <-> S21_AP_CPU      98 00 00                          AP_CPU
-	//  4      <-> S21_RUDDER      9c 81 1d df
-
-	if (ap_linked == 1)
-	{
-		dg[0] = 0x184;
-        dg[1] = 0x06;
-        dg[2] = 0x00;
-        dg[3] = 0x00;
-        dg[4] = 0x00;
-        dg[5] = 0x00;
-        dg[6] = 0x00;
-        dg[7] = 0x00;
-        dg[8] = 0x08;
-		queueDatagram(port2,dg);
-		sendDatagram(port2);
-
-		dg[0] = 0x198;
-		dg[1] = 0x00;
-		dg[2] = 0x00;
-		queueDatagram(port2,dg);
-		sendDatagram(port2);
-
-		dg[0] = 0x19c;
-        dg[1] = 0x81;
-        dg[2] = 0x1d;
-        dg[3] = 0xdf;
-		queueDatagram(port2,dg);
-		sendDatagram(port2);
-
-		ap_linked++;
-		return;
-	}
-
-	// then it sends these messages
-	//	5      <-> S21_RUDDER      9c 11 0a df                       head(110) rud(-33) right(0)
-	//	6      <-> S21_AUTOPILOT   84 56 0b 00 40 00 df 00 08        STBY head(113) rud(-33) right(0) ap(0.0) alarm(0) flags(0) TT(8)
-
-	else if (ap_linked == 2)
-	{
-		dg[0] = 0x19c;
-        dg[1] = 0x11;
-        dg[2] = 0x0a;
-        dg[3] = 0xdf;
-		queueDatagram(port2,dg);
-		sendDatagram(port2);
-
-		dg[0] = 0x184;
-        dg[1] = 0x56;
-        dg[2] = 0x0b;
-        dg[3] = 0x00;
-        dg[4] = 0x40;
-        dg[5] = 0x00;
-        dg[6] = 0xdf;
-        dg[7] = 0x00;
-        dg[8] = 0x08;
-		queueDatagram(port2,dg);
-		sendDatagram(port2);
-		ap_linked++;
-		return;
-	}
-
-	// before stabilizing into this pattern
-	//	7      <-> S21_RUDDER      9c d1 0b df                       head(113) rud(-33) right(1)
-	//	8      <-> S21_AUTOPILOT   84 d6 0b 00 40 00 df 00 08        STBY head(113) rud(-33) right(1) ap(0.0) alarm(0) flags(0) TT(8)
-
-	else if (1)
-	{
-		dg[0] = 0x19c;
-        dg[1] = 0xd1;
-        dg[2] = 0x0b;
-        dg[3] = 0xdf;
-		queueDatagram(port2,dg);
-
-		dg[0] = 0x184;
-        dg[1] = 0xd6;
-        dg[2] = 0x0b;
-        dg[3] = 0x00;
-        dg[4] = 0x40;
-        dg[5] = 0x00;
-        dg[6] = 0xdf;
-        dg[7] = 0x00;
-        dg[8] = 0x08;
-		queueDatagram(port2,dg);
-		ap_linked++;
-		return;
-	}
-
-
-
-
-
-	// This chunk of code "wakes up" the ST7000.
-	//
-	// If an "autopilot" apInst is being simulated, it is separate from
-	// whether or not the autopilot is "engaged", so this code sends
-	// the ST_AUTOPILOT message whenever the instrument is simulated.
-	//
 	// CARE MUST BE TAKEN on the real boat when sending ANY information
 	// about, or to, the actual autopilot computer!!!!!
+	//
+	// Note that the Seatalk Autopilot "instrument" does thinga that
+	// are not currently implemented in the NMEA0183/NMEA2000 versions
+	// in order to jive/test the ST7000 Autopilot control head.
+	//
+	// 		- It sends datagrams when m_autopilot == 0 == AP_MODE_OFF == STANDBY
+	//		- It knows about the nascent AP_MODE_VANE == VANE mode
+	// 		- It can be compiled to "listen" for the ST_ST7000 0x197 message and
+	//		  transmit the associated ST_AP_CPU 0x198 message, via the ap_linked
+	//		  global communication variable set by instST_in.cpp
+	//	    - It *may* grow to provide more emulation of the 400 ap_cpu to
+	//		  allow for emulating modal behavior like calibration menus, etc
+	//
+	// Note that the ST7000 autopilot head and computer speak solely
+	// in terms of MAGNETIC, not TRUE headings.
+{
+	// optional code to respond to 0x197 ST_ST7000 from the head and
+	// transmit 0x198 ST_AP_CPU response from the ap instrument.
+	// I thought this was "necessary" at some point, but now I don't
 
-	if (1)	// 0x184 ST_AUTOPILOT (should be ST_AP_COMPUTER)
+	#if 0
+		if (!ap_linked) return;
+		if (ap_linked == 1)
+		{
+			dg[0] = ST_AP_CPU;	// 0x198;
+			dg[1] = 0x00;
+			dg[2] = 0x00;
+			queueDatagram(port2,dg);
+			sendDatagram(port2);
+			ap_linked++;
+			return;
+		}
+	#endif
+
+	uint8_t ap_mode = boat_sim.getAutopilot();
+	bool	routing = boat_sim.getRouting();
+
+	if (1)	// 0x184 ST_AUTOPILOT (should be ST_AP_COMPUTER) and ST_RUDDER
 	{
-		// The apInst message sends the compass heading!
-		//
-		// Note these three headings:
-		//
-		// 		boatSimulator::m_heading = the compass heading
-		// 		boatSimulator::m_desired_heading = the autopiilot course setting
-		// 		boatSimulator::m_cog = the actual course over ground
-		//
-		// For this simulation:
-		//
-		//		If the autopilot is not engaged, the rudder position is set to zero
-		// 		If the autopilot is engaged, then the rudder position is set by comparing
-		//			the compass m_heading to the aoutpilot m_desired_heading, thus
-		//			for example, it might be necessary to maintain an off-center rudder
-		//			to maintain a cog that matches the desired_heading, but that is
-		//			different than the compass heading.
-		//
-		// This simulation does NOT do the VANE mode of the ST7000 system on my boat.
-
 		// KNAUFS DESCRIPTION:
-		//
-		// prh - NOTE that Knauf's description of the U NIBBLE doubly usese
-		//		 the high (bit in the U nibble and that I believe the high
-		//		 bit is the 'right' direction bit, the next bit is the ODD
-		//		 degree bit, and the bottom two bits are the QUADRANT bits
 		//
 		// 84  U6  VW  XY 0Z 0M RR SS TT  Compass heading  Autopilot course and
 		//     Rudder position (see also command 9C)
 		//     Compass heading in degrees:
 		//       The two lower  bits of  U * 90 +
 		//       the six lower  bits of VW *  2 +
-		//       number of bits set in the two higher bits of U =							<-- prh this is incorrect in my view
-		//       (U & 0x3)* 90 + (VW & 0x3F)* 2 + (U & 0xC ? (U & 0xC == 0xC ? 2 : 1): 0)	<-- prh this is incorrect in my view
+		//       number of bits set in the two higher bits of U =
+		//       (U & 0x3)* 90 + (VW & 0x3F)* 2 + (U & 0xC ? (U & 0xC == 0xC ? 2 : 1): 0)
 		//     Turning direction:
 		//       Most significant bit of U = 1: Increasing heading, Ship turns right
 		//       Most significant bit of U = 0: Decreasing heading, Ship turns left
@@ -712,95 +613,115 @@ void apInst::sendSeatalk(bool port2)
 		//     SS & 0x10 : displays “LARGE XTE” on 600R
 		//     SS & 0x80 : Displays “Auto Rel” on 600R
 		//     TT : Always 0x08 on 400G computer, always 0x05 on 150(G) computer
+		//
+		// MY NOTES:
+		//
+		//	Knauf's description was probably written before the ST7000 came out
+		//
+		//		(1)	THE HIGH NIBBLE OF THE Z BYTE MUST BE 4 (i.e. 4Z) for
+		//			the ST7000!! Knauf uses "0Z" in his header line, implying
+		//			that the high order nibble of the Z byte should be zero.
+		//			THIS DOES NOT WORK WITH THE ST7000 and it took me a full
+		//			day to figure it out. My 400G ap-cpu always sends '4Z'.
+		//			If the high nibble of the Z BYTE is zero, the ST7000 DOES
+		//			NOT DISPLAY THE RUDDER INDICATOR.
+		//		(2) I believe there IS NO "RIGHT" bit. Knauf's description
+		//			clearly overuses the high order bit of the U nibble when
+		//			he also says "number of bits set in the two higher bits of U =
+		//       	(U & 0x3)* 90 + (VW & 0x3F)* 2 + (U & 0xC ? (U & 0xC == 0xC ? 2 : 1): 0)".
+		//			I now believe that the encoding is simpler, and the same
+		//			as the ST_HEADING encoding above. That:
+		//
+		//			THE TWO HIGH BITS OF U ENCODE THE NUMBER OF HALF DEGREES
+		//			IN THE HEADING after the six low bits of VW encoded the
+		//			number of "twos" in the heading.
+		//
+		//			This *may* be a ST7000/E80 genrerational issue, or perhaps
+		//			more likely, Knauf just got it completely wrong.  In any case,
+		//			treating those bits as half degrees works with the E80 AND the
+		//			ST7000 when the E80 was NOT working correctly with the vestiges
+		//			of Knauf's description.
+		//
+		//--------------------------------------------------------------------------
 
-		uint8_t ap_mode = boat_sim.getAutopilot();
+		// set the mode byte Z
 
 		uint8_t Z =								// mode nibble/byte
-			boat_sim.getRouting() ? 0xA :		// routing == AUTO | TRACK mode
+			routing ? 0xA :					    // routing == AUTO | TRACK mode
 			ap_mode == AP_MODE_VANE ? 0x6 :		// vane = AUTO | VANE mode
 			ap_mode == AP_MODE_AUTO ? 0x2 :		// autopilot engaged == AUTO mode
 			0;									// STANDBY mode
 
-		// get the heading and ap course and make them "true"
+		Z |= 0x40;		// THIS IS REQUIRED FOR THE ST7000 to show the Rudder Bar
 
-		uint16_t hdg = boat_sim.getHeading();			// algorighm only encodes integer values
-		double ap  = boat_sim.getDesiredHeading();		// algorithm encodes 1/2 degrees
+		// get the True heading and ap course and make them Magnetic
+		// THE ST7000 head ONLY shows MAGNETIC HEADINGS
 
+		uint16_t hdg = boat_sim.getHeading();	// heading only encodes integer values
 		hdg += boat_sim.getMagneticVariance();
 		if (hdg > 360) hdg = hdg - 360;
 
-		ap += boat_sim.getMagneticVariance();
-		if (ap > 360.0) ap = ap - 360.0;
-
-		// calculate the rudder posiition if autopilot enaged
-		// and set the "right" bit
-
-		int rudder = boat_sim.getRudder();
-		if (ap_mode)			// vane mode not currently actually implemented
+		double ap_course = 0;						// ap course encodes 1/2 degrees so we use a float
+		if (ap_mode)						// if the autopilot is engaged
 		{
-			rudder = ap - hdg;
-			while (rudder > 180) rudder -= 360;
-			while (rudder < -180) rudder += 360;
-			if (rudder > 127)  rudder = 127;
-			if (rudder < -128) rudder = -128;
+			ap_course = boat_sim.getDesiredHeading();
+			ap_course += boat_sim.getMagneticVariance();
+			if (ap_course > 360.0) ap_course = ap_course - 360.0;
 		}
-		bool right = rudder>=0 ? 1 : 0;
 
-		// do the weird ninetees, twos, and odd bit encodings
+		// get the Rudder position. It is up to the boatSimulator
+		// to modify it realistically if the autopilot is engaged
+		
+		int rudder = boat_sim.getRudder();
+		int8_t rr8 = (int8_t)rudder;     // signed 8 bit
+
+		// do the weird ninetees, twos, and odd bit encoding
 		// for the heading into U and W
 
 		uint8_t U = (hdg / 90);   					// U = 'ninetees' == quadrant 0..3
 		uint8_t VW = (hdg - U * 90) / 2;			// twos = 0..44 (six bits)
 		uint8_t odd = hdg & 0x1;					// odd = 0 or 1
-		U += (odd << 2) + (right << 3);
+		U += (odd << 3);							// note that I DONT set the high order "right" bit
 
-		// do similar weird encoding of ap nineties into V and halfs into XY, sheesh
+		// do similar weird encoding of ap_course nineties into V and halfs into XY, sheesh
 
-		uint8_t Vh = (uint8_t)(ap / 90.0);    					// 0..3
-		VW |= Vh << 6;
-
-		uint16_t ap_coarse =  Vh * 90;
-		uint16_t ap_rem    = (uint16_t)(ap - ap_coarse);
+		uint8_t Vh = (uint8_t)(ap_course / 90.0);    		// quadrant 0..3
+		uint16_t ap_rem    = (uint16_t)(ap_course - Vh * 90);
 		uint8_t  XY        = ap_rem * 2;
 
-		int8_t rr8 = (int8_t)rudder;     // signed 8 bit
+		// The 500G autopilot cpu sends the ST_RUDDER message first
 
+		dg[0] = ST_RUDDER;
+		dg[1] = (U << 4) | 0x1;				// U1
+		dg[2] = VW;							// VW without the AP course bits
+		dg[3] = (uint8_t)rr8;				// RR
+		queueDatagram(port2,dg);
 
-		if (1)
-		{
-			dg[0] = ST_RUDDER;
-			dg[1] = (U << 4) | 0x1;				// U1
-			dg[2] = VW;							// VW
-			dg[3] = (uint8_t)rr8;				// RR  <--- this is where I'm at
-			queueDatagram(port2,dg);
-		}
-
+		// Then sends the ST_AUTOPILOT message
 
 		dg[0] = ST_AUTOPILOT;				// 0x184;
 		dg[1] = (U << 4) | 0x6;				// U6
-		dg[2] = VW;							// VW
+		dg[2] = VW	| (Vh << 6);			// VW with the AP course bits
 		dg[3] = XY;							// XY
 		dg[4] = Z;							// 0Z = Z = 'mode'.
 		dg[5] = 0x00;						// 0M (no alarms)
 		dg[6] = (uint8_t)rr8;				// RR  <--- this is where I'm at
 		dg[7] = 0x00;       				// SS always zero in my case
 		dg[8] = 0x08;						// TT always zero in my case
-
 		queueDatagram(port2,dg);
 
-		// also send the ST_RUDDER datagram
-
-
-	}
+	}	// ST_AUTOPILOT && ST_RUDDER (even if not engaged)
 
 
 
 	//------------------------------------------------------------
-	// From here down, the autopilot is "engaged", and so we send
-	// waypoint information, even though we may not be "routing".
-	// The whole autopiloot simulation scheme needs reworking.
+	// From here down, the autopilot is "engaged"
+	//------------------------------------------------------------
+	// It is somewhat questionable to me that we send waypoint and XTE
+	// information when we are not routing.  This code was written
+	// before I added boat_sim.getDesiredHeading(), and needs to be reworked.
 
-	if (boat_sim.getAutopilot())
+	if (ap_mode)
 	{
 		int wp_num = boat_sim.getTargetWPNum();
 		const waypoint_t *wp = boat_sim.getWaypoint(wp_num);
@@ -822,29 +743,32 @@ void apInst::sendSeatalk(bool port2)
 		{
 			// ST_NAV_TO_WP	0x185 "should be sent before ST_TARGET_NAME	0x182"
 			//	85  X6  XX  VU ZW ZZ YF 00 yf   Navigation to waypoint information
-			//					Cross Track Error: XXX/100 nautical miles
-			//					Example: X-track error 2.61nm => 261 dec => 0x105 => X6XX=5_10
-			//					Bearing to destination: (U & 0x3) * 90° + WV / 2°
-			//					Example: GPS course 230°=180+50=2*90 + 0x64/2 => VUZW=42_6
-			//					U&8: U&8 = 8 -> Bearing is true, U&8 = 0 -> Bearing is magnetic
-			//					Distance to destination: Distance 0-9.99nm: ZZZ/100nm, Y & 1 = 1
-			//											Distance >=10.0nm: ZZZ/10 nm, Y & 1 = 0
-			//					Direction to steer: if Y & 4 = 4 Steer right to correct error
-			//										if Y & 4 = 0 Steer left  to correct error
-			//					Example: Distance = 5.13nm, steer left: 5.13*100 = 513 = 0x201 => ZW ZZ YF=1_ 20 1_
-			//							Distance = 51.3nm, steer left: 51.3*10  = 513 = 0x201 => ZW ZZ YF=1_ 20 0_
-			//					F contains four flags which indicate the available data fields:
-			//							Bit 0 (F & 1): XTE present
-			//							Bit 1 (F & 2): Bearing to destination present
-			//							Bit 2 (F & 4): Range to destination present
-			//							Bit 3 (F & 8): XTE >= 0.3nm
-			//						These bits are used to allow a correct translation from for instance an RMB sentence which
-			//						contains only an XTE value, all other fields are empty. Since SeaTalk has no special value
-			//						for a data field to indicate a "not present" state, these flags are used to indicate the
-			//						presence of a value.
-			//					In case of a waypoint change, sentence 85, indicating the new bearing and distance,
-			//					should be transmitted prior to sentence 82 (which indicates the waypoint change).
-			//					Corresponding NMEA sentences: RMB, APB, BWR, BWC, XTE
+			//		Cross Track Error: XXX/100 nautical miles
+			//		Example: X-track error 2.61nm => 261 dec => 0x105 => X6XX=5_10
+			//		Bearing to destination: (U & 0x3) * 90° + WV / 2°
+			//		Example: GPS course 230°=180+50=2*90 + 0x64/2 => VUZW=42_6
+			//		U&8: U&8 = 8 -> Bearing is true, U&8 = 0 -> Bearing is magnetic
+			//		Distance to destination:
+			//			Distance 0-9.99nm: ZZZ/100nm, Y & 1 = 1
+			//			Distance >=10.0nm: ZZZ/10 nm, Y & 1 = 0
+			//		Direction to steer:
+			//			if Y & 4 = 4 Steer right to correct error
+			//			if Y & 4 = 0 Steer left  to correct error
+			//		Example:
+			//			Distance = 5.13nm, steer left: 5.13*100 = 513 = 0x201 => ZW ZZ YF=1_ 20 1_
+			//			Distance = 51.3nm, steer left: 51.3*10  = 513 = 0x201 => ZW ZZ YF=1_ 20 0_
+			//		F contains four flags which indicate the available data fields:
+			//				Bit 0 (F & 1): XTE present
+			//				Bit 1 (F & 2): Bearing to destination present
+			//				Bit 2 (F & 4): Range to destination present
+			//				Bit 3 (F & 8): XTE >= 0.3nm
+			//			These bits are used to allow a correct translation from for instance an RMB sentence which
+			//			contains only an XTE value, all other fields are empty. Since SeaTalk has no special value
+			//			for a data field to indicate a "not present" state, these flags are used to indicate the
+			//			presence of a value.
+			//		In case of a waypoint change, sentence 85, indicating the new bearing and distance,
+			//		should be transmitted prior to sentence 82 (which indicates the waypoint change).
+			//		Corresponding NMEA sentences: RMB, APB, BWR, BWC, XTE
 
 			double head = boat_sim.headingToWaypoint();
 			double dist = boat_sim.distanceToWaypoint();
@@ -952,10 +876,10 @@ void apInst::sendSeatalk(bool port2)
 		{
 			// #define ST_ARRIVAL		0x1A2
 			//	A2  X4  00  WW XX YY ZZ Arrival Info
-			//					X&0x2=Arrival perpendicular passed, X&0x4=Arrival circle entered
-			//					WW,XX,YY,ZZ = Ascii char's of waypoint id.   (0..9,A..Z)
-			//									Takes the last 4 chars of name, assumes upper case only
-			//					Corresponding NMEA sentences: APB, AA
+			//		X&0x2=Arrival perpendicular passed, X&0x4=Arrival circle entered
+			//		WW,XX,YY,ZZ = Ascii char's of waypoint id.   (0..9,A..Z)
+			//			Takes the last 4 chars of name, assumes upper case only
+			//		Corresponding NMEA sentences: APB, AA
 
 
 			// What I see is a bit different.
@@ -974,177 +898,6 @@ void apInst::sendSeatalk(bool port2)
 	}	// Autopilot engaged
 }	// apInst::sendSeatalk()
 
-
-
-void sendSTCourseComputer()
-	// This method, currently unused, was developed to test ST7000 control heads,
-	// and brings up a very involved question about the granularity and purport of my
-	// whole simulated instruments scheme.
-	//
-	// The ST7000 control head is separate from the Autopilot Computer and
-	// they talk using Seatalk.  I have yet to probe them in detail in-vitro,
-	// and learn how they really talk in detail (i.e. buttons, settings, etc),
-	// having done almost all of my work by sending messages to the E80, but it
-	// is very clear they are two separate devices.
-	//
-	// My current "intruments" are simply things that can SEND data the E80
-	// or other devices via Seatalk, NMEA0183 and/or NMEA2000. The instruments
-	// themselves do NOT receieve any data or maintain any state.
-	//
-	// The Autopilot computer is, in reality, a separate 'node' that can
-	// send AND RECEIVE data.  So is the ST7000 control head.  And both of them
-	// maintain state. In fact many of the ST50 instruments SEND AND RECEIVE data
-	// and MAINTAIN STATE, from the ST50 MULTI which is both a display AND a controller
-	// device, to the ST50 WIND device which uses the (autopilot computer) compass heading
-	// and (GPS device) COG/SOG to calculate the apparent versus true wind, separately,
-	// I believe, from the E80 which also does those kinds of calculations.
-	//
-	// I am not going to change my whole architecture at this point, but it is
-	// interesting to note the limitations of my scheme.
-{
-	display(0,"sendSTCourseComputer()",0);
-
-	// It turns out that the ST7000 #1 that I bought for $400 apparently does not work,
-	// does not beep, and just reports "NO LINK" when connected with the ST cable I made
-	// for initial installation on Rhapsody.
-	//
-	// On the other hand, a quick test of ST7000 #0A and #0B, the two I removed from Rhapsody
-	// and apparently replaced the LCDs, and they both "come alive" and show "STANDBY" when
-	// sent the 0x184 ST_AUTOPILOT datagram.
-	//
-	// FWIW, the ST7000 head itself sends an unknown 0x97 00 00 datagram every 15 seconds or so,
-	// apparently probing for the ap computer, each time before it reports "NO LINK"
-
-	if (0)	// SENT by the ST7000
-	{
-		dg[0] = 0x197;
-		dg[1] = 0x10;
-		dg[2] = 0x00;
-		queueDatagram(false,dg);
-	}
-
-	// Sending 0x19C by itself does not make the ST7000 come alive.
-	// It continues sending the 0x197.
-
-	if (0)	// ST_RUDDER - This is the simpler of the two similar ST messages
-	{
-		// 9C  U1  VW  RR    Compass heading and Rudder position (see also command 84)
-		//     Compass heading in degrees:
-		//       The two lower  bits of  U * 90 +
-		//       the six lower  bits of VW *  2 +
-		//       number of bits set in the two higher bits of U =
-		//       (U & 0x3)* 90 + (VW & 0x3F)* 2 + (U & 0xC ? (U & 0xC == 0xC ? 2 : 1): 0)
-		//     Turning direction:
-		//       Most significant bit of U = 1: Increasing heading, Ship turns right
-		//       Most significant bit of U = 0: Decreasing heading, Ship turns left
-		//     Rudder position: RR degrees (positive values steer right,
-		//       negative values steer left. Example: 0xFE = 2° left)
-		//     The rudder angle bar on the ST600R uses this record
-
-		dg[0] = 0x19c;
-		dg[1] = 0x01;
-		dg[2] = 0x00;
-		dg[3] = 0x00;
-		queueDatagram(false,dg);
-	}
-
-
-	// Sending 0x184 by itself DOES make the ST7000 come alive and show the mode, etc.
-	// I suspect it needs the TT byte, which is 0 from my AP CPU, as an identifier.
-	// After finding that this woke the ST7000 up, this code was copied to the apInst
-	// and modified
-
-	if (1)	// 0x184 ST_AUTOPILOT (should be ST_AP_COMPUTER)
-	{
-		// 84  U6  VW  XY 0Z 0M RR SS TT  Compass heading  Autopilot course and
-		//     Rudder position (see also command 9C)
-		//     Compass heading in degrees:
-		//       The two lower  bits of  U * 90 +
-		//       the six lower  bits of VW *  2 +
-		//       number of bits set in the two higher bits of U =
-		//       (U & 0x3)* 90 + (VW & 0x3F)* 2 + (U & 0xC ? (U & 0xC == 0xC ? 2 : 1): 0)
-		//     Turning direction:
-		//       Most significant bit of U = 1: Increasing heading, Ship turns right
-		//       Most significant bit of U = 0: Decreasing heading, Ship turns left
-		//     Autopilot course in degrees:
-		//       The two higher bits of  V * 90 + XY / 2
-		//     Z & 0x2 = 0 : Autopilot in Standby-Mode
-		//     Z & 0x2 = 2 : Autopilot in Auto-Mode
-		//     Z & 0x4 = 4 : Autopilot in Vane Mode (WindTrim), requires regular "10" datagrams
-		//     Z & 0x8 = 8 : Autopilot in Track Mode
-		//     M: Alarms + audible beeps
-		//       M & 0x04 = 4 : Off course
-		//       M & 0x08 = 8 : Wind Shift
-		//     Rudder position: RR degrees (positive values steer right,
-		//       negative values steer left. Example: 0xFE = 2° left)
-		//     SS & 0x01 : when set, turns off heading display on 600R control.
-		//     SS & 0x02 : always on with 400G
-		//     SS & 0x08 : displays “NO DATA” on 600R
-		//     SS & 0x10 : displays “LARGE XTE” on 600R
-		//     SS & 0x80 : Displays “Auto Rel” on 600R
-		//     TT : Always 0x08 on 400G computer, always 0x05 on 150(G) computer
-
-		dg[0] = 0x184;
-		dg[1] = 0x06;		// U6
-		dg[2] = 0x00;		// VW
-		dg[3] = 0x00;		// XY
-		dg[4] = 0x02;		// 0Z = Z = 'mode'.  0x02=AUTO
-		dg[5] = 0x00;		// 0M
-		dg[6] = 0x00;		// RR
-		dg[7] = 0x00;       // SS
-		dg[8] = 0x00;		// TT
-
-		queueDatagram(false,dg);
-
-	}
-
-
-	// THIS ST6000 STUFF IS NOT UNDERSTOOD OR TESTED, retained for posterities sake.
-	// from https://forum.arduino.cc/t/arduino-autohelm-6000-autopilot/644379/12
-	//
-	//	140 0 255 255	= 0x8c 0x00 0xff 0xff
-	//	128 96 255 255  = 0x80 0x60 0xff 0xff
-	//	132 174 255 255 = 0x84 0xAE 0xff 0xff
-	//	138 60 255 255  = 0x8A 0x3c 0xff 0xff
-	//
-	// These cannot be seatalk messages due to erroneous length bytes
-
-	#define TRY_ST_6000_STUFF	0
-
-	// 01  05  00 00 00 60 01 00  Course Computer 400G
-
-	if (TRY_ST_6000_STUFF)
-	{
-		dg[0] = 0x101;
-		dg[1] = 0x05;
-		dg[2] = 0x00;
-		dg[3] = 0x00;
-		dg[4] = 0x00;
-		dg[5] = 0x60;
-		dg[6] = 0x01;
-		dg[7] = 0x00;
-		queueDatagram(false,dg);
-	}
-
-	if (TRY_ST_6000_STUFF)
-	{
-		dg[0] = 0x183;	// Sent by course computer.
-		dg[1] = 0x07;
-		dg[2] = 0x00;
-			// XX = 0 after clearing a failure condition, also sent once after power-up.
-			// XX = 1 failure, auto release error. Repeated once per second.
-			// XX = 8 failure, drive stopped.
-		dg[3] = 0x00;
-		dg[4] = 0x00;
-		dg[5] = 0x00;
-		dg[6] = 0x00;
-		dg[7] = 0x00;
-		dg[8] = 0x80;
-		dg[9] = 0x00;
-		dg[10] = 0x00;
-		queueDatagram(false,dg);
-	}
-}
 
 
 
