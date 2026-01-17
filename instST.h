@@ -73,6 +73,11 @@ extern volatile int ap_linked;
 	// the apInst() in instST_out.cpp for nascent, optional, emulation
 	// of ST7000<->ap-cpu communications, which *may* grow to include
 	// calibration  mode, etc for further testing of the ST7000
+extern volatile bool st_device_query_pending;
+	// Set when the system receives the ST_DEV_QUERY
+	//		0x1a4 06 00 00 00 00 00 00 00 device
+	// device query from the E80, in which case, ST specific code
+	// sends out 0x1a4 12 ID VV vv replies and clears the boolean
 
 
 

@@ -10,6 +10,7 @@
 #include <myDebug.h>
 
 volatile int ap_linked = 0;
+volatile bool st_device_query_pending = 0;
 
 
 
@@ -154,6 +155,24 @@ void setLampIntensity(int value)
 }
 
 
+
+
+static void sendDeviceId(bool port2, uint8_t id, uint8_t version, uint8_t subversion)
+	// send device ident if st_device_query_pending
+{
+	if (st_device_query_pending)
+	{
+		dg[0] = ST_DEV_QUERY;	// 0x1a4
+		dg[1] = 0x12;      		// 0x10 constant + length
+		dg[2] = id;      		// Unit ID = Seatalk GPS
+		dg[3] = version;      	// Main SW version
+		dg[4] = subversion;     // Minor SW version
+		queueDatagram(port2,dg);
+	}
+}
+
+
+
 //-------------------------------------
 // instruments
 //-------------------------------------
@@ -162,6 +181,7 @@ void setLampIntensity(int value)
 void depthInst::sendSeatalk(bool port2)
 {
 	display(dbg_data,"st%d depth(%0.1f)",port2,boat_sim.getDepth());
+	sendDeviceId(port2,0x01,1,1);		// Depth device
 
 	uint16_t d10;
 	if (boat_sim.getDepth() > 999)
@@ -182,6 +202,8 @@ void depthInst::sendSeatalk(bool port2)
 
 void logInst::sendSeatalk(bool port2)
 {
+	sendDeviceId(port2,0x02,1,2);		// Speed device
+
 	double speed = boat_sim.getWaterSpeed();
 	int ispeed = (speed+ 0.05) * 10;
 	display(dbg_data,"st%d WaterSpeed(%0.1f)",port2,speed);
@@ -243,6 +265,8 @@ void logInst::sendSeatalk(bool port2)
 
 void windInst::sendSeatalk(bool port2)
 {
+	sendDeviceId(port2,0x06,1,3);		// Wind device
+
 	double speed = boat_sim.apparentWindSpeed();	// getWindSpeed();
 	double angle = boat_sim.apparentWindAngle();	// getWindAngle();
 
@@ -271,8 +295,9 @@ void windInst::sendSeatalk(bool port2)
 
 void compassInst::sendSeatalk(bool port2)
 {
-	// what a weird encoding
+	sendDeviceId(port2,0x18,1,4);		// ST30 compass device
 
+	// what a weird encoding
 	// get true hading, convert to magnetic version via getMagneticVariance
 	// round to one decimal place
 
@@ -309,164 +334,302 @@ void compassInst::sendSeatalk(bool port2)
 
 void gpsInst::sendSeatalk(bool port2)
 {
-
-	double lat = boat_sim.getLat();
-	double lon = boat_sim.getLon();
-	display(dbg_data,"st%d LatLon(%0.6f,%0.6f)",port2,lat,lon);
+	display(dbg_data,"gpsInst:sendSeatalk(%d)",port2);
 	proc_entry();
-
-	uint8_t Z1 = 0;
-	uint8_t Z2 = 0x20;
-	if (lat < 0)
-	{
-		lat = abs(lat);
-		Z1 = 0x10;
-	}
-	if (lon < 0)
-	{
-		lon = abs(lon);
-		Z2 = 0x0;
-	}
-
-	// integer portions
-	uint16_t i_lat = lat;
-	uint16_t i_lon = lon;
-
-	// right of decimal point
-	float frac_lat = lat - i_lat;
-	float frac_lon = lon - i_lon;
-
-	// converted to minutes
-	float min_lat = frac_lat * 60.0;
-	float min_lon = frac_lon * 60.0;
-
-	// times 1000 into integers
-	int imin_lat = round(min_lat * 1000.0);
-	int imin_lon = round(min_lon * 1000.0);
-
-	proc_entry();
-	display(dbg_data+1,"i_lat(%d) frac_lat(%0.6f) min_lat(%0.6f) imin_lat(%d)",i_lat,frac_lat,min_lat,imin_lat);
-	display(dbg_data+1,"i_lon(%d) frac_lon(%0.6f) min_lon(%0.6f) imin_lon(%d)",i_lon,frac_lon,min_lon,imin_lon);
-	proc_leave();
-
-	dg[0] = ST_LATLON;
-	dg[1] = 0x5 | Z1 | Z2;
-
-	dg[2] = i_lat;
-	dg[3] = (imin_lat >> 8) & 0xff;
-	dg[4] = imin_lat & 0xff;
-
-	dg[5] = i_lon;
-	dg[6] = (imin_lon >> 8) & 0xff;
-	dg[7] = imin_lon & 0xff;
-	queueDatagram(port2,dg);
+	// sendDeviceId(port2,0x0d,1,5);	// Seatalk GPS device
+	sendDeviceId(port2,0xc4,1,5);	// RS120 GPS device
 
 	//------------------------------------------------
+	// Satellite Info (simple summary)
+	//------------------------------------------------
 
-	display(dbg_data,"st%d SatInfo()",port2);
-
-	dg[0] = ST_SAT_INFO;
-	dg[1] = 0x30;	// num_sats<<4
-	dg[2] = 0x02;	// hdop
-	queueDatagram(port2,dg);
+	// Satellite IDs
 
 	uint8_t sat1_id = 0x07;
 	uint8_t sat2_id = 0x08;
-	uint8_t sat3_id = 0x0a;
+	uint8_t sat3_id = 0x0A;
 
-	if (0)
+	if (1)
 	{
-		// SAT_DETAIL (57)
-		// if the HDOP available flag is set it counts as the low order bit of num_sats
-
-		display(dbg_data,"st%d SatDetail(1)",port2);
-
-		uint8_t num_sats = 3;
-		dg[0] = ST_SAT_DETAIL;
-		dg[1] = 0x57;			// fixed
-		dg[2] = 0x17 | (num_sats & 0x7)<<4 ; // QQ=0x10=Quality available 0x7=quality; high 3 bits of num_sats in top nibble
-		dg[3] = 0x83;						 // HH=top bit is HDOP available, rest of bits are HDOP
-		dg[4] = 0x00;						 // ??=unknown
-		dg[5] = 0x33;						 // AA=antenna height
-		dg[6] = 0x20;  						 // GG=GeoSeparation = +512 meters
-		dg[7] = 0x00;						 // ZZ=differential age
-		dg[8] = 0x00;						 // YY=differential station ID
-		dg[9] = 0x00;						 // DD=differential station id
-		queueDatagram(port2,dg);
-
-		display(dbg_data,"st%d SatDetail(2)",port2);
-
-		// SAT_DETAIL(0x74)  (satellite IDs)
-		dg[0] = ST_SAT_DETAIL;
-		dg[1] = 0x74;
-		dg[2] = sat1_id;	// id1
-		dg[3] = sat2_id;	// id2
-		dg[4] = sat3_id;	// id3
-		dg[5] = 0x00;		// id4
-		dg[6] = 0x00;		// id5
+		display(dbg_data,"st%d SatInfo()",port2);
+		dg[0] = ST_SAT_INFO;	// 0x157
+		dg[1] = 0x30;      		// num_sats << 4
+		dg[2] = 0x02;          	// HDOP = 2
 		queueDatagram(port2,dg);
 	}
 
+	//------------------------------------------------
+	// SAT_DETAIL (0x57)  — GPS quality + HDOP block
+	//------------------------------------------------
+	
+	if (1)
+	{
+		display(dbg_data,"st%d SatDetail(1)",port2);
+
+		dg[0] = ST_SAT_DETAIL;		// // 0x1A5
+		dg[1] = 0x57;
+
+		// QQ
+		// 		quality = QQ&0xF 						= .... 0010 = 0x02 = 2
+		//		quality_available = QQ&0x10 			= ...1 .... = 0x10 = 1
+		// 		high 3 bits of numsats = QQ&0xE0/16  	= 001. .... = 0x20 = 2
+		// Knauf uses QQ&0xE0/16 to mean (QQ&0xE0)>>4 in exprssion for numsats
+
+		uint8_t QQ = 0x32;          // 0x02 | 0x10 | 0x20
+		dg[2] = QQ;
+
+		// HH:
+		//		HDOP = HH&0x7C = HH & 01111100			= .000 11.. = 0x0C = 3
+		//		HDOP availability = HH&0x80 		    = 1... .... = 0x80 = 1
+		//		low bit of numsats = HH&0x01			= .... ...1 = 0x01 = 1
+		//		numsats available = HH&0x02				= .... ..1. = 0x20 = 1
+		// hdop = 3, hdop_available = 1, num_sats_available = 1, low bit of num_sats = 1, numsats available = 1
+
+		uint8_t HH = 0x8F;			// 1000 1111 = 0x8f
+ 		dg[3] = HH;
+
+		dg[4] = 0x00;               // ?? = unknown
+		dg[5] = 0x33;               // AA = antenna height; apparenly 0x33 is a constant that is seen in real Raystar GPS devices
+		dg[6] = 0x20;               // GG = geoidal separation (32 * 16 = 512 m)
+		dg[7] = 0x00;               // ZZ = differential age high bits
+		dg[8] = 0x00;               // YY = diff age low bits + flags + station ID high bits
+		dg[9] = 0x00;               // DD = station ID low
+
+		queueDatagram(port2,dg);
+	}
+
+	//------------------------------------------------
+	// SAT_DETAIL (0x74) — Satellite ID list
+	//------------------------------------------------
+
 	if (0)
 	{
-		display(dbg_data,"st%d SatDetail(0xXd)",port2);
+		display(dbg_data,"st%d SatDetail(2)",port2);
 
-		// SAT_DETAIL(0xXD)  (satellite IDs)
+		dg[0] = ST_SAT_DETAIL;		// 0x1A5
+		dg[1] = 0x74;				// 0x79 constant plus length
+		dg[2] = sat1_id;
+		dg[3] = sat2_id;
+		dg[4] = sat3_id;
+		dg[5] = 0x00;               // id4
+		dg[6] = 0x00;               // id5
+		queueDatagram(port2,dg);
+	}
+
+	//-----------------------------------------------
+	// Unknown Meaning
+	//-----------------------------------------------
+
+
+	if (1)
+	{
+		display(dbg_data,"st%d SatDetail(unknown)",port2);
+
+		// A5  61  04  E2    , A5 8D ..., A5 98 ..., A5 B5 ..., A5 0C...  Unknown meaning
+
+		dg[0] = ST_SAT_DETAIL;
+		dg[1] = 0x61;
+		dg[2] = 0x04;
+		dg[3] = 0xe2;
+		queueDatagram(port2,dg);
+	}
+
+
+	//------------------------------------------------
+	// SAT_DETAIL (0x0D) — Satellite geometry + SNR
+	//------------------------------------------------
+
+	if (0)
+	{
+		// Modified Knauf #1 - repeat first four bytes 3 times
+
+		display(dbg_data,"st%d SatDetail(test opt1 0x0B)",port2);
+
+		// --- sat1 ---
+		uint8_t s1_id  = 7;
+		uint8_t s1_az  = 48;
+		uint8_t s1_el  = 79;
+		uint8_t s1_snr = 42;
+
+		// --- sat2 ---
+		uint8_t s2_id  = 8;
+		uint8_t s2_az  = 182;
+		uint8_t s2_el  = 62;
+		uint8_t s2_snr = 45;
+
+		// --- sat3 ---
+		uint8_t s3_id  = 10;
+		uint8_t s3_az  = 180;
+		uint8_t s3_el  = 51;
+		uint8_t s3_snr = 43;
+
+		// pack using Knauf's sat1 rules for all sats
+		uint8_t r1_id  = (s1_id << 1) & 0xFE;
+		uint8_t r1_az  = s1_az / 2;
+		uint8_t r1_el  = (s1_el << 1) | (s1_az & 0x01);
+		uint8_t r1_snr = (s1_snr << 1) & 0xFE;
+
+		uint8_t r2_id  = (s2_id << 1) & 0xFE;
+		uint8_t r2_az  = s2_az / 2;
+		uint8_t r2_el  = (s2_el << 1) | (s2_az & 0x01);
+		uint8_t r2_snr = (s2_snr << 1) & 0xFE;
+
+		uint8_t r3_id  = (s3_id << 1) & 0xFE;
+		uint8_t r3_az  = s3_az / 2;
+		uint8_t r3_el  = (s3_el << 1) | (s3_az & 0x01);
+		uint8_t r3_snr = (s3_snr << 1) & 0xFE;
+
+		// emit 0x0B block (12 bytes payload)
+		dg[0]  = ST_SAT_DETAIL;   // 0x1A5
+		dg[1]  = 0x0d;		// 0x0B;
+
+		dg[2]  = r1_id;
+		dg[3]  = r1_az;
+		dg[4]  = r1_el;
+		dg[5]  = r1_snr;
+
+		dg[6]  = r2_id;
+		dg[7]  = r2_az;
+		dg[8]  = r2_el;
+		dg[9]  = r2_snr;
+
+		dg[10] = r3_id;
+		dg[11] = r3_az;
+		dg[12] = r3_el;
+		dg[13] = r3_snr;
+
+		dg[14] = 0;
+		dg[15] = 0;
+
+		queueDatagram(port2,dg);
+	}
+
+
+	if (1)
+	{
+		// Original Knauf to best of weird ability
+
+		display(dbg_data,"st%d SatDetail(0x0d)",port2);
+
 		// Satellite 1 (PRN 07)
-		uint8_t sat1_az  = 48;   // Azimuth: 48° (low eastern sky)
-		uint8_t sat1_el  = 79;   // Elevation: 79° (almost overhead)
-		uint8_t sat1_snr = 42;   // SNR: strong signal
+		uint8_t sat1_az  = 48;
+		uint8_t sat1_el  = 79;
+		uint8_t sat1_snr = 42;
 
 		// Satellite 2 (PRN 08)
-		uint8_t sat2_az  = 182;  // Azimuth: 182° (northwest)
-		uint8_t sat2_el  = 62;   // Elevation: 62° (high in sky)
-		uint8_t sat2_snr = 45;   // SNR: excellent signal
+		uint8_t sat2_az  = 182;
+		uint8_t sat2_el  = 62;
+		uint8_t sat2_snr = 45;
 
 		// Satellite 3 (PRN 10)
-		uint8_t sat3_az  = 180;  // Azimuth: 180° (due south)
-		uint8_t sat3_el  = 51;   // Elevation: moderate
-		uint8_t sat3_snr = 43;   // SNR: solid signal
+		uint8_t sat3_az  = 180;
+		uint8_t sat3_el  = 51;
+		uint8_t sat3_snr = 43;
 
+		// ---- Pack satellite 1 ----
 		uint8_t NN = sat1_id & 0xFE;
 		uint8_t AA = sat1_az / 2;
 		uint8_t EE = (sat1_el << 1) | (sat1_az & 0x01);
 		uint8_t SS = (sat1_snr << 1) & 0xFE;
 
+		// ---- Pack satellite 2 ----
 		uint8_t MM = (sat2_id << 1) & 0x70;
 		uint8_t BB = (sat2_id & 0x07) | ((sat2_az / 2) & 0xF8);
-		uint8_t FF = ((sat2_az & 0x0F)) | ((sat2_el << 1) & 0xF0);
+		uint8_t FF = (sat2_az & 0x0F) | ((sat2_el << 1) & 0xF0);
 		uint8_t GG = ((sat2_el & 0x07) << 5) | (sat2_snr & 0x3F);
 		uint8_t OO = sat2_snr & 0x3F;
 
+		// ---- Pack satellite 3 ----
 		uint8_t CC = (sat3_id & 0x3F) | ((sat3_az >> 1) & 0xC0);
 		uint8_t DD = sat3_az & 0x7F;
 		uint8_t XX = sat3_el & 0x7F;
 		uint8_t YY = (sat3_snr << 2) & 0xFC;
 		uint8_t ZZ = sat3_snr & 0x01;
 
-		dg[0] = ST_SAT_DETAIL;
-		dg[1] = 0x0d;	// msg number and length
-		dg[2] = NN;
-		dg[4] = AA;
-		dg[5] = EE;
-		dg[6] = SS;
-		dg[7] = MM;
-		dg[8] = BB;
-		dg[9] = FF;
-		dg[10] = GG;
-		dg[11] = OO;
-		dg[12] = CC;
-		dg[13] = DD;
-		dg[14] = XX;
-		dg[15] = YY;
-		dg[16] = ZZ;
+		// ---- Emit 0x0D block ----
+		dg[0]  = ST_SAT_DETAIL;	// 0x1A5
+		dg[1]  = 0x0D;		// 0x8D;
+		dg[2]  = NN;
+		dg[3]  = AA;
+		dg[4]  = EE;
+		dg[5]  = SS;
+		dg[6]  = MM;
+		dg[7]  = BB;
+		dg[8]  = FF;
+		dg[9]  = GG;
+		dg[10] = OO;
+		dg[11] = CC;
+		dg[12] = DD;
+		dg[13] = XX;
+		dg[14] = YY;
+		dg[15] = ZZ;
+
 		queueDatagram(port2,dg);
 	}
 
 
 	//------------------------------------------
+	// LatLon
+	//------------------------------------------
+	// Some folks think it better to send separate LAT and LON messags
 
-	if (1)	// GPS Instrument sends out SOG/COG
+	if (1)
+	{
+		double lat = boat_sim.getLat();
+		double lon = boat_sim.getLon();
+		display(dbg_data,"st%d LatLon(%0.6f,%0.6f)",port2,lat,lon);
+
+		uint8_t Z1 = 0;
+		uint8_t Z2 = 0x20;
+		if (lat < 0)
+		{
+			lat = abs(lat);
+			Z1 = 0x10;
+		}
+		if (lon < 0)
+		{
+			lon = abs(lon);
+			Z2 = 0x0;
+		}
+
+		// integer portions
+		uint16_t i_lat = lat;
+		uint16_t i_lon = lon;
+
+		// right of decimal point
+		float frac_lat = lat - i_lat;
+		float frac_lon = lon - i_lon;
+
+		// converted to minutes
+		float min_lat = frac_lat * 60.0;
+		float min_lon = frac_lon * 60.0;
+
+		// times 1000 into integers
+		int imin_lat = round(min_lat * 1000.0);
+		int imin_lon = round(min_lon * 1000.0);
+
+		proc_entry();
+		display(dbg_data+1,"i_lat(%d) frac_lat(%0.6f) min_lat(%0.6f) imin_lat(%d)",i_lat,frac_lat,min_lat,imin_lat);
+		display(dbg_data+1,"i_lon(%d) frac_lon(%0.6f) min_lon(%0.6f) imin_lon(%d)",i_lon,frac_lon,min_lon,imin_lon);
+		proc_leave();
+
+		dg[0] = ST_LATLON;					// 0x158
+		dg[1] = 0x5 | Z1 | Z2;
+		dg[2] = i_lat;
+		dg[3] = (imin_lat >> 8) & 0xff;
+		dg[4] = imin_lat & 0xff;
+		dg[5] = i_lon;
+		dg[6] = (imin_lon >> 8) & 0xff;
+		dg[7] = imin_lon & 0xff;
+		queueDatagram(port2,dg);
+	}
+	
+	
+	//------------------------------------------
+	// COG/SOG
+	//------------------------------------------
+
+	if (1)
 	{
 		float degrees = boat_sim.makeMagnetic(boat_sim.getCOG());
 
@@ -478,7 +641,7 @@ void gpsInst::sendSeatalk(bool port2)
 
 		display(dbg_data,"st%d COG(%0.1f) = nineties(%d) twos(%d) halfs(%d)",port2,degrees,nineties,twos,halfs);
 
-		dg[0] = ST_COG;
+		dg[0] = ST_COG;		// 0x153
 		dg[1] = 0 | (nineties << 4) | (halfs<<6);
 		dg[2] = twos;
 		queueDatagram(port2,dg);
@@ -489,7 +652,7 @@ void gpsInst::sendSeatalk(bool port2)
 		int ispeed = (speed+ 0.05) * 10;
 		display(dbg_data,"st%d SOG & stSOG(%0.1f)",port2,speed);
 
-		dg[0] = ST_SOG;
+		dg[0] = ST_SOG;		// 0x152
 		dg[1] = 0x01;
 		dg[2] = ispeed & 0xff;
 		dg[3] = (ispeed >> 8) & 0xff;
@@ -497,14 +660,18 @@ void gpsInst::sendSeatalk(bool port2)
 	}
 
 
-	if (1)	// GPS instrument sends date and time
+	//------------------------------------------
+	// DATE and TIME
+	//------------------------------------------
+
+	if (1)
 	{
 		int y = year() % 100;
 		int m = month();
 		int d = day();
 
 		display(dbg_data,"st%d Date(%02d/%02d/%02d)",port2,y,m,d);
-		dg[0] = ST_DATE;
+		dg[0] = ST_DATE;			// 0x156
 		dg[1] = 0x01 | (m << 4);
 		dg[2] = d;
 		dg[3] = y;
@@ -523,7 +690,7 @@ void gpsInst::sendSeatalk(bool port2)
 		uint16_t RS = RST >> 4;
 
 		display(dbg_data,"st%d Date(%02d:%02d:%02d)",port2,h,mm,s);
-		dg[0] = ST_TIME;
+		dg[0] = ST_TIME;				// 0x154
 		dg[1] = 0x01 | (T << 4);
 		dg[2] = RS;
 		dg[3] = h;
@@ -562,6 +729,8 @@ void apInst::sendSeatalk(bool port2)
 	// Note that the ST7000 autopilot head and computer speak solely
 	// in terms of MAGNETIC, not TRUE headings.
 {
+	sendDeviceId(port2,0x81,1,7);		// ST7000 device
+
 	// optional code to respond to 0x197 ST_ST7000 from the head and
 	// transmit 0x198 ST_AP_CPU response from the ap instrument.
 	// I thought this was "necessary" at some point, but now I don't

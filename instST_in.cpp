@@ -68,7 +68,7 @@ const st_info_type st_known[] =
 	/* 0x19e */	{ ST_WP_DEF,		"WP_DEF",		},
 	/* 0x1a2 */ { ST_ARRIVAL,		"ARRIVAL",		},
 	/* 0z1a4 */	{ ST_DEV_QUERY,		"DEV_QUERY",	},
-	/* 0z1a4 */	{ ST_SAT_DETAIL,	"SAT_DETAIL",	},
+	/* 0z1a5 */	{ ST_SAT_DETAIL,	"SAT_DETAIL",	},
 	/* 0x1a7 */	{ ST_A7,			"A7",			},
 	/* 0x1ad */	{ ST_AD,			"AD"			},
 
@@ -101,9 +101,154 @@ static const char* keyName(bool longpress, uint8_t key_code)
 	return "UNKNOWN";
 }
 
+static const char *deviceName(uint8_t device_id)
+{
+	if (device_id == 0x01) return "Depth";
+	if (device_id == 0x02) return "Speed";
+	if (device_id == 0x03) return "Multi";
+	if (device_id == 0x04) return "Tridata";
+	if (device_id == 0x05) return "Tridata Repeater";
+	if (device_id == 0x06) return "Wind";
+	if (device_id == 0x07) return "WMG";
+	if (device_id == 0x08) return "Navdata GPS";
+	if (device_id == 0x09) return "Maxview";
+	if (device_id == 0x0A) return "Steering compass";
+	if (device_id == 0x0B) return "Windtrim";
+	if (device_id == 0x0C) return "Speedtrim";
+	if (device_id == 0x0D) return "Seatalk GPS";
+	if (device_id == 0x0E) return "Seatalk Radar ST50";
+	if (device_id == 0x0F) return "Rudder Angle indicator";
+	if (device_id == 0x10) return "ST30 Wind";
+	if (device_id == 0x11) return "ST30 Bidata";
+	if (device_id == 0x12) return "ST30 Speed";
+	if (device_id == 0x13) return "ST30 Depth";
+	if (device_id == 0x14) return "LCD Navcenter";
+	if (device_id == 0x15) return "Apelco LCD Chartplotter";
+	if (device_id == 0x16) return "Analog Speed";
+	if (device_id == 0x17) return "Analog Depth";
+	if (device_id == 0x18) return "ST30 Compass";
+	if (device_id == 0x19) return "ST50 NMEA bridge";
+
+	// Knauf's description does not match my E80's Device Enumeration here
+	// if (device_id == 0xA8) return "ST80 Masterview";   <-- This should be the ST40 Wind
+
+	// my own post Knauf additions
+
+	if (device_id == 0x21) return "E80 Analogue Compass";
+	if (device_id == 0x22) return "E80 Analogue Multitrim";
+	if (device_id == 0x23) return "E80 Analogue Wind";
+	if (device_id == 0x24) return "E80 Analogue CH/Wind";
+	if (device_id == 0x25) return "E80 Rudder Angle Indicator";
+	if (device_id == 0x26) return "E80 Masterview";
+	if (device_id == 0x27) return "E80 Multiview";
+	if (device_id == 0x28) return "Rate Gyro Compass";
+	if (device_id == 0x2b) return "ST30 Round Bidata";
+	if (device_id == 0x2c) return "Navcenter 700";
+	if (device_id == 0x2d) return "Inboard Autpilot";
+
+	if (device_id == 0x30) return "Maxview Display Heads";
+
+    if (device_id == 0x41) return "ST80 Remote Keypad";
+    if (device_id == 0x42) return "ST80 MOB Button";
+    if (device_id == 0x43) return "ST80 Autopilot";
+    if (device_id == 0x44) return "ST80 Masterkey";
+
+    if (device_id == 0x51) return "ST80 Active Speed";
+    if (device_id == 0x52) return "ST80 Active Depth";
+    if (device_id == 0x53) return "ST80 Active deep Depth";
+    if (device_id == 0x54) return "ST80 Active Wind";
+    if (device_id == 0x55) return "ST80 Active Compass";
+    if (device_id == 0x56) return "ST80 NMEA Bridge";
+
+	if (device_id == 0x60) return "ST80 Course Computer";
+    if (device_id == 0x61) return "SmartPilot";
+
+	if (device_id == 0x70) return "ST60 Speed";
+    if (device_id == 0x71) return "ST60 Depth";
+    if (device_id == 0x72) return "ST60 TriData";
+    if (device_id == 0x73) return "ST60 Wind Analogue Head";
+    if (device_id == 0x74) return "ST60 CH/Wind Analogue Head";
+    if (device_id == 0x75) return "ST60 Compass Analogue Head";
+    if (device_id == 0x76) return "ST60 Multi";
+    if (device_id == 0x77) return "ST60 Maxview";
+    if (device_id == 0x78) return "ST60 Speed Sail RR";
+    if (device_id == 0x79) return "ST60 Speed Power RR";
+    if (device_id == 0x7a) return "ST60 Depth Feet RR";
+    if (device_id == 0x7b) return "ST60 Depth Metres RR";
+    if (device_id == 0x7c) return "ST60 Rudder Angle Indicator RR";
+    if (device_id == 0x7d) return "ST60 Navigator";
+    if (device_id == 0x7e) return "ST60 Wind Round Rptr";
+    if (device_id == 0x7f) return "ST60 Compass Round Rptr";
+
+	if (device_id == 0x80) return "ST6000 Control Unit";
+    if (device_id == 0x81) return "ST7000 Control Unit";
+    if (device_id == 0x82) return "ST60 GPS HEad";
+    if (device_id == 0x83) return "ST60 Wired HHC";
+    if (device_id == 0x84) return "ST60 RF HHC";
+    if (device_id == 0x85) return "Raydata";
+    if (device_id == 0x86) return "ST60/80 RR Group Code";
+    if (device_id == 0x87) return "Zodiac GPS";
+    if (device_id == 0x88) return "ST5/5000 (ST60";
+    if (device_id == 0x89) return "Raychart 620";
+    if (device_id == 0x8a) return "Navcenter 600";
+    if (device_id == 0x8b) return "ST60 Rudder Angle Indicator";
+
+	if (device_id == 0x90) return "SL70 Radar Standalone";
+    if (device_id == 0x91) return "SV7 Radar";
+    if (device_id == 0x92) return "RL70";
+    if (device_id == 0x93) return "RL70C";
+    if (device_id == 0x94) return "RC520";
+    if (device_id == 0x95) return "R70";
+    if (device_id == 0x96) return "R70RC";
+    if (device_id == 0x97) return "RL70/RL80C";
+    if (device_id == 0x98) return "RL70RC/RL80RC";
+    if (device_id == 0x99) return "RC530/RC631";
+
+	if (device_id == 0xa0) return "RS112LP GPS";
+    if (device_id == 0xa1) return "RS114 GPS";
+    if (device_id == 0xa2) return "Raychart 830";
+    if (device_id == 0xa5) return "ST40 Speed";
+    if (device_id == 0xa6) return "ST40 Depth";
+    if (device_id == 0xa7) return "ST40 Bidata";
+    if (device_id == 0xa8) return "ST40 Wind";
+    if (device_id == 0xa9) return "ST40 Compass";
+
+	if (device_id == 0xb0) return "L755";
+    if (device_id == 0xb1) return "L760";
+    if (device_id == 0xb2) return "L1250";
+    if (device_id == 0xb3) return "L1250RC";
+    if (device_id == 0xb4) return "L760";
+
+	if (device_id == 0xc0) return "RN300 Navigator";
+    if (device_id == 0xc1) return "RN301 Navigator";
+    if (device_id == 0xc2) return "RC320 Chartplotter";
+    if (device_id == 0xc3) return "RC321 Chartplotter";
+    if (device_id == 0xc4) return "RS120 GPS";
+    if (device_id == 0xc5) return "RS125 GPS";
+    if (device_id == 0xc7) return "C70 Display";
+    if (device_id == 0xc8) return "C80 Display";
+    if (device_id == 0xc9) return "C120 Display";
+    if (device_id == 0xca) return "E80 Display";
+    if (device_id == 0xcb) return "E120 Display";
+    if (device_id == 0xcc) return "Entry Level Pilot";
+    if (device_id == 0xcd) return "New ST4000";
+    if (device_id == 0xce) return "RF - Base Station";
+    if (device_id == 0xcf) return "RF - S100 FOB";
+
+	if (device_id == 0xd0) return "RF - Smart Controller";
+    if (device_id == 0xd1) return "ST8000 Control Unit (ST60)";
+    if (device_id == 0xd3) return "GPM400 (US)";
+    if (device_id == 0xd4) return "GPM400 (EU)";
+    if (device_id == 0xd5) return "GPM400 (ROW)";
+	
+	return "UNKNOWN";
+}
 
 
-static String decodeST(uint16_t st, const uint8_t *dg)
+
+
+
+static String decodeST(uint16_t st, const uint8_t *dg, const char **p_name)
 {
 	String retval;
 
@@ -756,7 +901,48 @@ static String decodeST(uint16_t st, const uint8_t *dg)
 		retval = wp_name;
 		if (perp) retval += " perp";
 		if (circ) retval += " circ";
+	}
+	else if (st == ST_DEV_QUERY)	// 0x1a4
+	{
+		// st_device_query_pending Set when the system receives the ST_DEV_QUERY
+		// device query from the E80, in which case, ST specific code
+		// sends out 0x1a4 12 ID VV vv replies and clears the boolean
 
+		if (dg[1] == 0x06 || dg[1] == 0x02)
+		{
+			retval = "QUERY";
+			st_device_query_pending = 1;
+		}
+		else if (dg[1] == 0x12)
+		{
+			static char name[50];
+			static char version[50];
+			sprintf(name,"ST_DEV_%02x",dg[2]);
+			sprintf(version,"%d.%02d",dg[3],dg[4]);
+			retval = deviceName(dg[2]);
+			retval += " ";
+			retval += version;
+			*p_name = name;
+		}
+		else
+		{
+			retval = "???";
+		}
+	}
+
+
+
+
+
+
+	else if (st == ST_SAT_DETAIL)	// 0x1a5
+	{
+		if (dg[1] == 0x57)
+			*p_name = "SAT_DETAIL1";
+		else if (dg[1] == 0x74)
+			*p_name = "SAT_DETAIL2";
+		else
+			*p_name = "SAT_DETAIL3";
 	}
 
 	return retval;
@@ -791,7 +977,6 @@ void showDatagram(bool port2, bool out, const uint8_t *dg)
 	in_counter++;
 
 	uint16_t st = dg[0] | 0x100;
-	String decode = decodeST(st,dg);
 
 	const st_info_type *found = 0;
 	const st_info_type *search = st_known;
@@ -801,8 +986,12 @@ void showDatagram(bool port2, bool out, const uint8_t *dg)
 		search++;
 	}
 
-	bool fwd = 0;
 
+	const char *name = found ? found->name : NULL;
+	String decode = decodeST(st,dg,&name);
+	if (name == NULL) name = "unknown";
+
+	bool fwd = 0;
 	if (!out && (
 		(port2 && (inst_sim.g_FWD & FWD_ST2_TO_1)) ||
 		(!port2 && (inst_sim.g_FWD & FWD_ST1_TO_2)) ))
@@ -811,8 +1000,6 @@ void showDatagram(bool port2, bool out, const uint8_t *dg)
 	}
 
 
-	const char *name = found ?
-		found->name : "unknown";
 
 	String st_name(fwd ? "S" : "ST");
 	st_name += port2 ? '2' : '1';			// STx for sends and non-forwarded receives
