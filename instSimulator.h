@@ -28,11 +28,15 @@
 #define SERIAL_83B 	Serial4
 
 #define PIN_UDP_ENABLE	12
-#define SERIAL_ESP32	Serial5
+// #define SERIAL_ESP32	Serial5
 	// if defined, enables whole UDP scheme
 	// otherwise, no code/penalty for scheme's existance
 extern bool udp_enabled;
 	// in instSimulator.cpp
+
+
+// Test GPS Module on RX5
+#define GPS_SERIAL5		Serial5
 
 
 // Teensy Pins Used

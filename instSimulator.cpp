@@ -250,6 +250,12 @@ void instSimulator::init()
 		}
 	#endif
 
+	#ifdef GPS_SERIAL5
+		GPS_SERIAL5.begin(9600);
+		delay(500);
+		display(0,"GPS_SERIAL5 started",0);
+	#endif
+
 	//---------------------------------
 	// boatSimulator initialization
 	//---------------------------------
@@ -354,6 +360,33 @@ void handleStPort(
 
 void instSimulator::run()
 {
+	#define MAX_0183_MSG 180
+
+	#ifdef GPS_SERIAL5
+		while (GPS_SERIAL5.available())
+		{
+
+			int c = GPS_SERIAL5.read();
+			static char buf[MAX_0183_MSG+1];
+			static int buf_ptr = 0;
+
+			// display(0,"got GPS_SERIAL5 0x%02x %c",c,c>32 && c<127 ? c : ' ');
+
+			if (buf_ptr >= MAX_0183_MSG || c == 0x0a)
+			{
+				buf[buf_ptr] = 0;
+				display(0,"GPS_SERIAL5: %s",buf);
+				// handleNMEA0183Input(false,buf);
+				buf_ptr = 0;
+			}
+			else if (c != 0x0d)
+			{
+				buf[buf_ptr++] = c;
+			}
+		}
+	#endif
+
+
 	#ifdef SERIAL_ESP32
 		bool enabled = digitalRead(PIN_UDP_ENABLE);
 		if (udp_enabled != enabled)
@@ -399,6 +432,9 @@ void instSimulator::run()
 					inst->send2000();
 			}
 		}
+
+		st_device_query_pending = 0;
+			// clear any pending st_device_query
 	}
 
 
@@ -412,7 +448,6 @@ void instSimulator::run()
 
 	// listen for NMEA0183 data
 
-	#define MAX_0183_MSG 180
 	while (SERIAL_83A.available())
 	{
 
