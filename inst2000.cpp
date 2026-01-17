@@ -210,7 +210,7 @@ void inst2000::init()
 	proc_leave();
 	display(dbg_mon,"inst2000::init() finished",0);
 
-}	// inst2000::setup()
+}	// inst2000::init()
 
 
 

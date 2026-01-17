@@ -145,6 +145,67 @@ void gpsInst::send2000()
 		SetN2kPGN126992(msg, 255, date, secs, N2ktimes_GPS);
 		nmea2000.SendMsg(msg);
 	#endif
+
+
+	#if 1
+
+		// PGN_GNSS_SATS_IN_VIEW (older NMEA2000 library API)
+		// One PGN per satellite, using tSatelliteInfo
+
+		tSatelliteInfo sat;
+		uint8_t sid = 7;
+
+		SetN2kPGN129540(msg, sid, N2kDD072_Unavailable);
+
+		// ---- Satellite 1 ----
+		sat.PRN       = 3;
+		sat.Elevation = DegToRad(45);
+		sat.Azimuth   = DegToRad(120);
+		sat.SNR       = 38.00;
+		sat.RangeResiduals = N2kDoubleNA;
+		sat.UsageStatus    = N2kDD124_UsedInSolutionWithoutDifferentialCorrections;
+		AppendN2kPGN129540(msg, sat);
+
+		// ---- Satellite 2 ----
+		sat.PRN       = 11;
+		sat.Elevation = DegToRad(30);
+		sat.Azimuth   = DegToRad(200);
+		sat.SNR       = 35.00;
+		sat.RangeResiduals = N2kDoubleNA;
+		sat.UsageStatus    = N2kDD124_UsedInSolutionWithoutDifferentialCorrections;
+		AppendN2kPGN129540(msg, sat);
+
+		// ---- Satellite 3 ----
+		sat.PRN       = 22;
+		sat.Elevation = DegToRad(70);
+		sat.Azimuth   = DegToRad(80);
+		sat.SNR       = 42.00;
+		sat.RangeResiduals = N2kDoubleNA;
+		sat.UsageStatus    = N2kDD124_UsedInSolutionWithoutDifferentialCorrections;
+		AppendN2kPGN129540(msg, sat);
+
+		// ---- Satellite 4 ----
+		sat.PRN       = 14;
+		sat.Elevation = DegToRad(20);
+		sat.Azimuth   = DegToRad(300);
+		sat.SNR       = 33.00;
+		sat.RangeResiduals = N2kDoubleNA;
+		sat.UsageStatus    = N2kDD124_UsedInSolutionWithoutDifferentialCorrections;
+		AppendN2kPGN129540(msg, sat);
+
+		// ---- Satellite 5 ----
+		sat.PRN       = 18;
+		sat.Elevation = DegToRad(55);
+		sat.Azimuth   = DegToRad(250);
+		sat.SNR       = 41.00;
+		sat.RangeResiduals = N2kDoubleNA;
+		sat.UsageStatus    = N2kDD124_UsedInSolutionWithoutDifferentialCorrections;
+		AppendN2kPGN129540(msg, sat);
+
+		nmea2000.SendMsg(msg);
+
+	#endif
+
 }
 
 
