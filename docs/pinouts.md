@@ -166,4 +166,24 @@ white=12V, blue=GND, black=CAN_H, and grey=CAN_L, with an extra brown
 wire that was not connected to anything.
 
 
+## Raymarine RS125 GPS Puck Pinout
+
+For better or worse I tried to to fix my RS125 GPS puck.
+Of course it uses a proprietary connector, and of course there
+is no information online about the pinout, so let me be the first.
+
+Facing the connector on the cable, with the pin slot at the top,
+the five pins, moving clockwise, correspond to the following five wires.
+
+- **red** 		- 12V
+- **braid** 	- GND
+- **yellow**	- ST Data			or NMEA+
+- **brown**		- DMC (differential GPS) unused
+- **green**		- addl ST 12V		or NMEA-
+
+Note that by connecting the green to 12V, you tell the puck to
+transmit ST instead of NMEA0183
+
+The brown is DMC for differential GPS, and is tied to GND
+to prevent noise from generating erroneous signals.
 
