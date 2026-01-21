@@ -22,6 +22,11 @@
 #pragma once
 #include <myDebug.h>
 
+#define FIND_BUG	1
+	// This define turns off much functionality to isolate the new Serial5 port
+	// as we try to find the crashing bug
+
+
 #define SERIAL_ST1	Serial1
 #define SERIAL_ST2	Serial2
 #define SERIAL_83A 	Serial3
@@ -35,8 +40,14 @@ extern bool udp_enabled;
 	// in instSimulator.cpp
 
 
-// Test GPS Module on RX5
-#define GPS_SERIAL5		Serial5
+// Test Arduio NEO-6M GPS Module on RX5
+
+#define TEST_NEO6M
+#ifdef TEST_NEO6M
+	extern void initNeo6M_GPS();
+	extern void doNeo6M_GPS();
+#endif
+
 
 
 // Teensy Pins Used
@@ -93,7 +104,6 @@ extern bool udp_enabled;
 
 
 // g_MON(PORT_STx) is simply on/off
-
 // g_MON[PORT_83x) is bitwise
 
 #define MON83_ALL		0x01 		// all in/out
@@ -201,6 +211,7 @@ private:
 
 
 extern instSimulator inst_sim;
+
 
 
 // end of instSimulator.h

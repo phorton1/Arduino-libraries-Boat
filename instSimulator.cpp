@@ -250,10 +250,8 @@ void instSimulator::init()
 		}
 	#endif
 
-	#ifdef GPS_SERIAL5
-		GPS_SERIAL5.begin(9600);
-		delay(500);
-		display(0,"GPS_SERIAL5 started",0);
+	#ifdef TEST_NEO6M
+		initNeo6M_GPS();
 	#endif
 
 	//---------------------------------
@@ -272,7 +270,6 @@ void instSimulator::init()
 	m_inst[INST_AUTOPILOT]	= &i_autopilot;
 	m_inst[INST_ENGINE]		= &i_engine;
 	m_inst[INST_GENSET]		= &i_genset;
-
 
 	// one time clear
 	// saveToEEPROM();
@@ -358,34 +355,15 @@ void handleStPort(
 
 
 
+//---------------------------------------------------
+// RUN
+//---------------------------------------------------
+
 void instSimulator::run()
 {
-	#define MAX_0183_MSG 180
-
-	#ifdef GPS_SERIAL5
-		while (GPS_SERIAL5.available())
-		{
-
-			int c = GPS_SERIAL5.read();
-			static char buf[MAX_0183_MSG+1];
-			static int buf_ptr = 0;
-
-			// display(0,"got GPS_SERIAL5 0x%02x %c",c,c>32 && c<127 ? c : ' ');
-
-			if (buf_ptr >= MAX_0183_MSG || c == 0x0a)
-			{
-				buf[buf_ptr] = 0;
-				display(0,"GPS_SERIAL5: %s",buf);
-				// handleNMEA0183Input(false,buf);
-				buf_ptr = 0;
-			}
-			else if (c != 0x0d)
-			{
-				buf[buf_ptr++] = c;
-			}
-		}
+	#ifdef TEST_NEO6M
+		doNeo6M_GPS();
 	#endif
-
 
 	#ifdef SERIAL_ESP32
 		bool enabled = digitalRead(PIN_UDP_ENABLE);
@@ -405,9 +383,13 @@ void instSimulator::run()
 		}
 	#endif
 
+
+	//-----------------
+	// simulator
+	//-----------------
+
 	uint32_t now = millis();
 	static uint32_t last_update = 0;
-
 	if (now - last_update >= UPDATE_MILLIS)
 	{
 		last_update = now;
@@ -418,8 +400,8 @@ void instSimulator::run()
 			for (int i=0; i<NUM_INSTRUMENTS; i++)
 			{
 				delay(10);
-				instBase *inst = m_inst[i];
 
+				instBase *inst = m_inst[i];
 				if (inst->portActive(PORT_ST1))
 					inst->sendSeatalk(false);
 				if (inst->portActive(PORT_ST2))
@@ -438,25 +420,29 @@ void instSimulator::run()
 	}
 
 
-	// listen for NMEA2000 data
+	//-----------------
+	// NMEA2000
+	//-----------------
 
 	nmea2000.ParseMessages(); // Keep parsing messages
+
 	#if BROADCAST_NMEA2000_INFO
 		nmea2000.broadcastNMEA2000Info();
 	#endif
 
 
-	// listen for NMEA0183 data
+	//-----------------
+	// NMEA0183
+	//-----------------
+
+	#define MAX_0183_MSG 180
 
 	while (SERIAL_83A.available())
 	{
-
 		int c = SERIAL_83A.read();
 		static char buf[MAX_0183_MSG+1];
 		static int buf_ptr = 0;
-
 		// display(0,"got Serial2 0x%02x %c",c,c>32 && c<127 ? c : ' ');
-
 		if (buf_ptr >= MAX_0183_MSG || c == 0x0a)
 		{
 			buf[buf_ptr] = 0;
@@ -474,9 +460,7 @@ void instSimulator::run()
 		int c = SERIAL_83B.read();
 		static char buf[MAX_0183_MSG+1];
 		static int buf_ptr = 0;
-
 		// display(0,"got Serial2 0x%02x %c",c,c>32 && c<127 ? c : ' ');
-
 		if (buf_ptr >= MAX_0183_MSG || c == 0x0a)
 		{
 			buf[buf_ptr] = 0;
@@ -489,8 +473,9 @@ void instSimulator::run()
 		}
 	}
 
-
-	// listen for Seatalk data
+	//-----------------
+	// Seatalk
+	//-----------------
 	// if (1) and brackets serve to create scope
 	// for static per-port variables
 
@@ -501,7 +486,6 @@ void instSimulator::run()
 		static int outp = 0;
 		static int dlen = 0;
 		static uint8_t datagram[MAX_ST_BUF];
-
 		handleStPort(false,&last_st_in,&last_st_out,&outp,&dlen,datagram,SERIAL_ST1);
 	}
 	if (1)
@@ -511,11 +495,9 @@ void instSimulator::run()
 		static int outp = 0;
 		static int dlen = 0;
 		static uint8_t datagram[MAX_ST_BUF];
-
 		handleStPort(true,&last_st_in,&last_st_out,&outp,&dlen,datagram,SERIAL_ST2);
 	}
-
-}
+}	// instSimulator::run()
 
 
 
