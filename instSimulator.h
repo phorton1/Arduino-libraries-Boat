@@ -17,20 +17,16 @@
 //			instrument types implicitly supported
 //		NMEA0183 monitoring is currently "text" only, echoing
 //			the text, but not parsing, the NMEA0183 messages
-//
 
 #pragma once
 #include <myDebug.h>
-
-#define FIND_BUG	1
-	// This define turns off much functionality to isolate the new Serial5 port
-	// as we try to find the crashing bug
 
 
 #define SERIAL_ST1	Serial1
 #define SERIAL_ST2	Serial2
 #define SERIAL_83A 	Serial3
 #define SERIAL_83B 	Serial4
+
 
 #define PIN_UDP_ENABLE	12
 // #define SERIAL_ESP32	Serial5

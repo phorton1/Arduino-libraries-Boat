@@ -97,10 +97,43 @@ static gps_model_t gps_in =
 void initNeo6M_GPS()
 	// extern'd in instSimulator.h
 {
+	// I was getting a lot of checksum errors and the system was crashing, and
+	// I felt like there were likely bytes being lost in the uart buffers
+	// due to timing issues in my program, so I added the addMemoryForRead()
+	// call below to expand the buffer size which generally helped.
+	//
+	// With the SERIAL_9BIT_SUPPORT define undcommented in HardwareSerial.h,
+	// this revealed subtle bug that the parameters to add
+	// Then later, I added code to eading from a Neo6m GPS module using "regular"
+	// 8 bit serial datat.  NEO_SERIAL is defined as #define NEO_SERIAL Serial5
+	//
+	//
+	// This helped in that I stopped receiving gobs of checksum errors, but
+	// then highlighted the fact that the general use of the serial port
+	// with SERIAL_9BIT_SUPPORT defined, which I need for talking 9bit
+	// "Seatalk" protocol within my program, has issues and definitely.
+	// in combination with the addMemoryForRead() method.
+	//
+	// Working with coPilot AI, he identified that the addMemoryForRead()
+	// method is documented to take bytes, but functionally (in 9 bit mode)
+	//
+	//		expects “number of BUFTYPE elements”, but every caller (including
+	//		you, and every example PJRC ever published) passes bytes.
+	//
+	// When I changed the addMemoryForRead() call to take the number of
+	// elements, rather than the number of bytes the bug went away and
+	// my program seems to work, and is undergoing further long-term testing.
+	
 	#if 1
 		// Allocate a larger RX buffer for NEO_SERIAL
-		static uint8_t serial1_rxbuf[10240];
-		NEO_SERIAL.addMemoryForRead(serial1_rxbuf, sizeof(serial1_rxbuf));
+		#define NUMBER_BUF_ELEMENTS 10240
+		static uint16_t serial1_rxbuf[NUMBER_BUF_ELEMENTS];
+		// And the use of uint8_t for the buffer is not correct
+		// within the context of the SERIAL_9BIT_SUPPORT:
+		// 		static uint8_t serial1_rxbuf[NUMBER_BUF_ELEMENTS];
+		NEO_SERIAL.addMemoryForRead(serial1_rxbuf, NUMBER_BUF_ELEMENTS);
+		// This causes hard crashes:
+		// 		NEO_SERIAL.addMemoryForRead(serial1_rxbuf, sizeof(serial1_rxbuf));
 	#endif
 
 	NEO_SERIAL.begin(9600);
