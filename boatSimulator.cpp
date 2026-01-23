@@ -1022,8 +1022,9 @@ void boatSimulator::sendBinarySimState(bool doit /*=1*/)
 	endBinary(buf,offset);
 
 	Serial.write(buf,offset);
-	#ifdef SERIAL_ESP32
-		if (udp_enabled)
+
+	#if WITH_TB_ESP32
+		if (inst_sim.doTbEsp32())
 			SERIAL_ESP32.write(buf,offset);
 	#endif
 }

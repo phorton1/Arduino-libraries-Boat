@@ -364,8 +364,8 @@ void inst2000::sendDeviceQuery()
 				olen += 3;
 			}
 			Serial.println(obuf);
-			#ifdef SERIAL_ESP32
-				if (udp_enabled)
+			#if WITH_TB_ESP32
+				if (inst_sim.doTbEsp32())
 					SERIAL_ESP32.println(obuf);
 			#endif
 		}

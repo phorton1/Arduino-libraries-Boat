@@ -21,47 +21,58 @@
 #pragma once
 #include <myDebug.h>
 
+// Highest level Serial Port Constant defines
 
-#define SERIAL_ST1	Serial1
-#define SERIAL_ST2	Serial2
-#define SERIAL_83A 	Serial3
-#define SERIAL_83B 	Serial4
+#define SERIAL_ST1		Serial1
+#define SERIAL_ST2		Serial2
+#define SERIAL_83A 		Serial3
+#define SERIAL_83B 		Serial4
+#define SERIAL_ESP32 	Serial5
+#define NEO_SERIAL 		Serial5
 
-
-#define PIN_UDP_ENABLE	12
-// #define SERIAL_ESP32	Serial5
-	// if defined, enables whole UDP scheme
-	// otherwise, no code/penalty for scheme's existance
-extern bool udp_enabled;
-	// in instSimulator.cpp
-
-
-// Test Arduio NEO-6M GPS Module on RX5
-
-#define TEST_NEO6M
-#ifdef TEST_NEO6M
-	extern void initNeo6M_GPS();
-	extern void doNeo6M_GPS();
-#endif
-
-
-
-// Teensy Pins Used
+// Henceforth the function of the General Purpose of the 8 pin
+// connector is defined entirely in the Boat library, managed
+// as a global boolean supported by a BINARY_PROG option and
+// reflected in the UI.
 //
-// 23 - CRX from CANBUS module
-// 22 - CTX to CANBUS module
-// 0  - RX1 Seatalk1
-// 1  = TX1 Seatalk1
-// 7  - RX2 Seatalk2
-// 8  - TX2 Seatalk2
-// 15 - RX3 NMEA0183A
-// 14 - TX3 NMEA0183A
-// 16 - RX4 NMEA0183B
-// 17 - TX4 NMEA0183B
-// 20 - TX5 tbESP32
-// 21 - RX5 tbESP32
-// 12 - UDP_ENABLE
+// Initially this implementation allows four states.
+//
+//		OFF - the pins on the gp8 connector are not used by teensyBoat
+//		PULSE - the pins drive the Pulse logic moved from teensyBoat.ino
+//			which means that the PULSE variables also have to become globals.
+//		ESP32 - the Serial5 port is given over to the tbESP32 secheme
+//			which also utilizes PIN_UDP_ENABLE to orchestrate datagram
+//			transmission over wifi to the teensyBoat.pm perl program.
+//		NEO6M - the gp8 connector uses Serial5 to receive NMEA0183 data
+//			from the Serial5 (RX only) port and send it as NMEA2000
+//
+// For safety, even though PULSE *could* be run at the same time as ESP32/NE06M,
+// ESP32 and NEO6M definitely cannot, so all pins involved in all features are
+// safely set to floating (MODE_INPUT) if they are not used.
 
+#define GP8_FUNCTION_OFF 	0
+#define GP8_FUNCTION_PULSE 	1
+#define GP8_FUNCTION_ESP32 	2
+#define GP8_FUNCTION_NEO6M 	3
+
+
+// The following #ifdefs allow the functionality to be compiled out,
+// even though the UI remains.
+
+#define PIN_SPEED_PULSE	 	2		// 0 to turn off
+	// The SPEED_PULSE pin has been used to generate square
+	// wave pulses that can drive the LOG and WIND instruments.
+	// Frequencies of less than 18 Hz are driven by explicit PIN toggles.
+	// Frequencies greater than 18 Hz are driven by PWM
+	// See the documentation for more details about ST50 instruments.
+#define WITH_TB_ESP32	 	1		// 0 to turn off
+#define WITH_NEO6M			1		// 0 to turn off
+
+
+
+//----------------------------------
+// constant defines
+//----------------------------------
 
 #define MAX_INST_NAME		10
 
@@ -193,12 +204,27 @@ public:
 	void loadFromEEPROM();
 	void sendBinaryState();
 
+	void setGP8Function(uint8_t fxn);
+	uint8_t getGP8Function()  { return g_GP8_FUNCTION; }
+	
+	#if PIN_SPEED_PULSE
+		void setSpeedPulseMode(int mode);
+		void setSpeedPulseHz(int hz);
+	#endif
+	
+	#if WITH_TB_ESP32
+		bool doTbEsp32();
+	#endif
+
+
 	static uint8_t g_FWD;
 	static uint8_t g_MON[NUM_PORTS];
 
 	instBase *getInst(int i)  { return i<NUM_INSTRUMENTS ? m_inst[i] : 0; }
 
 private:
+
+	static uint8_t g_GP8_FUNCTION;
 
 	instBase *m_inst[NUM_INSTRUMENTS];
 	

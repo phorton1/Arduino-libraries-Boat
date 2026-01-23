@@ -28,6 +28,10 @@
 #include <myDebug.h>
 
 
+
+
+
+
 #define UPDATE_MILLIS	1000
 
 #define BROADCAST_NMEA2000_INFO   1
@@ -51,10 +55,159 @@ genInst			i_genset;
 
 uint8_t instSimulator::g_MON[NUM_PORTS];
 uint8_t instSimulator::g_FWD;
+uint8_t instSimulator::g_GP8_FUNCTION;
 
-bool udp_enabled;
-	// turned on only if SERIAL_ESP32 and PIN_UDP_ENABLE
-	// is pulled high
+
+//-------------------------------------------------
+// General Purpose Connector related
+//-------------------------------------------------
+
+#if WITH_NEO6M
+	// function in neo6M_GPS.cpp
+	extern void initNeo6M_GPS();
+	extern void doNeo6M_GPS();
+#endif
+
+
+#if WITH_TB_ESP32
+	#define SERIAL_ESP32		Serial5
+	#define PIN_UDP_ENABLE		12
+	bool udp_enabled;
+		// turned on only if PIN_UDP_ENABLE pulled high by ESP32
+
+	bool instSimulator::doTbEsp32()
+	{
+		return (g_GP8_FUNCTION==GP8_FUNCTION_ESP32) && udp_enabled;
+	}
+#endif
+
+
+#if PIN_SPEED_PULSE
+
+	#define PULSE_MODE_OFF 	 	0
+	#define PULSE_MODE_ON  	 	1			// Use user supplied pulse_hz for pulse speeds
+	#define PULSE_MODE_WATER 	2			// Use water speed to generate pulses for ST50 log instrument
+
+	static int pulse_mode = 1;				// defaults to ON
+	static int user_pulse_hz = 1000; 		// defaults to 1000 Hz PWM
+
+	static int pulse_hz	= -1;				// current hz being output
+
+	static bool pulse_state = false;		// whether pulse is on or off in last explicit toggle
+	static uint32_t last_pulse_toggle = 0;	// millis() at last explicit pulse toggle
+	static uint32_t pulse_interval_ms = 0;	// hz represented as millis for toggle mode
+
+	void initSpeedPulse()
+		// called initially and whenever user changes mode or user_pulse_hz
+		// causes the pulse output to re-initialize
+	{
+		pinMode(PIN_SPEED_PULSE,OUTPUT);
+		digitalWrite(PIN_SPEED_PULSE,0);
+
+		pulse_hz = -1;
+		pulse_state = false;
+		last_pulse_toggle = 0;
+		pulse_interval_ms = 0;
+	}
+
+	void instSimulator::setSpeedPulseMode(int mode)
+	{
+		if (mode<PULSE_MODE_OFF || mode>PULSE_MODE_WATER)
+		{
+			my_error("Illegal PULSE_MODE(%d)",mode);
+		}
+		else
+		{
+			display(0,"PULSE_MODE(%d)",mode);
+			pulse_mode = mode;
+			initSpeedPulse();
+		}
+	}
+	void instSimulator::setSpeedPulseHz(int hz)
+	{
+		if (hz<0)
+		{
+			my_error("Illegal PULSE_HZ(%d)",hz);
+		}
+		else
+		{
+			display(0,"PULSE_HZ(%d)",hz);
+			user_pulse_hz = hz;
+			initSpeedPulse();
+		}
+	}
+
+
+	void doPulses()
+	{
+		if (!pulse_mode)
+			return;
+
+		int hz = 0;
+		if (pulse_mode == PULSE_MODE_ON)
+		{
+			hz = user_pulse_hz;
+		}
+		else	// PULSE_MODE_WATER
+		{
+			#define HZ_PER_KNOT  		5.6
+			#define FUDGE_FACTOR 		1.0
+
+			// when using explicit toggling, at less than 18 hz,
+			// apparently the formula falls off for the ST_LOG instrument
+			// and we need to increase the hz by a fudge factor.
+
+			float speed = boat_sim.getWaterSpeed();
+			hz = round(speed * HZ_PER_KNOT);
+			if (hz < 18)
+				hz = round(speed * HZ_PER_KNOT * FUDGE_FACTOR);
+		}
+
+		// if the pulse frequency has changed, setup PWM or restart explicit toggle
+
+		if (pulse_hz != hz)
+		{
+			pulse_hz = hz;
+			pulse_state = false;
+			last_pulse_toggle = 0;
+			pulse_interval_ms = 0;
+			pinMode(PIN_SPEED_PULSE, OUTPUT);
+			digitalWrite(PIN_SPEED_PULSE,0);
+			if (!pulse_hz)
+			{
+				display(0,"pulse_hz==0; pin forced low",0);
+				return;;
+			}
+
+			if (pulse_hz >= 18)
+			{
+				// Use PWM for higher frequencies
+				display(0,"using PWM Hz(%d)", pulse_hz);
+				pinMode(PIN_SPEED_PULSE, OUTPUT);
+				analogWriteFrequency(PIN_SPEED_PULSE, pulse_hz);
+				analogWrite(PIN_SPEED_PULSE, 128); // 50% duty
+			}
+			else
+			{
+				// Use manual toggling for lower frequencies
+				pulse_interval_ms = 500.0 / pulse_hz;
+				last_pulse_toggle = millis();  // reset timer
+				display(0,"using MS timer Hz(%d) MS(%d)",pulse_hz,pulse_interval_ms);
+			}
+		}
+		else if (pulse_hz < 18)	// implement manual toggling
+		{
+			uint32_t pulse_now = millis();
+			if (pulse_now - last_pulse_toggle >= pulse_interval_ms)
+			{
+				last_pulse_toggle = pulse_now;
+				pulse_state = !pulse_state;
+				display(1,"MS pulse(%d)",pulse_state);
+				digitalWrite(PIN_SPEED_PULSE, pulse_state ? HIGH : LOW);
+			}
+		}
+	}
+#endif
 
 
 //----------------------------------------------------
@@ -83,7 +236,11 @@ void instSimulator::saveToEEPROM()
 	}
 	EEPROM.write(offset++,g_FWD);
 	EEPROM.write(offset++,getE80Filter());
-	display(dbg_eeprom,"wrote FWD=%02x to EEPROM",g_FWD);
+	EEPROM.write(offset++,g_GP8_FUNCTION);
+	display(dbg_eeprom,"wrote FWD=%02x FWD=%02x GP8_FUNCTION=%02x to EEPROM",
+		g_FWD,
+		getE80Filter(),
+		g_GP8_FUNCTION);
 }
 
 
@@ -109,11 +266,14 @@ void instSimulator::loadFromEEPROM()
 	int e80_filter = EEPROM.read(offset++);
 	display(dbg_eeprom,"got E80_FILTER=%d",e80_filter);
 	setE80Filter(e80_filter);
-
-	display(dbg_eeprom,"got FWD=%02x",g_FWD);
-
+	int fxn = EEPROM.read(offset++);
+	if (fxn == 255)	// illegal init value
+		fxn = 0;
+	display(dbg_eeprom,"got GP8_FUNCTION=%02x",fxn);
+	setGP8Function(fxn);
 	sendBinaryState();
 }
+
 
 
 //-----------------------------------------------------
@@ -176,7 +336,7 @@ void instSimulator::sendBinaryState()
 	
 	display(send_state,"sendBinaryState()",0);
 	proc_entry();
-	uint8_t buf[BINARY_HEADER_LEN + NUM_INSTRUMENTS + NUM_PORTS + 2];
+	uint8_t buf[BINARY_HEADER_LEN + NUM_INSTRUMENTS + NUM_PORTS + 3];
 	int offset = startBinary(buf,BINARY_TYPE_PROG);
 	display(send_state+1,"offset after header=%d",offset);
 	for (int i=0; i<NUM_INSTRUMENTS; i++)
@@ -192,16 +352,66 @@ void instSimulator::sendBinaryState()
 	}
 	offset = binaryUint8(buf,offset,g_FWD);
 	offset = binaryUint8(buf,offset,getE80Filter());
+	offset = binaryUint8(buf,offset,g_GP8_FUNCTION);
 
 	endBinary(buf,offset);
 	display_bytes(send_state+1,"sending",buf,offset);
 	proc_leave();
 	Serial.write(buf,offset);
-	#ifdef SERIAL_ESP32
-		if (udp_enabled)
+
+	#ifdef WITH_TB_ESP32
+		if (doTbEsp32())
 			SERIAL_ESP32.write(buf,offset);
 	#endif
 }
+
+
+
+void instSimulator::setGP8Function(uint8_t fxn)
+{
+	if (g_GP8_FUNCTION != fxn)
+	{
+		display(0,"setGPSFunction(%d)",fxn);
+		#if PIN_SPEED_PULSE
+			if (fxn == GP8_FUNCTION_PULSE)
+			{
+				initSpeedPulse();
+			}
+			else
+			{
+				pinMode(PIN_SPEED_PULSE,INPUT);
+			}
+		#else
+			warning(0,"PIN_SPEED_PULSE==0; GP8 FUNCTION does nothing");
+		#endif
+
+		#ifdef WITH_TB_ESP32
+			if (fxn == GP8_FUNCTION_PULSE)
+			{
+				pinMode(PIN_UDP_ENABLE,INPUT_PULLDOWN);
+				SERIAL_ESP32.begin(921600);
+				delay(500);
+				display(0,"SERIAL_ESP32 started",0);
+			}
+		#else
+			warning(0,"WITH_TB_ESP32==0; GP8 FUNCTION does nothing");
+		#endif
+		
+		#ifdef WITH_NEO6M
+			if (fxn == GP8_FUNCTION_NEO6M)
+				initNeo6M_GPS();
+		#else
+			warning(0,"WITH_NEO6M==0; GP8 FUNCTION does nothing");
+		#endif
+
+
+		if (!fxn)
+			warning(0,"GP8 FUNCTION turned off",0);
+
+		g_GP8_FUNCTION = fxn;
+	}
+}
+
 
 
 //----------------------------------------------------
@@ -229,31 +439,6 @@ void instSimulator::init()
 
 	nmea2000.init();
 
-	#ifdef SERIAL_ESP32
-		// Serial5 is always opened if SERIAL_ESP32 is defined,
-		// but it is only polled/written to if PIN_UDP_ENABLE
-		// is high.
-
-		pinMode(PIN_UDP_ENABLE,INPUT_PULLDOWN);
-		udp_enabled = digitalRead(PIN_UDP_ENABLE);
-
-		display(0,"starting SERIAL_ESP32 udp_enabled=%d",udp_enabled);
-
-		SERIAL_ESP32.begin(921600);
-		delay(500);
-		display(0,"SERIAL_ESP32 started",0);
-
-		if (udp_enabled)
-		{
-			extraSerial = &SERIAL_ESP32;
-			display(0,"starting extraSerial = SERIAL_ESP32",0);
-		}
-	#endif
-
-	#ifdef TEST_NEO6M
-		initNeo6M_GPS();
-	#endif
-
 	//---------------------------------
 	// boatSimulator initialization
 	//---------------------------------
@@ -276,9 +461,18 @@ void instSimulator::init()
 
 	loadFromEEPROM();
 
+	// initialize the GP8 General purpose state
+
+
 	proc_leave();
 	display(0,"instSimulator::init() finished",0);
 }
+
+
+
+
+
+
 
 
 
@@ -361,24 +555,28 @@ void handleStPort(
 
 void instSimulator::run()
 {
-	#ifdef TEST_NEO6M
-		doNeo6M_GPS();
+	#if WITH_NEO6M
+		if (g_GP8_FUNCTION == GP8_FUNCTION_NEO6M)
+			doNeo6M_GPS();
 	#endif
 
-	#ifdef SERIAL_ESP32
-		bool enabled = digitalRead(PIN_UDP_ENABLE);
-		if (udp_enabled != enabled)
+	#if WITH_TB_ESP32
+		if (g_GP8_FUNCTION == GP8_FUNCTION_ESP32)
 		{
-			udp_enabled = enabled;
-			if (enabled)
+			bool enabled = digitalRead(PIN_UDP_ENABLE);
+			if (udp_enabled != enabled)
 			{
-				extraSerial = &SERIAL_ESP32;
-				display(0,"attaching extraSerial to SERIAL_ESP32",0);
-			}
-			else
-			{
-				display(0,"detaching extraSerial from SERIAL_ESP32",0);
-				extraSerial = 0;
+				udp_enabled = enabled;
+				if (enabled)
+				{
+					extraSerial = &SERIAL_ESP32;
+					display(0,"attaching extraSerial to SERIAL_ESP32",0);
+				}
+				else
+				{
+					display(0,"detaching extraSerial from SERIAL_ESP32",0);
+					extraSerial = 0;
+				}
 			}
 		}
 	#endif
@@ -497,6 +695,13 @@ void instSimulator::run()
 		static uint8_t datagram[MAX_ST_BUF];
 		handleStPort(true,&last_st_in,&last_st_out,&outp,&dlen,datagram,SERIAL_ST2);
 	}
+
+	#if PIN_SPEED_PULSE
+		if (g_GP8_FUNCTION == GP8_FUNCTION_PULSE)
+			doPulses();
+	#endif
+
+
 }	// instSimulator::run()
 
 

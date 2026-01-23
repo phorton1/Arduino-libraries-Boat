@@ -29,8 +29,6 @@
 
 #define MAX_PRN 	32
 
-#define NEO_SERIAL 	Serial5
-
 #define SAT_IN_VIEW     		0x01   // appeared in GSV this cycle
 #define SAT_USED_IN_SOLUTION    0x02   // listed in GSA (used in solution)
 
