@@ -492,7 +492,12 @@ static void parseNeo0183(const char *msg)
 			int prn = tok[idx].toInt();		// get the prn, where ,, might, but shouldn't == 0
 			if (prn<=0 || prn>MAX_PRN)		// and it defintitely should not be 0 or negative
 			{
-				my_error("INVALID GSV PRN(%d)!!!!!",prn);
+				// coPilot says PRNSs > 32 are likely GLONASS and
+				// can be ignored.  GLONASS can be disable by UBX protocol,
+				// but the larger issues is that UBX protocol is probably
+				// "better" than NMEA0183 for using the neo6m.
+
+				warning(dbg_neo+1,"INVALID GSV PRN(%d)!!!!!",prn);
 				continue;
 			}
 
