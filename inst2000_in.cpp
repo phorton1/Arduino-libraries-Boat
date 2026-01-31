@@ -312,21 +312,25 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			uint8_t sat_index = 0;
 			tSatelliteInfo sat_info;
 
-			if (ParseN2kPGN129540(msg, sat_index, sat_info))
+			while (ParseN2kPGN129540(msg, sat_index, sat_info))
 			{
 				msg_handled = true;
 				if (b_mon_sensors || b_mon_ais_gps)
-					display(0,"%3d(%d) sat_view : index(%d) PRN(%d) elev(%0.3f) azimuth(%0.3f) SNR(%0.1f)",
+				{
+					display(0,"%3d(%d) sat_view : index(%d) PRN(%3d) elev(%2.0f) azimuth(%3.0f) SNR(%2.0f) used(%d)",
 						msg.Source,
 						msg_counter,
 						sat_index,
 						sat_info.PRN,
-						sat_info.Elevation,
-						sat_info.Azimuth,
-						sat_info.SNR);
+						RadToDeg(sat_info.Elevation),
+						RadToDeg(sat_info.Azimuth),
+						sat_info.SNR,
+						sat_info.UsageStatus);
+				}
+				sat_index++;
 			}
-			else
-				my_error("Parsing PGN_GNSS_SATS_IN_VIEW",0);
+			// else
+			//	my_error("Parsing PGN_GNSS_SATS_IN_VIEW",0);
 		}
 		else if (msg.PGN == PGN_AIS_STATIC_B_PART_A)
 		{
