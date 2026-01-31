@@ -496,9 +496,9 @@ static String decodeST(uint16_t st, const uint8_t *dg, const char **p_name)
 		retval += ")";
 		if (num_sats > 1)
 		{
-			uint8_t prec = dg[2];
-			retval += " prec(";
-			retval += prec;
+			uint8_t hdop = dg[2];
+			retval += " hdop(";
+			retval += hdop;
 			retval += ")";
 		}
 	}
@@ -933,16 +933,165 @@ static String decodeST(uint16_t st, const uint8_t *dg, const char **p_name)
 
 
 
+	//	a5 98 00 00 00 00 00 00 00 00 00						unknown
+	//	a5 b5 00 04 80 00 00 00									unknown
 
 
-	else if (st == ST_SAT_DETAIL)	// 0x1a5
+	//	a5 0c 2f 00 64 00 38 01 50 00 40 00 00 00 00			unknown
+	//	a5 8d 20 00 12 00 18 03 00 07 40 06 00 00 00 02			unknown
+	//	a5 57 10 d2 00 00 00 10 00 00							DET_INFO
+	//	a5 0d 22 00 b2 00 18 06 90 07 40 14 00 38 00 02			XD form
+	//	a5 2d 3c 00 50 00 08 05 20 07 40 0d 00 14 00 02			XD form
+	//	a5 74 00 00 00 00 00									DET_IDS
+
+	else if (st == ST_SAT_DETAIL ||	// 0x1a5
+			 st == 0x1a7)			// special SBAS/fiff SET message "a7 09 85 82 47 42 8b 00 00 00 00 76"
 	{
-		if (dg[1] == 0x57)
-			*p_name = "SAT_DETAIL1";
-		else if (dg[1] == 0x74)
-			*p_name = "SAT_DETAIL2";
+		/* if (dg[1] == 0x0c)
+			*p_name = "SAT_DET_U0C";
 		else
+		if (dg[1] == 0x8d)
+			*p_name = "SAT_DET_U8D";
+		else */
+
+		if (dg[1] == 0x98)
+			*p_name = "SAT_DET_U98";
+		else if (dg[1] == 0xb5)
+			*p_name = "SAT_DET_UB5";
+
+
+		else if (dg[1] == 0x57)
+		{
+			//  0   1   2   3  4  5  6  7  8  9
+			// A5  57  QQ  HH ?? AA GG ZZ YY DD   GPS and DGPS Fix Info
+			//	Signal Quality= QQ&0xF, QQ&0x10: Signal Quality available flag
+			//	HDOP= HH&0x7C, HH&0x80: HDOP available flag
+			//	Antenna Height= AA
+			//	Number of Sats= (QQ&0xE0)/16+(HH&0x1), HH&0x2: NumSats available flag
+			//	GeoSeperation= GG*16 (-2048....+2047 meters)
+			//	Differential age=(ZZ&0xE0)/2+(YY&0xF), YY&0x10: Diff. age available flag
+			//	Differential Station ID=(YY&0xC0)*4+DD, YY&0x20: Diff.St.ID available flag
+			//	Corresponding NMEA sentences: GGA, RMC, GSV, GLL, GGA
+
+			*p_name = "SAT_DET_INF";
+			bool qflag = dg[2] & 0x10 ? 1 : 0;
+			uint8_t quality = dg[2] & 0x0f;
+
+			bool hflag = dg[3] & 0x80 ? 1 : 0;
+			uint8_t hdop = (dg[3] & 0x7c)>>2;
+
+			bool nflag = dg[3] & 0x2 ? 1 : 0;
+			uint8_t nsats = ((dg[2] & 0xe0) >> 4) + (dg[3] & 0x01);
+
+			uint8_t question = dg[4];
+			uint8_t ant_height = dg[5];
+
+			uint16_t g_sep = (dg[6] * 16);
+
+			bool dflag = dg[8] & 0x10 ? 1 : 0;
+			bool iflag = dg[8] & 0x20 ? 1 : 0;
+
+			uint8_t dage = ((dg[7] & 0xe0) >> 1) + (dg[8] & 0x0f);
+			uint16_t did = ((dg[8] & 0xc0) << 2) + dg[9];
+
+			retval = "qflag(";
+			retval += qflag;
+			retval += ") qual(";
+			retval += quality;
+			retval += ") hflag(";
+			retval += hflag;
+			retval += ") hdop(";
+			retval += hdop;
+			retval += ") nflag(";
+			retval += nflag;
+			retval += ") nsats(";
+			retval += nsats;
+			retval += ") qq(";
+			retval += question;
+			retval += ") ant(";
+			retval += ant_height;
+			retval += ") gsep(";
+			retval += g_sep;
+			retval += ") diff(";
+			retval += dflag;
+			retval += ",";
+			retval += iflag;
+			retval += ",";
+			retval += dage;
+			retval += ",";
+			retval += did;
+			retval += ")";
+		}
+		else if (dg[1] == 0x74)
+		{
+			*p_name = "SAT_DET_IDS";
+			for (int i=0; i<5; i++)
+			{
+				if (dg[2+i])
+				{
+					retval += "ID(";
+					retval += dg[2+i];
+					retval += ") ";
+				}
+			}
+		}
+		else
+		{
 			*p_name = "SAT_DETAIL3";
+
+			uint8_t NN = dg[2];
+			uint8_t AA = dg[3];
+			uint8_t EE = dg[4];
+			uint8_t SS = dg[5];
+			uint8_t MM = dg[6];
+			uint8_t BB = dg[7];
+			uint8_t FF = dg[8];
+			uint8_t GG = dg[9];
+			uint8_t OO = dg[10];
+			uint8_t CC = dg[11];
+			uint8_t DD = dg[12];
+			uint8_t XX = dg[13];
+			uint8_t YY = dg[14];
+			uint8_t ZZ = dg[15];
+
+			uint8_t prn0 = (st == 0x1a7) ?
+				dg[2] : 			// apparently the wholle byte is the prn for special sbas/diff message
+				(NN & 0xfe) / 2;	// otherwise, note the /2 missing from knaufs doc
+
+			uint16_t az0 = AA*2 + (EE & 0x01);
+			uint8_t ele0 = (EE & 0xfe)/2;
+			uint8_t snr0 = (SS & 0xfe)/2;
+
+			uint8_t prn1 = (MM & 0x70)/2 + (BB & 0x07);
+			uint16_t az1 = (BB & 0xf8)*2 + (FF & 0x0f);
+			uint8_t ele1 = (FF & 0xf0)/2 + (GG & 0x07);
+			uint8_t snr1 = (GG & 0x80)/2 + (OO & 0x3f);
+
+			uint8_t prn2 = (CC & 0x3f);
+			uint16_t az2 = (CC & 0xc0)*2 + (DD & 0x7f);
+			uint8_t ele2 = (XX & 0x7f);
+			uint8_t snr2 = (YY & 0xfc)/2 + (ZZ & 0x01);
+
+			char buf[255];
+
+
+			if (st == 0x1a7)
+				sprintf(buf,"prn/az/ele/snr sat0(%d,%d,%d,%d) DIFF",
+					prn0,az0,ele0,snr0);
+
+			else if (dg[1] == 0x0c)
+				sprintf(buf,"prn/az/ele/snr sat0(%d,%d,%d,%d) sat1(%d,%d,%d,%d)",
+					prn0,az0,ele0,snr0,
+					prn1,az1,ele1,snr1);
+			else
+				sprintf(buf,"prn/az/ele/snr sat0(%d,%d,%d,%d) sat1(%d,%d,%d,%d) sat2(%d,%d,%d,%d)",
+					prn0,az0,ele0,snr0,
+					prn1,az1,ele1,snr1,
+					prn2,az2,ele2,snr2);
+
+			retval = buf;
+		}
+
 	}
 
 	return retval;
