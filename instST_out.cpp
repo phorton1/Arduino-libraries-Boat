@@ -341,343 +341,174 @@ void compassInst::sendSeatalk(bool port2)
 // GPS Instrument support
 //===========================================================
 
-#define GPS_NEW			1
-#define GPS_OLD			2
-#define GPS_CONSTANT	3
 
-#define HOW_GPS			GPS_NEW
+#define PRN_STATE_USED		2		// used in solution
+#define PRN_STATE_TRACKED	1		// tracked
+#define PRN_STATE_NONE		0		// "search"
 
+#define ST_MAX_VIEW			11		// max number of reported sats
+#define ST_MAX_TRACKED		9		// max number of tracked/used sats
+#define ST_TRACK_CUTOFF  	4		// number kept in A5 0C 2nd series message
 
-#if WITH_GPS_DEBUG
+static int num_series_sats = 0;
+static int num_tracked_sats = 0;
+static uint16_t sat_msg[5][MAX_ST_BUF];
+	// a set of four messages A5 messages
+	//		0x0d, 0x0c, 0x2d, and 0x8d
+	// 		corresponding to the expected order of A5 messages
+	// 		containing satellite geometry
+	// plus one for tha A5 74 message containing additional
+	// 		used tracked/satelite PRN_STATES
 
-	// debugging to correlate input snrs to output from NMEA2000
-
-	typedef struct {
-		uint8_t prn;
-		uint8_t sent_snr;
-		uint8_t rcd_snr;
-		uint8_t rcd_state;
-	} debug_rec_t;
-
-	static debug_rec_t debug_info[33];
-	static const uint8_t dbg_order[] = {22, 21, 14, 6, 19, 17, 5, 24, 13, 18, 11};
-
-	void dumpDebug()
+void initSatMessages()
+{
+	num_series_sats = 0;
+	num_tracked_sats = 0;
+	memset(sat_msg,0,5 * MAX_ST_BUF * sizeof(uint16_t));
+	for (int i=0; i<5; i++)
 	{
-		warning(0,"dump",0);
-		for (int i=0; i<sizeof(dbg_order); i++)
+		uint16_t *msg = sat_msg[i];
+		msg[0] = ST_SAT_DETAIL;	// 0x1A5;
+		if (i == 0) msg[1] = 0x0d;
+		if (i == 1)
 		{
-			uint8_t prn = dbg_order[i];
-			debug_rec_t *debug = &debug_info[prn];
-			if (debug->prn)
-			{
-				display(0,"   prn(%02d)   sent(0x%02x=%-3d)   rcd(0x%02x=%-3d)  %s(%d)",
-					debug->prn,
-					debug->sent_snr,debug->sent_snr,
-					debug->rcd_snr,debug->rcd_snr,
-					debug->rcd_state==6 ? "in use" :
-					debug->rcd_state==2 ? "track" :
-					debug->rcd_state ? "NON-ZERO" : "",
-					debug->rcd_state);
-			}
+			msg[1] = 0x0c;
+			msg[2] = 0x01;			// NN 2nd msg magic bit
+			// msg[14] = 0x95;			// not-understood, PRN_STATE bits required
 		}
+		if (i == 2) msg[1] = 0x2d;
+		if (i == 3) msg[1] = 0x8d;
+		if (i == 4) msg[1] = 0x74;
+	}
+}
+
+
+static void addPrnState(uint8_t prn, uint8_t prn_state)
+	// or in the high order bit if used in solution
+	// and put it in appropriate slot in given message
+{
+	if (prn_state & PRN_STATE_USED) prn |= 0x80;
+	if (num_tracked_sats < ST_TRACK_CUTOFF)
+	{
+		int slot = 11 + num_tracked_sats;		// goes into A5 C0 message at dg[11 + index]
+		sat_msg[1][slot] = prn;
+		num_tracked_sats++;
+	}
+	else if (num_tracked_sats < ST_MAX_TRACKED)
+	{
+		int slot = 2 + (num_tracked_sats - ST_TRACK_CUTOFF);
+		sat_msg[4][slot] = prn;
+		num_tracked_sats++;
+	}
+	else
+		warning(0,"Too many tracked sats prn(%d) state(%d)",prn,prn_state);
+}
+
+
+void addSatMessage(uint8_t prn, uint8_t ele, uint16_t az, uint8_t snr, uint8_t prn_state)
+	// prn_state
+	//	0 = not tracked or used ("search" on e80)
+	//  1 = tracked,
+	//	2 = use din solution
+{
+	int msg_num = 0;
+	int slot_num = 0;
+	if (num_series_sats >= ST_MAX_VIEW)
+	{
+		warning(0,"Too many viewed sats at prn(%d)",prn);
+		return;
+	}
+	if (num_series_sats < 3)
+	{
+		msg_num = 0;
+		slot_num = num_series_sats;
+	}
+	else if (num_series_sats < 5)
+	{
+		msg_num = 1;
+		slot_num = num_series_sats - 3;
+	}
+	else if (num_series_sats < 8)
+	{
+		msg_num = 2;
+		slot_num = num_series_sats - 5;
+	}
+	else
+	{
+		msg_num = 3;
+		slot_num = num_series_sats - 8;
+	}
+
+	uint16_t *msg = sat_msg[msg_num];
+
+	if (slot_num == 0)
+	{
+		 msg[2] |= (prn << 1) & 0xFE;					    // NN
+		 msg[3] |= (az >> 1) & 0xFF;                      	// AA
+		 msg[4] |= ((ele << 1) & 0xFE) | (az & 1);        	// EE
+		 msg[5] |= (snr << 1) & 0xFE;                     	// SS = top 4 of seven bits; knauf wrong about snr2 encoding;
+		 msg[6] |= snr & 0x07;								// MM gets bottom 3 of seven bits and prn0
+		 msg[6] |= 0x08;									// MM prn0 validity bit
+	}
+	else if (slot_num == 1)
+	{
+		 msg[6]  |= ((prn << 1) & 0x70);					// MM
+		 msg[7]  |= ((az >> 1) & 0xF8) | (prn & 0x07);    	// BB
+		 msg[8]  |= ((ele << 1) & 0xF0) | (az & 0x0F);    	// FF
+		 msg[9]  |= ((snr << 1) & 0x80) | (ele & 0x07);   	// GG
+		 msg[10] |= snr & 0x3F;                        		// OO
+		 msg[10] |= 0x40;									// OO prn1 validity bit
+	}
+	else
+	{
+		 msg[11] |= ((az >> 1) & 0xC0) | (prn & 0x3F);		// CC
+		 msg[12] |= (az & 0x7F) | ((ele & 0x40) << 1);    	// DD
+		 msg[13] |= ele & 0x7F;                         	// XX
+		 msg[14] |= (snr & 0x7f) << 1;                  	// YY
+		 msg[15] |= 0x02; 									// ZZ prn2 validity bit
+	}
+	num_series_sats++;
+
+	if (prn_state)
+		addPrnState(prn,prn_state);
+}
+
+
+//---------------------------------------------------
+// vestigial useful code to send constant datagrams
+//---------------------------------------------------
+
+#if 0
+	static uint16_t get_hex(char c)
+	{
+		return (c >='0' && c <= '9') ? c - '0' :
+		   (c - 'a' + 10);
 	}
 
 
-	void debug2000SatInView(uint8_t prn, uint8_t snr, uint8_t used)
+	static uint16_t get_byte(const char *data)
 	{
-		debug_rec_t *debug = &debug_info[prn];
-		debug->prn = prn;
-		debug->rcd_snr = snr;
-		debug->rcd_state = used;
-		if (prn == 11)
+		uint16_t value = (get_hex(data[0]) << 4) + get_hex(data[1]);
+		return value;
+	}
+
+	static void sendOne(bool port2, const char *comment, const char *data)
+	{
+		uint16_t this_dg[30];
+		int len = 0;
+		while (*data)
 		{
-			dumpDebug();
-			memset(debug_info,0,33 * sizeof(debug_rec_t));
+			this_dg[len] = get_byte(data);
+			if (!len)
+				this_dg[len] |= 0x100;
+			len++;
+			data += 2;
+			if (*data == ' ') data++;
 		}
+		// display(0,"sendOne(%d,%-20s,'%s')",len,comment,data);
+		queueDatagram(port2,this_dg);
 	}
 #endif
-
-
-//-----------------------------------------------
-// Newest Scheme - Called once per satellite
-//-----------------------------------------------
-// Prep for ne06m implementation
-
-#if HOW_GPS == GPS_NEW
-
-	#define PRN_STATE_USED		2		// used in solution
-	#define PRN_STATE_TRACKED	1		// tracked
-	#define PRN_STATE_NONE		0		// "search"
-
-	#define ST_MAX_VIEW			11		// max number of reported sats
-	#define ST_MAX_TRACKED		9		// max number of tracked/used sats
-	#define ST_TRACK_CUTOFF  	4		// number kept in A5 0C 2nd series message
-
-	static int num_series_sats = 0;
-	static int num_tracked_sats = 0;
-	static uint16_t sat_msg[5][MAX_ST_BUF];
-		// a set of four messages A5 messages
-		//		0x0d, 0x0c, 0x2d, and 0x8d
-		// 		corresponding to the expected order of A5 messages
-		// 		containing satellite geometry
-		// plus one for tha A5 74 message containing additional
-		// 		used tracked/satelite PRN_STATES
-
-	static void initSatMessages()
-	{
-		num_series_sats = 0;
-		num_tracked_sats = 0;
-		memset(sat_msg,0,5 * MAX_ST_BUF * sizeof(uint16_t));
-		for (int i=0; i<5; i++)
-		{
-			uint16_t *msg = sat_msg[i];
-			msg[0] = ST_SAT_DETAIL;	// 0x1A5;
-			if (i == 0) msg[1] = 0x0d;
-			if (i == 1)
-			{
-				msg[1] = 0x0c;
-				msg[2] = 0x01;			// NN 2nd msg magic bit
-				// msg[14] = 0x95;			// not-understood, PRN_STATE bits required
-			}
-			if (i == 2) msg[1] = 0x2d;
-			if (i == 3) msg[1] = 0x8d;
-			if (i == 4) msg[1] = 0x74;
-		}
-	}
-
-
-	static void addPrnState(uint8_t prn, uint8_t prn_state)
-		// or in the high order bit if used in solution
-		// and put it in appropriate slot in given message
-	{
-		if (prn_state & PRN_STATE_USED) prn |= 0x80;
-		if (num_tracked_sats < ST_TRACK_CUTOFF)
-		{
-			int slot = 11 + num_tracked_sats;		// goes into A5 C0 message at dg[11 + index]
-			sat_msg[1][slot] = prn;
-			num_tracked_sats++;
-		}
-		else if (num_tracked_sats < ST_MAX_TRACKED)
-		{
-			int slot = 2 + (num_tracked_sats - ST_TRACK_CUTOFF);
-			sat_msg[4][slot] = prn;
-			num_tracked_sats++;
-		}
-		else
-			warning(0,"Too many tracked sats prn(%d) state(%d)",prn,prn_state);
-	}
-
-
-	static void addSatMessage(uint8_t prn, uint8_t ele, uint16_t az, uint8_t snr, uint8_t prn_state)
-		// prn_state
-		//	0 = not tracked or used ("search" on e80)
-		//  1 = tracked,
-		//	2 = use din solution
-	{
-	#if WITH_GPS_DEBUG
-		debug_info[prn].sent_snr = snr;
-	#endif
-
-
-		int msg_num = 0;
-		int slot_num = 0;
-		if (num_series_sats >= ST_MAX_VIEW)
-		{
-			warning(0,"Too many viewed sats at prn(%d)",prn);
-			return;
-		}
-		if (num_series_sats < 3)
-		{
-			msg_num = 0;
-			slot_num = num_series_sats;
-		}
-		else if (num_series_sats < 5)
-		{
-			msg_num = 1;
-			slot_num = num_series_sats - 3;
-		}
-		else if (num_series_sats < 8)
-		{
-			msg_num = 2;
-			slot_num = num_series_sats - 5;
-		}
-		else
-		{
-			msg_num = 3;
-			slot_num = num_series_sats - 8;
-		}
-
-		uint16_t *msg = sat_msg[msg_num];
-
-		if (slot_num == 0)
-		{
-			 msg[2] |= (prn << 1) & 0xFE;					    // NN
-			 msg[3] |= (az >> 1) & 0xFF;                      	// AA
-			 msg[4] |= ((ele << 1) & 0xFE) | (az & 1);        	// EE
-			 msg[5] |= (snr << 1) & 0xFE;                     	// SS = top 4 of seven bits; knauf wrong about snr2 encoding;
-			 msg[6] |= snr & 0x07;								// MM gets bottom 3 of seven bits and prn0
-			 msg[6] |= 0x08;									// MM prn0 validity bit
-		}
-		else if (slot_num == 1)
-		{
-			 msg[6]  |= ((prn << 1) & 0x70);					// MM
-			 msg[7]  |= ((az >> 1) & 0xF8) | (prn & 0x07);    	// BB
-			 msg[8]  |= ((ele << 1) & 0xF0) | (az & 0x0F);    	// FF
-			 msg[9]  |= ((snr << 1) & 0x80) | (ele & 0x07);   	// GG
-			 msg[10] |= snr & 0x3F;                        		// OO
-			 msg[10] |= 0x40;									// OO prn1 validity bit
-		}
-		else
-		{
-			 msg[11] |= ((az >> 1) & 0xC0) | (prn & 0x3F);		// CC
-			 msg[12] |= (az & 0x7F) | ((ele & 0x40) << 1);    	// DD
-			 msg[13] |= ele & 0x7F;                         	// XX
-			 msg[14] |= (snr & 0x7f) << 1;                  	// YY
-			 msg[15] |= 0x02; 									// ZZ prn2 validity bit
-		}
-		num_series_sats++;
-
-		if (prn_state)
-			addPrnState(prn,prn_state);
-	}
-#endif	// GPS_NEW
-
-
-//-------------------------------------------------
-// Old scheme called once per message
-//-------------------------------------------------
-
-#if HOW_GPS == GPS_OLD
-
-	void buildOne(bool port2, int type,
-		uint8_t prn0,  uint8_t ele0, uint16_t az0, uint8_t snr0,
-		uint8_t prn1,  uint8_t ele1, uint16_t az1, uint8_t snr1,
-		uint8_t prn2,  uint8_t ele2, uint16_t az2, uint8_t snr2)
-			// in a type1 message these last four params are the preset PRN_STATES
-	{
-	#if WITH_GPS_DEBUG
-		debug_info[prn0].sent_snr = snr0;
-		debug_info[prn1].sent_snr = snr1;
-		if (type != 1)
-			debug_info[prn2].sent_snr = snr2;
-	#endif
-
-
-		uint8_t LEN = 0x0d;
-		if (type == 1) LEN = 0x0c;
-		if (type == 2) LEN = 0x2d;
-		if (type == 3) LEN = 0x8d;
-
-		uint8_t NN,AA,EE,SS,MM,BB,FF,GG,OO,CC,DD,XX,YY,ZZ;
-
-		NN = (prn0 << 1) & 0xFE;			// knauf forgot to mention the shift
-		AA = (az0 >> 1) & 0xFF;
-		EE = ((ele0 << 1) & 0xFE) | (az0 & 1);
-		SS = (snr0 << 1) & 0xFE;			// top 4 of seven bits; knauf wrong about snr2 encoding;
-		MM = (snr0 & 0x07);					// bottom 3 of seven bits; knauf wrong about snr2 encoding;
-
-		MM |= ((prn1 << 1) & 0x70);
-		BB = ((az1 >> 1) & 0xF8) | (prn1 & 0x07);
-		FF = ((ele1 << 1) & 0xF0) | (az1 & 0x0F);
-		GG = ((snr1 << 1) & 0x80) | (ele1 & 0x07);
-		OO = snr1 & 0x3F;
-
-		CC = ((az2 >> 1) & 0xC0) | (prn2 & 0x3F);
-		DD = (az2 & 0x7F) | ((ele2 & 0x40) << 1);
-		XX = ele2 & 0x7F;
-		YY = (snr2 & 0x7f) << 1;				// knauf wrong about snr2 encoding; its not YY=((snr2 << 2) & 0xFC);
-		ZZ = 0;									// knauf wrong about snr2 encoding; its not ZZ=snr2 & 0x01;
-
-		// knauf totally missed the necessary validity bits for encodiung
-
-		if (type == 1)
-		{
-			NN |= 0x01;			// part of A5 0C message signature
-			if (prn0)
-				MM |= 0x08;		// prn0 entry validity bit
-			if (prn1)
-				OO |= 0x40;		// prn1 entry validity bit
-		}
-		else // if (type == 0)
-		{
-			if (prn0)
-				MM |= 0x08;		// prn0 entry validity bit
-			if (prn1)
-				OO |= 0x40;		// prn1 entry validity bit
-			if (prn2)
-				ZZ |=  0x02;    // prn2 entry validity bit
-		}
-
-		dg[0] = 0x1a5;
-		dg[1] = LEN;
-
-		dg[2] = NN;
-		dg[3] = AA;
-		dg[4] = EE;
-		dg[5] = SS;
-		dg[6] = MM;
-		dg[7] = BB;
-		dg[8] = FF;
-		dg[9] = GG;
-		dg[10] = OO;
-
-		if (type == 1)
-		{
-			dg[11] = prn2;
-			dg[12] = ele2;
-			dg[13] = az2;
-			dg[14] = snr2;
-		}
-		else
-		{
-			dg[11] = CC;
-			dg[12] = DD;
-			dg[13] = XX;
-			dg[14] = YY;
-			dg[15] = ZZ;
-		}
-
-		queueDatagram(port2,dg);
-	}
-#endif	// GPS_OLD
-
-
-//-----------------------------------------
-// old and new - send constant datagrams
-//-----------------------------------------
-
-
-static uint16_t get_hex(char c)
-{
-	return (c >='0' && c <= '9') ? c - '0' :
-	   (c - 'a' + 10);
-}
-
-
-static uint16_t get_byte(const char *data)
-{
-	uint16_t value = (get_hex(data[0]) << 4) + get_hex(data[1]);
-	return value;
-}
-
-static void sendOne(bool port2, const char *comment, const char *data)
-{
-	uint16_t this_dg[30];
-	int len = 0;
-	while (*data)
-	{
-		this_dg[len] = get_byte(data);
-		if (!len)
-			this_dg[len] |= 0x100;
-		len++;
-		data += 2;
-		if (*data == ' ') data++;
-	}
-	// display(0,"sendOne(%d,%-20s,'%s')",len,comment,data);
-	queueDatagram(port2,this_dg);
-}
-
 
 
 
@@ -710,9 +541,6 @@ void gpsInst::sendSeatalk(bool port2)
 	display(dbg_data,"gpsInst:sendSeatalk(%d)",port2);
 	proc_entry();
 
-
-#if HOW_GPS == GPS_CONSTANT
-	
 	//-------------------------------------------------------
 	// recorded from RS125
 	//-------------------------------------------------------
@@ -729,22 +557,6 @@ void gpsInst::sendSeatalk(bool port2)
 	//		133	In Use	=====		261	035
 	//
 	// HDOP: 3.0, SD Fix (status)  lat/lon,  date/time  Dataum WGS1984
-
-	sendOne(port2,"ST_SAT_INFO",		"57 50 02");                                             // num_sats(5) hdop(2)
-	sendOne(port2,"ST_SAT_DET_INF ",	"a5 57 51 8f 00 26 00 00 00 00");                        // qflag(1) qual(2) hflag(1) hdop(3) nflag(1) nsats(5) qq(0) ant(38) gsep(0) diff(0,0,0,0)
-	sendOne(port2,"ST_SAT_DETAIL0",		"a5 0d 2c 43 77 52 2b 5d 7d 11 6d 4e 0f 27 56 02");
-	sendOne(port2,"ST_SAT_DETAIL1",		"a5 0c 0d 01 49 00 28 0b 4f 03 40 85 91 8e 95");
-	sendOne(port2,"ST_SAT_DETAIL2",		"a5 2d 22 1e 3c 32 0d 65 3e 14 69 98 0c 0d 00 02");      //
-	sendOne(port2,"ST_SAT_DETAIL3",		"a5 8d 1a 65 0a 42 0d 00 00 00 00 00 00 00 00 00");      //
-	sendOne(port2,"ST_SAT_USED",		"a5 74 96 00 00 00 80");
-	sendOne(port2,"ST_SATS_DONE",		"a5 98 00 00 00 00 00 00 00 00 00");
-	sendOne(port2,"ST_SOG",				"52 01 02 00");                                          // knots(0.20)
-	sendOne(port2,"ST_COG",				"53 90 0d");                                             // cog(338.00)
-	sendOne(port2,"ST_LATLON",			"58 05 09 4e 78 52 39 d2");                              // lat(9°20.088)  lon(-82°14.802)
-
-	// and falls through to send out the teensy system DATE_TIME
-
-#else
 
 	//-----------------------
 	// ST_SAT_INFO
@@ -769,8 +581,6 @@ void gpsInst::sendSeatalk(bool port2)
 	// note we send hdop 3 from this as opposed to 2 above
 
 	if (1)
-		sendOne(port2,"ST_SAT_DET_INF ",	"a5 57 51 8f 00 26 00 00 00 00");                        // qflag(1) qual(2) hflag(1) hdop(3) nflag(1) nsats(5) qq(0) ant(38) gsep(0) diff(0,0,0,0)
-	else
 	{
 		display(dbg_data,"st%d SatDetail(1)",port2);
 
@@ -811,8 +621,8 @@ void gpsInst::sendSeatalk(bool port2)
 	// SAT_DETAIL1..4 && SATS_USED
 	//-----------------------------------
 
-	#if HOW_GPS == GPS_NEW
-
+	if (1)
+	{
 		initSatMessages();
 
 		//			  prn ele az   snr used
@@ -832,39 +642,29 @@ void gpsInst::sendSeatalk(bool port2)
 		{
 			queueDatagram(port2,sat_msg[i]);
 		}
-		
-	#else	// GPS OLD
-		
-		//  prn ele  az   snr
-		buildOne(port2, 0,
-			22,	59,  135, 41,
-			21, 57,  189, 45,
-			14, 39,  143, 43);
-		buildOne(port2, 1,
-			6,  36,  3,	  0,
-			19, 35,  31,  0,
-			0x85, 0x91, 0x8e, 0x95 );	 // PRN_STATES for TYPE1
-
-		buildOne(port2, 2,
-			17, 30,  60,  29,
-			 5, 28, 206,  41,
-			24, 13, 268,  0);
-		buildOne(port2, 3,
-			13,  13, 292, 37,
-			18,	 44, 45,  22,		// added in use
-			11,  37, 90,  33);		// added in use
-		
-		sendOne(port2,"ST_SAT_USED",		"a5 74 96 92 8B 00 80");
-			// added                                  ^^ ^^
-		
-	#endif
+	}
 
 
 	//----------------------------------
 	// SATS_DONE
 	//----------------------------------
 
-	sendOne(port2,"ST_SAT_UNKNOWN_98",	"a5 98 00 00 00 00 00 00 00 00 00");
+	if (1)
+	{
+		// sendOne(port2,"ST_SAT_UNKNOWN_98",	"a5 98 00 00 00 00 00 00 00 00 00");
+		dg[0] = ST_SAT_DETAIL;
+		dg[1] = 0x98;
+		dg[2] = 0;
+		dg[3] = 0;
+		dg[4] = 0;
+		dg[5] = 0;
+		dg[6] = 0;
+		dg[7] = 0;
+		dg[8] = 0;
+		dg[9] = 0;
+		dg[10] = 0;
+		queueDatagram(port2,dg);
+	}
 
 
 	//------------------------------------------
@@ -956,8 +756,6 @@ void gpsInst::sendSeatalk(bool port2)
 		dg[3] = (ispeed >> 8) & 0xff;
 		queueDatagram(port2,dg);
 	}
-
-#endif	// !GPS_CONSTANT
 
 
 	//------------------------------------------

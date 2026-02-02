@@ -315,13 +315,6 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			while (ParseN2kPGN129540(msg, sat_index, sat_info))
 			{
 				msg_handled = true;
-
-				#if WITH_GPS_DEBUG
-					extern void debug2000SatInView(uint8_t prn, uint8_t snr, uint8_t used);
-					debug2000SatInView(sat_info.PRN, round(sat_info.SNR), sat_info.UsageStatus);
-					// in instST_out.cpp
-				#endif
-				
 				if (b_mon_sensors || b_mon_ais_gps)
 				{
 					display(0,"%3d(%d) sat_view : index(%d) PRN(%3d) elev(%2.0f) azimuth(%3.0f) SNR(%2.0f) used(%d)",

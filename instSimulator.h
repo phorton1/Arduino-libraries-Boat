@@ -68,11 +68,6 @@
 #define WITH_TB_ESP32	 	1		// 0 to turn off
 #define WITH_NEO6M			1		// 0 to turn off
 
-#define WITH_GPS_DEBUG  	0 
-	// enables inst2000_in.cpp to send messages to instST_out.cpp
-	// to verify snrs sent by ST using NMEA2000 echo
-
-
 
 //----------------------------------
 // constant defines
