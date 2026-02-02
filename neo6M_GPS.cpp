@@ -2,8 +2,7 @@
 // neo6M_GPS.cpp
 //----------------------------------------
 // The neo6m sends a burst of NMEA0183 messages every second.
-// If full debugging is turned on, the debugging can take enough time so that
-//		characters on the wire may be lost, resulting in checksum errors
+// We "frame" the burst as a "cycle" based on an idle time of at least 50ms
 //
 // IMPORTANT NOTE REGARDING PRNS
 //		GPS uses 1..32
@@ -12,20 +11,39 @@
 //		BeiDou uses 1–63
 //		SBAS uses 120–158
 //		QZSS uses 193–199
+//
 // WE ARE ONLY USING GPS AND OUR ARRAY IS INDEXED BY PRN-1
 
 
-#include "instSimulator.h"
-#include "inst2000.h"
+#define NEO_HOW_ST		0			// NMEA2000 otherwise
+
+#ifndef NEO_SERIAL
+	#define NEO_SERIAL	Serial5
+#endif
+
+// #include "instSimulator.h"
 #include <myDebug.h>
-#include <N2kMessages.h>
 #include "TimeLib.h"
+#if NEO_HOW_ST
+	#include "instST.h"
+#else
+	#include "inst2000.h"
+	#include <N2kMessages.h>
+#endif
 
 
-#define dbg_neo			1			// 0,-1 = show parseNeo0183 info
+#define dbg_neo			0			// lifecycle
+
 #define dbg_raw			1			// 0 = show raw 0183 messages
+#define dbg_0183		1			// 0,-1 = show parseNeo0183 info
+#define dbg_neo_ST		0
 #define dbg_neo_2000	1			// 0,-1 = show sent 2000 pgns
 
+#define DBG_STATUS		1			// show msg every 100 parses + status advances
+
+
+#define FRAME_IDLE_TIME	50			// 50 ms idle defines a frame
+	// we skip first, possibly partial, frame after initialization
 
 #define MAX_PRN 	32
 
@@ -44,7 +62,7 @@ typedef struct
 
 typedef struct
 {
-    int    fix_type;
+    int    fix_type;			// NMEA0183 Fix type
     double lat;
     double lon;
     double altitude;
@@ -53,7 +71,8 @@ typedef struct
     float  pdop;
     float  sog;      			// knots
     float  cog;      			// degrees
-    int    sats_used;			// in solution from GSA
+	int    num_viewed;			// as per GSV
+    int    num_used;			// in solution as per GSA
     gps_sat_t sats[MAX_PRN];
     int    year;
     int    month;
@@ -68,28 +87,186 @@ typedef struct
 // we initialize with invalid values which can
 // be -1 for everything except for the lat, lon, and altitude doubles.
 
-static gps_model_t gps_out;
-static gps_model_t gps_in =
+static gps_model_t gps_model;
+static uint32_t last_receive_time = 0;
+static bool neo_started = 0;
+	// skip one frame to start
+
+// statics for progress indicators
+
+
+static int got_gsa = 0;
+#if DBG_STATUS
+	static int last_fix     = -1;
+	static int last_view    = -1;
+#endif
+
+
+static void initModel()
 {
-    .fix_type      = -1,				// must be 0..3 in NMEA0183
-    .lat           = N2kDoubleNA,		// can be negative after conversion
-    .lon           = N2kDoubleNA,		// can be negative after conversion
-    .altitude      = N2kDoubleNA,		// can be negative
-    .hdop          = -1.0f,
-    .vdop          = -1.0f,
-    .pdop          = -1.0f,
-    .sog           = -1.0f,
-    .cog           = -1.0f,
-    .sats_used     = -1,
-    .year          = -1,
-    .month         = -1,
-    .day           = -1,
-    .hour          = -1,
-    .minute        = -1,
-    .seconds       = -1.0f
+	memset(&gps_model,0,sizeof(gps_model));
+    gps_model.fix_type      = -1;					// must be 0..3 in NMEA0183
+
+	#if NEO_HOW_ST
+		gps_model.lat           = 0.00;				// ST just sends zeros until fix
+		gps_model.lon           = 0.00;
+		gps_model.altitude      = 0.00;
+	#else
+		gps_model.lat           = N2kDoubleNA;		// can be negative after conversion
+		gps_model.lon           = N2kDoubleNA;		// can be negative after conversion
+		gps_model.altitude      = N2kDoubleNA;		// can be negative
+	#endif
+
+	gps_model.hdop          = -1.0f;
+    gps_model.vdop          = -1.0f;
+    gps_model.pdop          = -1.0f;
+    gps_model.sog           = -1.0f;
+    gps_model.cog           = -1.0f;
+	gps_model.num_viewed 	= -1;
+    gps_model.num_used      = -1;
+    gps_model.year          = -1;
+    gps_model.month         = -1;
+    gps_model.day           = -1;
+    gps_model.hour          = -1;
+    gps_model.minute        = -1;
+    gps_model.seconds       = -1.0f;
+
+
+	got_gsa = 0;
+
+	#if DBG_STATUS
+		last_fix     = -1;
+		last_view    = -1;
+	#endif
 };
 
-// static int neo_started = 0;
+
+static void initCycle()
+{
+	got_gsa = 0;
+	for (int i=0; i<MAX_PRN; i++)
+	{
+		gps_model.sats[i].flags = 0;
+	}
+}
+
+
+
+//-----------------------------------------------------------
+// initialization
+//-----------------------------------------------------------
+
+static bool genuineNeoModule()
+	// Ironically, we dont need to configure a genuine module
+	// to not send GLONASS and Bedieu messages, and we CANNOT
+	// configure a clone to not send them.
+{
+    display(0,"Requesting UBX-MON-VER...",0);
+	const uint8_t ubx_mon_ver_request[] = {
+		0xB5,0x62,        // UBX header
+		0x0A,0x04,        // MON-VER
+		0x00,0x00,        // length = 0
+		0x0E,0x34         // checksum
+	};
+
+    NEO_SERIAL.write(ubx_mon_ver_request, sizeof(ubx_mon_ver_request));
+
+    uint32_t start = millis();
+    int state = 0;
+
+	#define MAX_VER_BUF  255
+	static char buf[MAX_VER_BUF+1];
+	uint16_t len = 0;
+    uint16_t count = 0;
+
+    while (1)
+	{
+		if (millis() - start > 300)
+		{
+			my_error("genuineNeoModule() UBX-MON_VER timeout",0);
+			return false;
+		}
+
+        if (!NEO_SERIAL.available()) {
+            yield();
+            continue;
+        }
+
+        uint8_t b = NEO_SERIAL.read();
+
+        switch (state) {
+
+            case 0: // hunt for 0xB5
+                if (b == 0xB5) state = 1;
+                break;
+
+            case 1: // hunt for 0x62
+                if (b == 0x62) state = 2;
+                else state = 0;
+                break;
+
+            case 2: // class
+                if (b != 0x0A)
+				{
+					my_error("genuineNeoModule() expected UBX class(0x0a) got 0x%02x",b);
+					return false;
+				}
+                state = 3;
+                break;
+
+            case 3: // id
+                if (b != 0x04)
+				{
+					my_error("genuineNeoModule() expected UBX id(0x04) got 0x%02x",b);
+					return false;
+				}
+                state = 4;
+                break;
+
+            case 4: // length LSB
+                len = b;
+                state = 5;
+                break;
+
+            case 5: // length MSB
+                len |= (uint16_t)b << 8;
+				if (len > MAX_VER_BUF)
+				{
+					my_error("genuineNeoModule() expected len<%d, got %d",MAX_VER_BUF,len);
+					return false;
+				}
+				state = 6;
+				break;
+
+            case 6: // read MON-VER payload
+                if (dbg_neo<=0)
+					Serial.write(b);
+				buf[count++] = b;
+
+                if (count == len)
+				{
+					buf[len] = 0;
+					if (dbg_neo<=0)
+						Serial.println();
+
+					// return TRUE if genuine neo module
+					// apparently the chinese were at least kind enough to not
+					// fake the genuine signature that looks something like
+					//
+					//		SW VERSION: 7.03 (45969)
+					//		HW VERSION: 00040007
+					//		EXT CORE 2.00 ...
+
+					if (strstr(buf, "SW VERSION:"))
+						return true;   // genuine u-blox
+					else
+						return false;  // clone
+				}
+				break;
+        }
+    }
+}
+
 
 
 void initNeo6M_GPS()
@@ -104,7 +281,6 @@ void initNeo6M_GPS()
 	// this revealed subtle bug that the parameters to add
 	// Then later, I added code to eading from a Neo6m GPS module using "regular"
 	// 8 bit serial datat.  NEO_SERIAL is defined as #define NEO_SERIAL Serial5
-	//
 	//
 	// This helped in that I stopped receiving gobs of checksum errors, but
 	// then highlighted the fact that the general use of the serial port
@@ -122,8 +298,13 @@ void initNeo6M_GPS()
 	// elements, rather than the number of bytes the bug went away and
 	// my program seems to work, and is undergoing further long-term testing.
 	
+	display(dbg_neo,"initNeo6M_GPS() called",0);
+	proc_entry();
+
 	#if 1
 		// Allocate a larger RX buffer for NEO_SERIAL
+		display(dbg_neo,"increasing NEO_SERIAL buffer size",0);
+
 		#define NUMBER_BUF_ELEMENTS 10240
 		static uint16_t serial1_rxbuf[NUMBER_BUF_ELEMENTS];
 		// And the use of uint8_t for the buffer is not correct
@@ -134,71 +315,25 @@ void initNeo6M_GPS()
 		// 		NEO_SERIAL.addMemoryForRead(serial1_rxbuf, sizeof(serial1_rxbuf));
 	#endif
 
+
+	neo_started = 0;
+	last_receive_time = 0;
+	initModel();
+
 	NEO_SERIAL.begin(9600);
-	display(0,"GPS_SERIAL5 started",0);
-	delay(500);
+	display(dbg_neo,"GPS_SERIAL5 started",0);
+	delay(300);
+
+	if (genuineNeoModule())
+		warning(dbg_neo,"GENUINE uBLOX NEO6M MODULE FOUND",0);
+	else
+		warning(dbg_neo,"CLONE NEO6M MODULE!!",0);
+
+	proc_leave();
+	display(dbg_neo,"initNeo6M_GPS() finished",0);
 }
 
 
-
-
-
-#if 0
-	// unused kept for posterities sake
-
-	void setNEOBaud(bool save, int baud)
-		// untried method from coPilot to change the module's
-		// baud rate and optionally save it persistently
-	{
-		const uint8_t set38400[] = {
-			0xB5,0x62,0x06,0x00,0x14,0x00,
-			0x01,0x00,0x00,0x00,0x00,0x00,
-			0x00,0x00,0x00,0x00,
-			0x00,0x96,0x00,0x00,   // 38400 LE
-			0x07,0x00,0x03,0x00,
-			0x00,0x00,
-			0xA2,0xB5
-		};
-
-		const uint8_t set9600[] = {
-			0xB5,0x62,0x06,0x00,0x14,0x00,
-			0x01,0x00,0x00,0x00,0x00,0x00,
-			0x00,0x00,0x00,0x00,
-			0x80,0x25,0x00,0x00,   // 9600 LE
-			0x07,0x00,0x03,0x00,
-			0x00,0x00,
-			0xC0,0x7E
-		};
-
-		const uint8_t saveCfg[] = {
-			0xB5,0x62,0x06,0x09,0x0D,0x00,
-			0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-			0x00,0x00,0x00,0x00,0x00,
-			0x17,0x31
-		};
-
-		const uint8_t *pkt = nullptr;
-		size_t len = 0;
-
-		if (baud == 38400) {
-			pkt = set38400;
-			len = sizeof(set38400);
-		} else if (baud == 9600) {
-			pkt = set9600;
-			len = sizeof(set9600);
-		} else {
-			return;   // unsupported baud
-		}
-
-		for (size_t i = 0; i < len; i++)
-			GPS_SERIAL5.write(pkt[i]);
-
-		if (save) {
-			for (size_t i = 0; i < sizeof(saveCfg); i++)
-				GPS_SERIAL5.write(saveCfg[i]);
-		}
-	}
-#endif	//0
 
 
 //-----------------------------------------------------------
@@ -298,64 +433,18 @@ static double getLon0183(const String &val, const String &ew)
 
 
 
-#if 0
-	void find_bug(const char *s)
-	{
-		if (debug_level)
-		{
-			my_error("BUG %s",s);
-			while (1) { delay(1000); }
-		}
-	}
-#endif
-
-
-
 static void parseNeo0183(const char *msg)
 {
 	display(dbg_raw, "parseNeo0183: %s", msg);
 	if (!checkOK(msg))
 		return;
 
-	static int last_fix     = -1;
-	static int last_view    = -1;
-	static int sats_in_view = 0;
-	static int num_msgs     = 0;
-
-    if (dbg_raw>0 && num_msgs++ % 100 == 0)
-	{
-        display(0,"parseNeo183(%d) secs(%d) fix_type=%d sats_in_view=%d sats_used=%d",
-			num_msgs, millis()/1000,gps_in.fix_type,
-			sats_in_view, gps_in.sats_used);
-		Serial.print("    View Sats: ");
-		for (int i=0; i<MAX_PRN; i++)
-		{
-			if (gps_out.sats[i].flags & SAT_IN_VIEW)
-			{
-				Serial.print(i+1);
-				Serial.print(" ");
-			}
-		}
-		Serial.println();
-		Serial.print("    Used Sats: ");
-		for (int i=0; i<MAX_PRN; i++)
-		{
-			if (gps_out.sats[i].flags & SAT_USED_IN_SOLUTION)
-			{
-				Serial.print(i+1);
-				Serial.print(" ");
-			}
-		}
-		Serial.println();
-	}
-
-
     String tok[20];
     int num_toks = tokenize0183(msg, tok, 20);
     if (num_toks < 0)
 	{
 		if (num_toks == 0)
-			warning(dbg_neo,"neo6M_GPS empty message",0);
+			warning(dbg_0183,"neo6M_GPS empty message",0);
 		return;
 	}
 
@@ -369,13 +458,13 @@ static void parseNeo0183(const char *msg)
     if (tok[0].endsWith("GGA"))
     {
         // fix type gotten preferentially from GSA
-		if (tok[7].length()) gps_in.sats_used = tok[7].toInt();
-        if (tok[8].length()) gps_in.hdop = tok[8].toFloat();
-        if (tok[9].length()) gps_in.altitude = tok[9].toFloat();
+		if (tok[7].length()) gps_model.num_used = tok[7].toInt();
+        if (tok[8].length()) gps_model.hdop = tok[8].toFloat();
+        if (tok[9].length()) gps_model.altitude = tok[9].toFloat();
 
-        display(dbg_neo, "GGA fix=%d used=%d hdop=%.1f alt=%.1f",
-			gps_in.fix_type, gps_in.sats_used,
-			gps_in.hdop, gps_in.altitude);
+        display(dbg_0183, "GGA fix=%d used=%d hdop=%.1f alt=%.1f",
+			gps_model.fix_type, gps_model.num_used,
+			gps_model.hdop, gps_model.altitude);
     }
     else if (tok[0].endsWith("GSA"))
     {
@@ -386,35 +475,24 @@ static void parseNeo0183(const char *msg)
 			return;
 		}
 
-		// the neo apparently sends out an empty GSA for GLONAS, and in addition
-		// it sends a 2nd GSA for some other constellation with a satellite
-		// that is not even "in view" sheesh.
-		//
-		// Since I moved the clearing of the used bits to the GSB end marker
-		// (our cycle transition), we can accept an empty record here now,
-		// and just note that "in_view" might not contain the used sats
+		// the clone neo apparently sends out an empty GSA for GLONAS, and in
+		// addition it may send another GSA for some other constellation with
+		// a satellite. We accept only the first GSA per cycle.
 
-		bool valid_gps = false;
-		for (int i=3; i<=14 && i<num_toks; i++)
+		if (got_gsa)
 		{
-			if (tok[i].length())
-			{
-				valid_gps = true;
-				break;
-			}
-		}
-		if (!valid_gps)
-		{
+			// Serial.println("    skipGSA");
 			proc_leave();
 			return;
 		}
+		got_gsa++;
 
 		// pdop is required by NMEA0183 spec but we treat it as optional
 
-        gps_in.fix_type = tok[2].toInt();
-		if (tok[15].length()) gps_in.pdop = tok[15].toFloat();
-        if (tok[16].length()) gps_in.hdop = tok[16].toFloat();
-        if (tok[17].length()) gps_in.vdop = tok[17].toFloat();
+        gps_model.fix_type = tok[2].toInt();
+		if (tok[15].length()) gps_model.pdop = tok[15].toFloat();
+        if (tok[16].length()) gps_model.hdop = tok[16].toFloat();
+        if (tok[17].length()) gps_model.vdop = tok[17].toFloat();
 
 		// mark used PRNs
 
@@ -426,30 +504,32 @@ static void parseNeo0183(const char *msg)
 			int prn = tok[i].toInt();
 			if (prn<=0 || prn>MAX_PRN)		// and it defintitely should not be 0 or negative
 			{
-				my_error("INVALID GSV PRN(%d)!!!!!",prn);
+				my_error("INVALID GSA PRN(%d)!!!!!",prn);
 				continue;
 			}
-			gps_in.sats[prn-1].flags |= SAT_USED_IN_SOLUTION;
+			gps_model.sats[prn-1].flags |= SAT_USED_IN_SOLUTION;
 			sprintf(&used_buf[b_ptr*3]," %02d",prn);
 			b_ptr++;
 		}
 		used_buf[b_ptr*3] = 0;
 
-        display(dbg_neo, "GSA fix=%d pdop=%s hdop=%s vdop=%s used: %s",
-            gps_in.fix_type,
+        display(dbg_0183, "GSA fix=%d pdop=%s hdop=%s vdop=%s used: %s",
+            gps_model.fix_type,
 			tok[15].c_str(),
 			tok[16].c_str(),
 			tok[17].c_str(),
 			used_buf);
 		
-		// debuging only if fix type changes
 
-        if (gps_in.fix_type != last_fix)
-        {
-            warning(0, "fix_type %d->%d at %lu",
-                last_fix, gps_in.fix_type, millis()/1000);
-            last_fix = gps_in.fix_type;
-        }
+		#if DBG_STATUS
+			// show fix type changes
+			if (gps_model.fix_type != last_fix)
+			{
+				warning(0, "fix_type %d->%d at %lu",
+					last_fix, gps_model.fix_type, millis()/1000);
+				last_fix = gps_model.fix_type;
+			}
+		#endif
     }
     else if (tok[0] == "$GPGSV")		//  tok[0].endsWith("GSV"))
     {
@@ -461,23 +541,15 @@ static void parseNeo0183(const char *msg)
 		//     it is not really important, the only thing that really
 		//	   matters is the lat/lon
 		
-        int total_msgs = tok[1].length() ? tok[1].toInt() : -1;		// used from this message to copy to gps_out
-        int msg_num    = tok[2].length() ? tok[2].toInt() : -1;		// used from this message to copy to gps_out
-        sats_in_view   = tok[3].length() ? tok[3].toInt() : -1;		// static only for debugging
+        int total_msgs = tok[1].length() ? tok[1].toInt() : -1;		// used from this message to copy to gps_model
+        int msg_num    = tok[2].length() ? tok[2].toInt() : -1;		// used from this message to copy to gps_model
+        if (tok[3].length())										// used only for debugging
+			gps_model.num_viewed = tok[3].toInt();
 
-        display(dbg_neo, "GSV %d/%d ideal sats_in_view=%d",
-            msg_num, total_msgs, sats_in_view);
+        display(dbg_0183, "GSV %d/%d ideal num_viewed=%d",
+            msg_num, total_msgs, gps_model.num_viewed);
 
-		// on the 1st msg we clear all the IN_VIEW bits
-		// as the "least incorrect" way to deal with NMEA0183
-
-		if (msg_num == 1)
-		{
-			for (int i=0; i<MAX_PRN; i++)
-				gps_in.sats[i].flags &= ~SAT_IN_VIEW;
-		}
-
-		// Then we loop through the PRNS presented in this GSV message and
+		// Loop through the PRNS presented in this GSV message and
 		// set their SAT_IN_VIEW bits and elev/azim/snr if provided with
 		// notion that we are maintaining old elev/azim/snr's as the
 		// last known values for satellites that come in and go out ov view
@@ -497,22 +569,22 @@ static void parseNeo0183(const char *msg)
 				// but the larger issues is that UBX protocol is probably
 				// "better" than NMEA0183 for using the neo6m.
 
-				warning(dbg_neo+1,"INVALID GSV PRN(%d)!!!!!",prn);
+				warning(dbg_0183+1,"INVALID GSV PRN(%d)!!!!!",prn);
 				continue;
 			}
 
-			gps_in.sats[prn-1].flags |= SAT_IN_VIEW;
+			gps_model.sats[prn-1].flags |= SAT_IN_VIEW;
 
 			// assign any elev,asim, or snr that is not ,,
 
 			if (tok[idx+1].length())
-				gps_in.sats[prn-1].elev = tok[idx+1].toInt();
+				gps_model.sats[prn-1].elev = tok[idx+1].toInt();
 			if (tok[idx+2].length())
-				gps_in.sats[prn-1].azim = tok[idx+2].toInt();
+				gps_model.sats[prn-1].azim = tok[idx+2].toInt();
 			if (tok[idx+3].length())
-				gps_in.sats[prn-1].snr  = tok[idx+3].toInt();
+				gps_model.sats[prn-1].snr  = tok[idx+3].toInt();
 
-            display(dbg_neo+1, "sat[%02d] prn(%d) elev=%s az=%s snr=%s",
+            display(dbg_0183+1, "sat[%02d] prn(%d) elev=%s az=%s snr=%s",
 				i,
 				prn,
 				tok[idx+1].c_str(),
@@ -522,39 +594,37 @@ static void parseNeo0183(const char *msg)
 
         proc_leave();
 
-        if (sats_in_view > last_view)
-        {
-			// debug only message to help me visualize acquisition
-            warning(0, "sats_in_view %d->%d at %lu",
-                last_view, sats_in_view, millis()/1000);
-            last_view = sats_in_view;
-        }
-
-		// COMPLETE THE CYCLE by copying gps_in to gps_out and
-		// clearing the USED bits for the next one
-
-		if (msg_num == total_msgs)
-		{
-			memcpy(&gps_out,&gps_in,sizeof(gps_model_t));
-			// clear used flags
-			for (int i=0; i<MAX_PRN; i++)
-				gps_in.sats[i].flags &= ~SAT_USED_IN_SOLUTION;
-
-		}
-		
+		#if DBG_STATUS
+			// show increasing number of sats in view
+			if (gps_model.num_viewed > last_view)
+			{
+				warning(0, "num_viewed %d->%d at %lu",
+					last_view, gps_model.num_viewed, millis()/1000);
+				last_view = gps_model.num_viewed;
+			}
+		#endif
     }
 
 	else if (tok[0].endsWith("RMC"))
 	{
 		// time: hhmmss.ss
+		int got_dt = 0;
+
 		if (tok[1].length() >= 6)
 		{
 			int hh = tok[1].substring(0, 2).toInt();
 			int mm = tok[1].substring(2, 4).toInt();
 			int ss = tok[1].substring(4, 6).toInt();
-			gps_in.hour   = hh;
-			gps_in.minute = mm;
-			gps_in.seconds = ss;
+			#if DBG_STATUS
+				if (gps_model.year == -1)
+				{
+					warning(0,"got time(%02d:%02d:%02d)",hh,mm,ss);
+				}
+			#endif
+			gps_model.hour   = hh;
+			gps_model.minute = mm;
+			gps_model.seconds = ss;
+			got_dt++;
 		}
 
 		// date: ddmmyy
@@ -563,36 +633,44 @@ static void parseNeo0183(const char *msg)
 			int dd = tok[9].substring(0, 2).toInt();
 			int mo = tok[9].substring(2, 4).toInt();
 			int yy = tok[9].substring(4, 6).toInt() + 2000;
-			gps_in.day   = dd;
-			gps_in.month = mo;
-			gps_in.year  = yy;
+			#if DBG_STATUS
+				if (gps_model.year == -1)
+				{
+					warning(0,"got date(%d-%02d-%02d)",yy,mo,dd);
+				}
+			#endif
+			gps_model.day   = dd;
+			gps_model.month = mo;
+			gps_model.year  = yy;
+			got_dt++;
+
 		}
 
-
-		if (1)
+		if (got_dt == 2)
 		{
-			// set the teensy's clock
-			setTime(gps_in.hour,
-					gps_in.minute,
-					gps_in.seconds,
-					gps_in.day,
-					gps_in.month,
-					gps_in.year);
+			// set the teensy's clock if got both date and time
+			
+			setTime(gps_model.hour,
+					gps_model.minute,
+					gps_model.seconds,
+					gps_model.day,
+					gps_model.month,
+					gps_model.year);
 		}
 
 		if (tok[3].length() && tok[4].length())
-			gps_in.lat = getLat0183(tok[3], tok[4]);
+			gps_model.lat = getLat0183(tok[3], tok[4]);
 		if (tok[5].length() && tok[6].length())
-			gps_in.lon = getLon0183(tok[5], tok[6]);
+			gps_model.lon = getLon0183(tok[5], tok[6]);
 
-		if (tok[7].length()) gps_in.sog = tok[7].toFloat();
-		if (tok[8].length()) gps_in.cog = tok[8].toFloat();
+		if (tok[7].length()) gps_model.sog = tok[7].toFloat();
+		if (tok[8].length()) gps_model.cog = tok[8].toFloat();
 
-		display(dbg_neo,
+		display(dbg_0183,
 			"RMC lat=%.5f lon=%.5f sog=%.1f cog=%.1f %04d-%02d-%02d %02d:%02d:%02d",
-			gps_in.lat, gps_in.lon, gps_in.sog, gps_in.cog,
-			gps_in.year, gps_in.month, gps_in.day,
-			gps_in.hour, gps_in.minute, gps_in.seconds);
+			gps_model.lat, gps_model.lon, gps_model.sog, gps_model.cog,
+			gps_model.year, gps_model.month, gps_model.day,
+			gps_model.hour, gps_model.minute, gps_model.seconds);
 	}
 
 	proc_leave();
@@ -600,184 +678,275 @@ static void parseNeo0183(const char *msg)
 }	// parseNeo0183()
 
 
-
-
 //----------------------------------------------------
-// sendNEO2000
+// senders (ST and NMEA2000)
 //----------------------------------------------------
-// Sends the same messages in the same order as inst2000_out.cpp
-// gpsInst::send2000() which is known to work with the E80
-// GPS status window to show bars and icons.
-//
-// MY invalid values are -1.
-// Here I provide methods to map my invalid values to the
-// NMEAInvalid values as needed.
-
-static double mapDoubleNA(double v)
-{
-    return (v < 0.0) ? N2kDoubleNA : v;
-}
-
-static uint8_t mapUInt8NA(int v)
-{
-    return (v < 0) ? N2kUInt8NA : (uint8_t)v;
-}
-
-static double mapDegToRadNA(double v)
-	// NOT USED BELOW FOR lat/lon/altituged which were
-	// initialized to NA
-{
-    return (v < 0) ? N2kDoubleNA : DegToRad(v);
-}
 
 
-void sendNeo2000()
-	// We use gps_out.year>0 both as a flag that the year is valid for
-	// PGN 126992, but perhaps more importantly, as a flag that the
-	// entire gps_out data structure is valid for PGN 129540
-{
-    tN2kMsg msg;
+#if NEO_HOW_ST
+	// sendNeoST
+	//
+	// The main issue is that ST can only transmit 11 sats in view
+	// and (hopefully) 8 used in a solution.
+	//
+	// Therefore, we first create an array of PRNS sorted by their SNR
+	// (highest first)
 
-    // PGN 129029 - GNSS Position Data
 
-	if (gps_out.fix_type >= 1)
+	static int sorted_sats[MAX_PRN];
+
+
+	int cmp_sats(const gps_sat_t *s1, const gps_sat_t *s2)
 	{
-		// teensy TimeLib.h has already been updated in the RMC parser:
-		// ^^^ this may be a bad assumption since fix_type is not from RMC,
-		// but at least they're valid values (not NA) in all cases below
+		uint32_t flags1 = s1->flags;
+		uint32_t flags2 = s2->flags;
+		int		 snr1   = s1->snr;
+		int		 snr2   = s2->snr;
+		bool	 used1  = flags1 & SAT_USED_IN_SOLUTION ? 1 : 0;
+		bool	 used2  = flags2 & SAT_USED_IN_SOLUTION ? 1 : 0;
 
-		time_t t = now();
-		uint32_t days = t / 86400;
-		uint32_t secs = t % 86400;
-
-		display(dbg_neo_2000,
-			"129029 GNSS lat=%.6f lon=%.6f alt=%.1f fix=%d sats=%d hdop=%.1f vdop=%.1f pdop=%.1f",
-			gps_out.lat,
-			gps_out.lon,
-			gps_out.altitude,
-			gps_out.fix_type,
-			gps_out.sats_used,
-			gps_out.hdop,
-			gps_out.vdop,
-			gps_out.pdop
-		);
-
-		SetN2kPGN129029(msg,
-			255,							// SID (sequence ID)
-			days,							// Days since 1970-01-01	gotten from teensy clock, whatever that is
-			secs,							// Seconds since midnight	gotten from teensy clock, whatever that is
-			gps_out.lat,					// Latitude (deg)			already mapped to NA if un-inited
-			gps_out.lon,					// Longitude (deg)			already mapped to NA if un-inited
-			gps_out.altitude,				// Altitude (m)				already mapped to NA if un-inited
-			N2kGNSSt_GPS,					// GNSS type (GPS)
-			N2kGNSSm_GNSSfix,				// GNSS method (GNSS fix)
-			gps_out.sats_used,				// Number of satellites used
-			mapDoubleNA(gps_out.hdop),		// HDOP						turned into NA if < 0
-			mapDoubleNA(gps_out.pdop),		// PDOP						turned into NA if < 0
-			0,								// Geoidal separation (m)
-			0,								// Position accuracy estimate (m)
-			N2kGNSSt_GPS,					// Integrity type
-			0,								// Reserved
-			0 );							// Reserved
-		nmea2000.SendMsg(msg);
-	}
-
-
-	// inst2000 instGPS sends PGN_DIRECTION_DATA 130577 here
-	// but we dont.  It still works in the E80 GPS Status window
-
-	if (gps_out.year > 0)		// valid DT from GPS
-	{
-		// PGN 126992 - System Time
-
-		time_t now = time(NULL);
-		uint32_t days = now / 86400;
-		uint32_t secs = now - days * 86400;
-
-		display(dbg_neo_2000,
-			"126992 Time %04d-%02d-%02d %02d:%02d:%.1f",
-			gps_out.year,
-			gps_out.month,
-			gps_out.day,
-			gps_out.hour,
-			gps_out.minute,
-			gps_out.seconds
-		);
-
-		SetN2kPGN126992(msg,
-			255,
-			days,
-			secs,
-			N2ktimes_GPS
-		);
-		nmea2000.SendMsg(msg);
-	}
-
-
-    if (gps_out.year > 0)	// Valid (if partly unitialized) gps_out record from a cycle
-    {
-	    // PGN 129540 - Satellites in View
-		// we count the sats in view based on the SAT_IN_VIEW bit, and
-		// only emit this message if the number is nonzero
-
-		int sats_in_view = 0;
-		for (int i=0; i<MAX_PRN; i++)
+		if (used1 && !used2)			// used first
+			return -1;
+		else if (used2 && !used1)
+			return 1;
+		else if (used1 && used2)
 		{
-			if (gps_out.sats[i].flags & SAT_IN_VIEW)
-				sats_in_view++;
+			if (snr1 > snr2)			// higher snr first
+				return -1;
+			else if (snr2 > snr1)
+				return 1;
+			else
+				return 0;
 		}
 
-        if (sats_in_view > 0)
-        {
-            display(dbg_neo_2000,"129540 SatsInView in_view(%d)",sats_in_view);
-			proc_entry();
+		bool viewed1  = flags1 & SAT_IN_VIEW ? 1 : 0;
+		bool viewed2  = flags2 & SAT_IN_VIEW ? 1 : 0;
 
-			int sid = 7;  // or any fixed non-255 SID
-            SetN2kPGN129540(msg,sid,N2kDD072_Unavailable);
-				// N2kDD072_Unavailable == the GNSS receiver did not provide any integrity/differential status information
+		if (viewed1 && !viewed2)			// used first
+			return -1;
+		else if (viewed2 && !viewed1)
+			return 1;
 
-            for (int prn_m1=0; prn_m1<MAX_PRN; prn_m1++)
-            {
-				if (!(gps_out.sats[prn_m1].flags & SAT_IN_VIEW))
-					continue;  // not in most recent GSV
-				bool used = gps_out.sats[prn_m1].flags & SAT_USED_IN_SOLUTION ? 1 : 0;
+		if (snr1 > snr2)			// higher snr first
+			return -1;
+		else if (snr2 > snr1)
+			return 1;
+		return 0;
+	}
 
-				display(dbg_neo_2000 + 1,
-					"PGN SAT PRN[%d] elev(%d) azim(%d) snr(%d) used(%d)",
-					prn_m1 + 1,
-					gps_out.sats[prn_m1].elev,
-					gps_out.sats[prn_m1].azim,
-					gps_out.sats[prn_m1].snr,
-					used);
 
-                tSatelliteInfo sat;
-				if (0)
+
+
+
+	static void sendNeoST()
+	{
+	}
+
+#else
+
+	// sendNeo2000
+	//
+	// Sends the same messages in the same order as inst2000_out.cpp
+	// gpsInst::send2000() which is known to work with the E80
+	// GPS status window to show bars and icons.
+	//
+	// MY invalid values are -1.
+	// Here I provide methods to map my invalid values to the
+	// NMEAInvalid values as needed.
+
+	static double mapDoubleNA(double v)
+	{
+		return (v < 0.0) ? N2kDoubleNA : v;
+	}
+
+	static uint8_t mapUInt8NA(int v)
+	{
+		return (v < 0) ? N2kUInt8NA : (uint8_t)v;
+	}
+
+	static double mapDegToRadNA(double v)
+		// NOT USED BELOW FOR lat/lon/altituged which were
+		// initialized to NA
+	{
+		return (v < 0) ? N2kDoubleNA : DegToRad(v);
+	}
+
+
+	static void sendNeo2000()
+		// We use gps_model.year>0 both as a flag that the year is valid for
+		// PGN 126992, but perhaps more importantly, as a flag that the
+		// entire gps_model data structure is valid for PGN 129540
+	{
+		tN2kMsg msg;
+
+		int actual_num_viewed = 0;
+		int actual_num_used = 0;
+		for (int i=0; i<MAX_PRN; i++)
+		{
+			if (gps_model.sats[i].flags & SAT_IN_VIEW)
+				actual_num_viewed++;
+			if (gps_model.sats[i].flags & SAT_USED_IN_SOLUTION)
+				actual_num_used++;
+		}
+
+		// PGN 129029 - GNSS Position Data
+
+		if (gps_model.fix_type >= 1)
+		{
+			// teensy TimeLib.h has already been updated in the RMC parser:
+			// ^^^ this may be a bad assumption since fix_type is not from RMC,
+			// but at least they're valid values (not NA) in all cases below
+
+			time_t t = now();
+			uint32_t days = t / 86400;
+			uint32_t secs = t % 86400;
+
+			display(dbg_neo_2000,
+				"129029 GNSS lat=%.6f lon=%.6f alt=%.1f fix=%d actual_num_used=%d hdop=%.1f vdop=%.1f pdop=%.1f",
+				gps_model.lat,
+				gps_model.lon,
+				gps_model.altitude,
+				gps_model.fix_type,
+				actual_num_used,
+				gps_model.hdop,
+				gps_model.vdop,
+				gps_model.pdop
+			);
+
+			SetN2kPGN129029(msg,
+				255,							// SID (sequence ID)
+				days,							// Days since 1970-01-01	gotten from teensy clock, whatever that is
+				secs,							// Seconds since midnight	gotten from teensy clock, whatever that is
+				gps_model.lat,					// Latitude (deg)			already mapped to NA if un-inited
+				gps_model.lon,					// Longitude (deg)			already mapped to NA if un-inited
+				gps_model.altitude,				// Altitude (m)				already mapped to NA if un-inited
+				N2kGNSSt_GPS,					// GNSS type (GPS)
+				N2kGNSSm_GNSSfix,				// GNSS method (GNSS fix)
+				actual_num_used,				// Number of satellites used
+				mapDoubleNA(gps_model.hdop),		// HDOP						turned into NA if < 0
+				mapDoubleNA(gps_model.pdop),		// PDOP						turned into NA if < 0
+				0,								// Geoidal separation (m)
+				0,								// Position accuracy estimate (m)
+				N2kGNSSt_GPS,					// Integrity type
+				0,								// Reserved
+				0 );							// Reserved
+			nmea2000.SendMsg(msg);
+		}
+
+
+		// inst2000 instGPS sends PGN_DIRECTION_DATA 130577 here
+		// we only send sog and cog, we don't presume to know the heading
+		// or anything about the water speed, set, or drift
+
+		if (gps_model.year > 0 && (gps_model.sog >= 0 || gps_model.cog >= 0))		// valid DT from GPS
+		{
+			// PGN_DIRECTION_DATA
+
+			double sog_mps = gps_model.sog < 0 ? N2kDoubleNA : KnotsToms(gps_model.sog);
+
+			SetN2kPGN130577(msg, 					// msg
+				N2kDD025_Estimated,					// tN2kDataMode
+				N2khr_true,							// tN2kHeadingReference,
+				255,								// sid,
+				mapDegToRadNA(gps_model.cog),			// COG in radians
+				sog_mps,							// SOG in m/s
+				N2kDoubleNA,						// heading in radians
+				N2kDoubleNA,						// speed through water in m/s
+				N2kDoubleNA,						// Set
+				N2kDoubleNA);						// Drift
+			nmea2000.SendMsg(msg);
+		}
+
+
+
+		if (gps_model.year > 0)		// valid DT from GPS
+		{
+			// PGN 126992 - System Time
+
+			time_t now = time(NULL);
+			uint32_t days = now / 86400;
+			uint32_t secs = now - days * 86400;
+
+			display(dbg_neo_2000,
+				"126992 Time %04d-%02d-%02d %02d:%02d:%.1f",
+				gps_model.year,
+				gps_model.month,
+				gps_model.day,
+				gps_model.hour,
+				gps_model.minute,
+				gps_model.seconds
+			);
+
+			SetN2kPGN126992(msg,
+				255,
+				days,
+				secs,
+				N2ktimes_GPS
+			);
+			nmea2000.SendMsg(msg);
+		}
+
+
+		if (gps_model.year > 0)	// Valid (if partly unitialized) gps_model record from a cycle
+		{
+			// PGN 129540 - Satellites in View
+			// we count the sats in view based on the SAT_IN_VIEW bit, and
+			// only emit this message if the number is nonzero
+
+			if (actual_num_viewed > 0)
+			{
+				display(dbg_neo_2000,"129540 SatsInView actual_num_viewed(%d)",actual_num_viewed);
+				proc_entry();
+
+				int sid = 7;  // or any fixed non-255 SID
+				SetN2kPGN129540(msg,sid,N2kDD072_Unavailable);
+					// N2kDD072_Unavailable == the GNSS receiver did not provide any integrity/differential status information
+
+				for (int prn_m1=0; prn_m1<MAX_PRN; prn_m1++)
 				{
-					sat.PRN = prn_m1 + 1;
-					sat.Elevation = DegToRad(gps_out.sats[prn_m1].elev);
-					sat.Azimuth = DegToRad(gps_out.sats[prn_m1].azim);
-					sat.SNR = gps_out.sats[prn_m1].snr;
-					sat.RangeResiduals = N2kDoubleNA;
-				}
-				else
-				{
-					sat.PRN        = prn_m1 + 1;
-					sat.Elevation  = mapDegToRadNA(gps_out.sats[prn_m1].elev);
-					sat.Azimuth    = mapDegToRadNA(gps_out.sats[prn_m1].azim);
-					sat.SNR        = mapUInt8NA(gps_out.sats[prn_m1].snr);
-					sat.RangeResiduals = N2kDoubleNA;
-				}
-				sat.UsageStatus =  used ?
-					N2kDD124_UsedInSolutionWithoutDifferentialCorrections :
-					N2kDD124_TrackedButNotUsedInSolution;
-                AppendN2kPGN129540(msg, sat);
-            }
+					if (!(gps_model.sats[prn_m1].flags & SAT_IN_VIEW))
+						continue;  // not in most recent GSV
+					bool used = gps_model.sats[prn_m1].flags & SAT_USED_IN_SOLUTION ? 1 : 0;
 
-            nmea2000.SendMsg(msg);
-			proc_leave();
-        }
-    }
-}
+					display(dbg_neo_2000 + 1,
+						"PGN SAT PRN[%d] elev(%d) azim(%d) snr(%d) used(%d)",
+						prn_m1 + 1,
+						gps_model.sats[prn_m1].elev,
+						gps_model.sats[prn_m1].azim,
+						gps_model.sats[prn_m1].snr,
+						used);
+
+					tSatelliteInfo sat;
+					if (0)
+					{
+						sat.PRN = prn_m1 + 1;
+						sat.Elevation = DegToRad(gps_model.sats[prn_m1].elev);
+						sat.Azimuth = DegToRad(gps_model.sats[prn_m1].azim);
+						sat.SNR = gps_model.sats[prn_m1].snr;
+						sat.RangeResiduals = N2kDoubleNA;
+					}
+					else
+					{
+						sat.PRN        = prn_m1 + 1;
+						sat.Elevation  = mapDegToRadNA(gps_model.sats[prn_m1].elev);
+						sat.Azimuth    = mapDegToRadNA(gps_model.sats[prn_m1].azim);
+						sat.SNR        = mapUInt8NA(gps_model.sats[prn_m1].snr);
+						sat.RangeResiduals = N2kDoubleNA;
+					}
+					sat.UsageStatus =  used ?
+						N2kDD124_UsedInSolutionWithoutDifferentialCorrections :
+						N2kDD124_TrackedButNotUsedInSolution;
+					AppendN2kPGN129540(msg, sat);
+				}
+
+				nmea2000.SendMsg(msg);
+				proc_leave();
+			}
+		}
+	}
+
+#endif	// !NEO_HOW_ST
+
 
 
 
@@ -791,46 +960,126 @@ void doNeo6M_GPS()
 	while (NEO_SERIAL.available())
 	{
 		#define MAX_0183_MSG 180
+
 		int c = NEO_SERIAL.read();
 		static char buf[MAX_0183_MSG+1];
 		static volatile int buf_ptr = 0;
+		last_receive_time = millis();
 
-		if (buf_ptr >= MAX_0183_MSG)
+		if (neo_started)
 		{
-			buf[buf_ptr] = 0;
-			my_error("NEO_TOO_LONG: `%s'",buf);
-			buf_ptr = 0;
-		}
-		else if (c == '\n')
-		{
-			buf[buf_ptr] = 0;
-			parseNeo0183(buf);
-			buf_ptr = 0;
-			return;
-		}
-		else if (c != '\r')
-		{
-			if (buf_ptr && c == '$')
+			if (buf_ptr >= MAX_0183_MSG)
 			{
 				buf[buf_ptr] = 0;
-				my_error("NEO 2nd dollar after: `%s'",buf);
-				buf[0] = c;
-				buf_ptr = 1;
+				my_error("NEO_TOO_LONG: `%s'",buf);
+				buf_ptr = 0;
 			}
-			buf[buf_ptr++] = c;
+			else if (c == '\n')
+			{
+				buf[buf_ptr] = 0;
+				parseNeo0183(buf);
+				buf_ptr = 0;
+				return;
+			}
+			else if (c != '\r')
+			{
+				if (buf_ptr && c == '$')
+				{
+					buf[buf_ptr] = 0;
+					my_error("NEO 2nd dollar after: `%s'",buf);
+					buf[0] = c;
+					buf_ptr = 1;
+				}
+				buf[buf_ptr++] = c;
+			}
 		}
 	}
 
-	#if 1
-		#define NEO_SEND_INTERVAL	1000	// send gps messages every second
-		uint32_t now = millis();
-		static uint32_t last_neo_send = 0;
-		if (now - last_neo_send > NEO_SEND_INTERVAL)
+
+	static int cycle_count;
+
+	if (last_receive_time &&
+		millis() - last_receive_time > FRAME_IDLE_TIME)
+	{
+		if (neo_started)
 		{
-			last_neo_send = now;
-			sendNeo2000();
+			#if DBG_STATUS
+
+				#define SHOW_EVERY		10
+
+				if (cycle_count % SHOW_EVERY == 0)
+				{
+					Serial.print("neo status secs(");
+					Serial.print(millis()/1000);
+					Serial.print(") fix(");
+					Serial.print(gps_model.fix_type);
+					Serial.print(") num_viewed(");
+					Serial.print(gps_model.num_viewed);
+					Serial.print(") num_used(");
+					Serial.print(gps_model.num_used);
+					Serial.println(")");
+		
+					// a PRN has been "seen" if it's elev is > 0, which defines the "almanac" for the neo
+					//
+					// the sats IN_VIEW bit is cleared when we start a GSV cycle, the end of which causes a sendNeo()
+					//		GSV sets the az,ele, and snr values for a satellite if provided
+					//
+					// the sats USED bit is set by a GSA message that occurs once per cycle, before, or after the GSV,
+					//		but is cleared at the end of the cycle after calling sendNeo()
+					//
+
+					Serial.print("    Seen Sats: ");
+					for (int i=0; i<MAX_PRN; i++)
+					{
+						if (gps_model.sats[i].elev)
+						{
+							Serial.print(i+1);
+							Serial.print(" ");
+						}
+					}
+					Serial.println();
+					Serial.print("    View Sats: ");
+					for (int i=0; i<MAX_PRN; i++)
+					{
+						if (gps_model.sats[i].flags & SAT_IN_VIEW)
+						{
+							Serial.print(i+1);
+							Serial.print(" ");
+						}
+					}
+					Serial.println();
+					Serial.print("    Used Sats: ");
+					for (int i=0; i<MAX_PRN; i++)
+					{
+						if (gps_model.sats[i].flags & SAT_USED_IN_SOLUTION)
+						{
+							Serial.print(i+1);
+							Serial.print(" ");
+						}
+					}
+					Serial.println();
+				}
+			#endif
+
+			cycle_count++;
+			#if NEO_HOW_ST
+				sendNeoST();
+			#else
+				sendNeo2000();
+			#endif
 		}
-	#endif
+		else
+		{
+			display(dbg_neo,"skipping 0th cycle",0);
+			cycle_count = 0;
+		}
+		
+		initCycle();
+		last_receive_time = 0;
+		if (!neo_started)
+			warning(dbg_neo,"NEO STARTED",0);
+		neo_started = 1;
+	}
 }
 
 

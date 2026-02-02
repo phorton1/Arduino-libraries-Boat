@@ -69,7 +69,7 @@ const st_info_type st_known[] =
 	/* 0x1a2 */ { ST_ARRIVAL,		"ARRIVAL",		},
 	/* 0z1a4 */	{ ST_DEV_QUERY,		"DEV_QUERY",	},
 	/* 0z1a5 */	{ ST_SAT_DETAIL,	"SAT_DETAIL",	},
-	/* 0x1a7 */	{ ST_A7,			"A7",			},
+	/* 0x1a7 */	{ ST_DIF_DETAIL,	"DIF_DETAIL",	},
 	/* 0x1ad */	{ ST_AD,			"AD"			},
 
 	0,
@@ -931,51 +931,58 @@ static String decodeST(uint16_t st, const uint8_t *dg, const char **p_name)
 	}
 
 
-
-
-	//	a5 98 00 00 00 00 00 00 00 00 00						unknown
-	//	a5 b5 00 04 80 00 00 00									unknown
-
-
-	//	a5 0c 2f 00 64 00 38 01 50 00 40 00 00 00 00			unknown
-	//	a5 8d 20 00 12 00 18 03 00 07 40 06 00 00 00 02			unknown
-	//	a5 57 10 d2 00 00 00 10 00 00							DET_INFO
-	//	a5 0d 22 00 b2 00 18 06 90 07 40 14 00 38 00 02			XD form
-	//	a5 2d 3c 00 50 00 08 05 20 07 40 0d 00 14 00 02			XD form
-	//	a5 74 00 00 00 00 00									DET_IDS
-
 	else if (st == ST_SAT_DETAIL ||	// 0x1a5
-			 st == 0x1a7)			// special SBAS/fiff SET message "a7 09 85 82 47 42 8b 00 00 00 00 76"
+			 st == ST_DIF_DETAIL)	// 0x1a7
 	{
-		/* if (dg[1] == 0x0c)
-			*p_name = "SAT_DET_U0C";
-		else
-		if (dg[1] == 0x8d)
-			*p_name = "SAT_DET_U8D";
-		else */
+		//  my Correction/Rewrite of knaufs A5 comment
+		//  A5  GPS and DGPS Info
+		// 	A5 57 QQ HH ?? AA GG ZZ YY DD   GPS and DGPS Fix Info (mostly unchanged from knauf)
+		//		Fix Type = QQ&0xF where 0=none, 1=fix, 2=D Fix;  QQ&0x10: Fix Type available flag
+		//		HDOP= HH&0x7C, HH&0x80: HDOP available flag
+		//		Antenna Height= AA
+		//		Number of Sats= (QQ&0xE0)/16+(HH&0x1), HH&0x2: NumSats available flag
+		//		GeoSeperation= GG*16 (-2048....+2047 meters)
+		//		Differential age=(ZZ&0xE0)/2+(YY&0xF), YY&0x10: Diff. age available flag
+		//		Differential Station ID=(YY&0xC0)*4+DD, YY&0x20: Diff.St.ID available flag
+		//		Corresponding NMEA sentences: GGA, RMC, GSV, GLL, GGA
+		//	A5 XQ NN AA EE SS MM BB FF GG OO CC DD XX YY ZZ   GPS Info: Sat Position and Signal
+		//			Data of up to three satellites [1,2,3] per datagram, or 11 in total accross 4 datagrasm in a series
+		//			where the subtype/length byte XQ is one of the four values 0x0D, 0x0C, 0x2D, or 0x8D
+		//           Satellite PRN: [1] (NN&0xFE)>>1, [2] (MM&0x70)/2+(BB&0x7), [3] CC&0x3F
+		//           Satellite azimuth:[1] AA*2+(EE&0x1), [2] (BB&0xF8)*2+(FF&0xF), [3] (CC&0xC0)*2+(DD&0x7F)
+		//           Satellite elevation:[1] (EE&0xFE)/2, [2] (FF&0xF0)/2+(GG&0x7), [3] XX&0x7F
+		//           Satellite signal: [1] (SS&0xFE)/2 with low 3 bits in (MM&0x7), [2] (GG&0x80)/2+OO&0x3F,  [3] (YY>>1)
+		//           Entry valid:     [1] MM&0x8, [2] OO&0x40, [3] ZZ&0x2
+		//		There can be upto four similar messages in the series.  The first with XQ=0x0D carries the position
+		//      and signal data of the 1st 3 satellites. The second XQ=0x0C and the NN&0x1 bit set (A5 0C subtype)
+		//      carries the data of the next 2 satellites, but instead of a 3rd satellite, this shortened message
+		//		carries the PRN_USED values	(see below) in CC DD XX YY for the 1st 4 sats used in the solution (see below).
+		//      The third datagram, XQ=0x2D carries data of 3 more sats [6,7,8], and finally the fourth datagram with
+		//		XQ=0x8D	carries data of sats [9,10,11].
+		//  A5 74 PU PU PU PU PU  - Identification of additional PRNS used in the solution
+		//		This message carries upto 5 additional PRN_USED values over the initial
+		//		four in the A5 0C message.
+		//  A5 98 00 00 00 00 00 00 00 00 00 - End of A5 Series messages, completes the transmission of the A5 series of messages
+		//	A5 B5 00 04 80 00 00 00 - Explicitly Specifies the WGS 1984 Datum isin use
+		//	A5 - PRN_USED bytes:  The A5 0C and A5 74 message contain PRN_USED bytes that indicate which sat PRNS
+		//		were used in the solution, where PU (or CC DD XX YY for A5-0C) = PRN | 0x80
+		//
+		//  A7 09 NN AA EE SS MM 00 00 00 00 76	 Special SBAS/Differential message
+		//   i.e  85 82 47 42 8B 00 00 00 00 76  This message reports a single satellite used for SBAS/DGPS.
+		//     	in a shortened form very similar to the A5 XQ series
+		//		The PRN in this message, NN is not shifted; the entire byte NN is the PRN.
+		//		See A5 XQ  messages above.
+
 
 		if (dg[1] == 0x98)
-			*p_name = "SAT_DET_U98";
+			*p_name = "SATS_DONE";
 		else if (dg[1] == 0xb5)
-			*p_name = "SAT_DET_UB5";
-
-
+			*p_name = "SAT_WGS84";
 		else if (dg[1] == 0x57)
 		{
-			//  0   1   2   3  4  5  6  7  8  9
-			// A5  57  QQ  HH ?? AA GG ZZ YY DD   GPS and DGPS Fix Info
-			//	Signal Quality= QQ&0xF, QQ&0x10: Signal Quality available flag
-			//	HDOP= HH&0x7C, HH&0x80: HDOP available flag
-			//	Antenna Height= AA
-			//	Number of Sats= (QQ&0xE0)/16+(HH&0x1), HH&0x2: NumSats available flag
-			//	GeoSeperation= GG*16 (-2048....+2047 meters)
-			//	Differential age=(ZZ&0xE0)/2+(YY&0xF), YY&0x10: Diff. age available flag
-			//	Differential Station ID=(YY&0xC0)*4+DD, YY&0x20: Diff.St.ID available flag
-			//	Corresponding NMEA sentences: GGA, RMC, GSV, GLL, GGA
-
 			*p_name = "SAT_DET_INF";
-			bool qflag = dg[2] & 0x10 ? 1 : 0;
-			uint8_t quality = dg[2] & 0x0f;
+			bool fflag = dg[2] & 0x10 ? 1 : 0;
+			uint8_t fix = dg[2] & 0x0f;
 
 			bool hflag = dg[3] & 0x80 ? 1 : 0;
 			uint8_t hdop = (dg[3] & 0x7c)>>2;
@@ -994,10 +1001,10 @@ static String decodeST(uint16_t st, const uint8_t *dg, const char **p_name)
 			uint8_t dage = ((dg[7] & 0xe0) >> 1) + (dg[8] & 0x0f);
 			uint16_t did = ((dg[8] & 0xc0) << 2) + dg[9];
 
-			retval = "qflag(";
-			retval += qflag;
-			retval += ") qual(";
-			retval += quality;
+			retval = "fflag(";
+			retval += fflag;
+			retval += ") fix(";
+			retval += fix;
 			retval += ") hflag(";
 			retval += hflag;
 			retval += ") hdop(";
@@ -1024,20 +1031,32 @@ static String decodeST(uint16_t st, const uint8_t *dg, const char **p_name)
 		}
 		else if (dg[1] == 0x74)
 		{
-			*p_name = "SAT_DET_IDS";
+			*p_name = "SATS_USED";
 			for (int i=0; i<5; i++)
 			{
+				uint8_t PU = dg[2+i];
+				bool used = PU & 0x80;
+				PU &= ~0x80;
 				if (dg[2+i])
 				{
-					retval += "ID(";
-					retval += dg[2+i];
+					retval += used && PU ? " PU(" : " NA(";
+					retval += PU;
 					retval += ") ";
 				}
 			}
 		}
 		else
 		{
-			*p_name = "SAT_DETAIL3";
+			if (dg[1] == 0x0D)
+				*p_name = "SAT_DETAIL1";
+			else if (dg[1] == 0x0C)
+				*p_name = "SAT_DETAIL2";
+			else if (dg[1] == 0x2D)
+				*p_name = "SAT_DETAIL3";
+			else if (dg[1] == 0x8D)
+				*p_name = "SAT_DETAIL4";
+			else if (st != ST_DIF_DETAIL)	// 0x1a7
+				*p_name = "SAT_DETAIL";
 
 			uint8_t NN = dg[2];
 			uint8_t AA = dg[3];
@@ -1052,11 +1071,18 @@ static String decodeST(uint16_t st, const uint8_t *dg, const char **p_name)
 			uint8_t DD = dg[12];
 			uint8_t XX = dg[13];
 			uint8_t YY = dg[14];
-			uint8_t ZZ = dg[15];
+			// uint8_t ZZ = dg[15]; unused by decoder
 
-			uint8_t prn0 = (st == 0x1a7) ?
-				dg[2] : 			// apparently the wholle byte is the prn for special sbas/diff message
+			uint8_t prn0 = (st == ST_DIF_DETAIL) ?
+				dg[2] : 			// apparently the whole byte is the prn for special sbas/diff message
 				(NN & 0xfe) / 2;	// otherwise, note the /2 missing from knaufs doc
+
+			// 5229   <-> S12_SAT_DETAIL1 a5 0d 2c 43 77 52 2b 5d 7d 11 6d 4e 0f 27 56 02
+			// 5230   <-> S12_SAT_DETAIL2 a5 0c 0d 01 49 00 28 0b 4f 03 40 85 91 8e 95
+			// 5231   <-> S12_SAT_DETAIL3 a5 2d 22 1e 3c 32 0d 65 3e 14 69 98 0c 0d 00 02
+			// 5233   <-> S12_SAT_DETAIL4 a5 8d 1a 65 0a 42 0d 00 00 00 00 00 00 00 00 00
+			// 5232   <-> S12_SATS_USED   a5 74 96 00 00 00 80              ID(150) ID(128)
+			// 5234   <-> S12_SATS_DONE   a5 98 00 00 00 00 00 00 00 00 00
 
 			uint16_t az0 = AA*2 + (EE & 0x01);
 			uint8_t ele0 = (EE & 0xfe)/2;
@@ -1070,15 +1096,12 @@ static String decodeST(uint16_t st, const uint8_t *dg, const char **p_name)
 			uint8_t prn2 = (CC & 0x3f);
 			uint16_t az2 = (CC & 0xc0)*2 + (DD & 0x7f);
 			uint8_t ele2 = (XX & 0x7f);
-			uint8_t snr2 = (YY & 0xfc)/2 + (ZZ & 0x01);
+			uint8_t snr2 = YY >> 1;
 
 			char buf[255];
-
-
-			if (st == 0x1a7)
+			if (st == ST_DIF_DETAIL)	// 0x1a7)
 				sprintf(buf,"prn/az/ele/snr sat0(%d,%d,%d,%d) DIFF",
 					prn0,az0,ele0,snr0);
-
 			else if (dg[1] == 0x0c)
 				sprintf(buf,"prn/az/ele/snr sat0(%d,%d,%d,%d) sat1(%d,%d,%d,%d)",
 					prn0,az0,ele0,snr0,
@@ -1088,10 +1111,26 @@ static String decodeST(uint16_t st, const uint8_t *dg, const char **p_name)
 					prn0,az0,ele0,snr0,
 					prn1,az1,ele1,snr1,
 					prn2,az2,ele2,snr2);
-
 			retval = buf;
-		}
 
+			// add the PUs for A5 0C
+
+			if (dg[1] == 0x0c)
+			{
+				for (int i=0; i<4; i++)
+				{
+					uint8_t PU = dg[11+i];
+					bool used = PU & 0x80;
+					PU &= ~0x80;
+					if (dg[11+i])
+					{
+						retval += used && PU ? " PU(" : " NA(";
+						retval += PU;
+						retval += ") ";
+					}
+				}
+			}
+		}
 	}
 
 	return retval;

@@ -8,7 +8,7 @@
 #include <Arduino.h>
 
 #define MAX_ST_BUF		20			// size of my maximum datagram buffers
-#define MAX_ST_SEEN		11			// largest ST message I've seen
+#define MAX_ST_SEEN		11			// space in the UI for long messages
 
 #define ST_COMMAND_BIT	0x100		// the 0th byte of 9bit ST commands have this
 #define ST_QUIET_BIT	0x200		// this is a flag I add to NOT echo the command while forwarding
@@ -52,7 +52,7 @@
 #define ST_WP_DEF			0x19E		// 					o		got it once, could be bogus bytes
 #define ST_DEV_QUERY		0x1A4		// 					o		we don't respond (yet)
 #define ST_SAT_DETAIL		0x1A5		// gpsInst(0)		o
-#define ST_A7				0x1A7		// 					o		some kind of gps message
+#define ST_DIF_DETAIL		0x1A7		// 					o
 #define ST_AD				0x1AD		// 					o		unknown
 
 // in instST_out
