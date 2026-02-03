@@ -63,6 +63,21 @@ extern bool sendDatagram(bool port2);
 extern void clearSTQueues();
 extern void setLampIntensity(int value);	// sent to all ports, 0==off, 1=low, 2=medium, 3=high
 
+// support for neo6M_GPS ST test implementation
+
+#define PRN_STATE_USED		2		// used in solution
+#define PRN_STATE_TRACKED	1		// tracked
+#define PRN_STATE_NONE		0		// "search"
+
+#define ST_MAX_VIEW			11		// max number of reported sats
+#define ST_MAX_TRACKED		9		// max number of tracked/used sats
+#define ST_TRACK_CUTOFF  	4		// number kept in A5 0C 2nd series message
+
+extern void initStSatMessages();
+extern void sendStSatMessags(bool port2);
+extern void addStSatMessage(uint8_t prn, uint8_t ele, uint16_t az, uint8_t snr, uint8_t prn_state);
+
+
 // in instSTIn
 
 extern void showDatagram(bool port2, bool out, const uint8_t *datagram);

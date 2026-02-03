@@ -341,15 +341,6 @@ void compassInst::sendSeatalk(bool port2)
 // GPS Instrument support
 //===========================================================
 
-
-#define PRN_STATE_USED		2		// used in solution
-#define PRN_STATE_TRACKED	1		// tracked
-#define PRN_STATE_NONE		0		// "search"
-
-#define ST_MAX_VIEW			11		// max number of reported sats
-#define ST_MAX_TRACKED		9		// max number of tracked/used sats
-#define ST_TRACK_CUTOFF  	4		// number kept in A5 0C 2nd series message
-
 static int num_series_sats = 0;
 static int num_tracked_sats = 0;
 static uint16_t sat_msg[5][MAX_ST_BUF];
@@ -360,7 +351,18 @@ static uint16_t sat_msg[5][MAX_ST_BUF];
 	// plus one for tha A5 74 message containing additional
 	// 		used tracked/satelite PRN_STATES
 
-void initSatMessages()
+
+
+void sendStSatMessags(bool port2)
+{
+	for (int i=0; i<5; i++)
+	{
+		queueDatagram(port2,sat_msg[i]);
+	}
+}
+
+
+void initStSatMessages()
 {
 	num_series_sats = 0;
 	num_tracked_sats = 0;
@@ -405,7 +407,7 @@ static void addPrnState(uint8_t prn, uint8_t prn_state)
 }
 
 
-void addSatMessage(uint8_t prn, uint8_t ele, uint16_t az, uint8_t snr, uint8_t prn_state)
+void addStSatMessage(uint8_t prn, uint8_t ele, uint16_t az, uint8_t snr, uint8_t prn_state)
 	// prn_state
 	//	0 = not tracked or used ("search" on e80)
 	//  1 = tracked,
@@ -600,7 +602,7 @@ void gpsInst::sendSeatalk(bool port2)
 		//		HDOP = HH&0x7C = HH & 01111100			= .000 11.. = 0x0C = 3
 		//		HDOP availability = HH&0x80 		    = 1... .... = 0x80 = 1
 		//		low bit of numsats = HH&0x01			= .... ...1 = 0x01 = 1
-		//		numsats available = HH&0x02				= .... ..1. = 0x20 = 1
+		//		numsats available = HH&0x02				= .... ..1. = 0x02 = 1
 		// hdop = 3, hdop_available = 1, num_sats_available = 1, low bit of num_sats = 1, numsats available = 1
 
 		uint8_t HH = 0x8F;			// 1000 1111 = 0x8f
@@ -623,25 +625,22 @@ void gpsInst::sendSeatalk(bool port2)
 
 	if (1)
 	{
-		initSatMessages();
+		initStSatMessages();
 
 		//			  prn ele az   snr used
-		addSatMessage(22, 59, 135, 41, 2);		// 74 alot0 0x96
-		addSatMessage(21, 57, 189, 45, 2);		// !!!!! c0 slot3 0x95
-		addSatMessage(14, 39, 143, 43, 2);		// c0 slot2 0x8e
-		addSatMessage(6,  36, 3,   0,  0);
-		addSatMessage(19, 35, 31,  0,  0);
-		addSatMessage(17, 30, 60,  29, 2);		// c0 slot1 9x91
-		addSatMessage(5,  28, 206, 41, 2);		// c0 slot0 0x85
-		addSatMessage(24, 13, 268, 0,  0);
-		addSatMessage(13, 13, 292, 37, 0);
-		addSatMessage(18, 44, 45,  22, 2);
-		addSatMessage(11, 37, 90,  33, 2);
+		addStSatMessage(22, 59, 135, 41, 2);		// 74 alot0 0x96
+		addStSatMessage(21, 57, 189, 45, 2);		// !!!!! c0 slot3 0x95
+		addStSatMessage(14, 39, 143, 43, 2);		// c0 slot2 0x8e
+		addStSatMessage(6,  36, 3,   0,  0);
+		addStSatMessage(19, 35, 31,  0,  0);
+		addStSatMessage(17, 30, 60,  29, 2);		// c0 slot1 9x91
+		addStSatMessage(5,  28, 206, 41, 2);		// c0 slot0 0x85
+		addStSatMessage(24, 13, 268, 0,  0);
+		addStSatMessage(13, 13, 292, 37, 0);
+		addStSatMessage(18, 44, 45,  22, 2);
+		addStSatMessage(11, 37, 90,  33, 2);
 
-		for (int i=0; i<5; i++)
-		{
-			queueDatagram(port2,sat_msg[i]);
-		}
+		sendStSatMessags(port2);
 	}
 
 
