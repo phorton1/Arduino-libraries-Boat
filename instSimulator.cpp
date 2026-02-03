@@ -63,9 +63,7 @@ uint8_t instSimulator::g_GP8_FUNCTION;
 //-------------------------------------------------
 
 #if WITH_NEO6M
-	// function in neo6M_GPS.cpp
-	extern void initNeo6M_GPS();
-	extern void doNeo6M_GPS();
+	#include "neoGPS.h"
 #endif
 
 
@@ -398,10 +396,20 @@ void instSimulator::setGP8Function(uint8_t fxn)
 		#endif
 		
 		#ifdef WITH_NEO6M
-			if (fxn == GP8_FUNCTION_NEO6M)
+			if (fxn == GP8_FUNCTION_NEOST)
+			{
+				SERIAL_ESP32.end();
 				initNeo6M_GPS();
-		#else
-			warning(0,"WITH_NEO6M==0; GP8 FUNCTION does nothing");
+				enableNeoSeatalk(true);
+				enableNeoNMEA200(false);
+			}
+			if (fxn == GP8_FUNCTION_NEO2000)
+			{
+				SERIAL_ESP32.end();
+				initNeo6M_GPS();
+				enableNeoSeatalk(false);
+				enableNeoNMEA200(true);
+			}
 		#endif
 
 
@@ -556,8 +564,11 @@ void handleStPort(
 void instSimulator::run()
 {
 	#if WITH_NEO6M
-		if (g_GP8_FUNCTION == GP8_FUNCTION_NEO6M)
+		if (g_GP8_FUNCTION == GP8_FUNCTION_NEOST ||
+			g_GP8_FUNCTION == GP8_FUNCTION_NEO2000)
+		{
 			doNeo6M_GPS();
+		}
 	#endif
 
 	#if WITH_TB_ESP32

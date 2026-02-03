@@ -50,10 +50,11 @@
 // ESP32 and NEO6M definitely cannot, so all pins involved in all features are
 // safely set to floating (MODE_INPUT) if they are not used.
 
-#define GP8_FUNCTION_OFF 	0
-#define GP8_FUNCTION_PULSE 	1
-#define GP8_FUNCTION_ESP32 	2
-#define GP8_FUNCTION_NEO6M 	3
+#define GP8_FUNCTION_OFF 		0
+#define GP8_FUNCTION_PULSE 		1
+#define GP8_FUNCTION_ESP32 		2
+#define GP8_FUNCTION_NEOST 		3
+#define GP8_FUNCTION_NEO2000 	4
 
 
 // The following #ifdefs allow the functionality to be compiled out,

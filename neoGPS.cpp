@@ -15,22 +15,22 @@
 // WE ARE ONLY USING GPS AND OUR ARRAY IS INDEXED BY PRN-1
 
 
-#define NEO_HOW_ST		1			// NMEA2000 otherwise
 
 #ifndef NEO_SERIAL
 	#define NEO_SERIAL	Serial5
 #endif
 
-// #include "instSimulator.h"
 #include <myDebug.h>
 #include "TimeLib.h"
-#if NEO_HOW_ST
-	#include "instST.h"
-	#include "boatSimulator.h"
-#else
-	#include "inst2000.h"
-	#include <N2kMessages.h>
-#endif
+
+// Seatalk
+#define E80_PORT2	1
+#include "instST.h"
+#include "boatSimulator.h"
+
+// NMEA200
+#include "inst2000.h"
+#include <N2kMessages.h>
 
 
 #define dbg_neo			0			// lifecycle
@@ -106,18 +106,10 @@ static int got_gsa = 0;
 static void initModel()
 {
 	memset(&gps_model,0,sizeof(gps_model));
-    gps_model.fix_type      = -1;					// must be 0..3 in NMEA0183
-
-	#if NEO_HOW_ST
-		gps_model.lat           = 0.00;				// ST just sends zeros until fix
-		gps_model.lon           = 0.00;
-		gps_model.altitude      = 0.00;
-	#else
-		gps_model.lat           = N2kDoubleNA;		// can be negative after conversion
-		gps_model.lon           = N2kDoubleNA;		// can be negative after conversion
-		gps_model.altitude      = N2kDoubleNA;		// can be negative
-	#endif
-
+    gps_model.fix_type      = -1;				// must be 0..3 in NMEA0183
+	gps_model.lat           = 0.00;				// ST just sends zeros until fix
+	gps_model.lon           = 0.00;
+	gps_model.altitude      = 0.00;
 	gps_model.hdop          = -1;
 	gps_model.vdop          = -1;
 	gps_model.pdop          = -1;
@@ -150,6 +142,28 @@ static void initCycle()
 	}
 }
 
+
+//---------------------------------------
+// API
+//---------------------------------------
+
+static bool st_enabled = 1;
+static bool nmea2000_enabled = 0;
+
+bool NeoSeatalkEnabled()	{ return st_enabled; }
+bool NeoNMEA2000Enabled()   { return nmea2000_enabled; }
+
+extern void enableNeoSeatalk(bool enable)
+{
+	display(dbg_neo,"SEATALK ENABLED=%d",enable);
+	st_enabled = enable;
+}
+
+extern void enableNeoNMEA200(bool enable)
+{
+	display(dbg_neo,"NMEA200 ENABLED=%d",enable);
+	nmea2000_enabled = enable;
+}
 
 
 //-----------------------------------------------------------
@@ -678,493 +692,485 @@ static void parseNeo0183(const char *msg)
 }	// parseNeo0183()
 
 
+
 //----------------------------------------------------
-// senders (ST and NMEA2000)
+// Seatalk Sender
 //----------------------------------------------------
+// sendNeoST
+// quick and dirty implementation.
+// implementation copied from instST_out.cpp::gpsInst:;sendSeatalk()
+// just fill up to ST limits in PRN order
 
+static void sendNeoST()
+{
+	display(dbg_neo_ST,"sendNeoST(%d)",E80_PORT2);
+	proc_entry();
+	uint16_t dg[MAX_ST_BUF];
 
-#if NEO_HOW_ST
-	// sendNeoST
-	// quick and dirty implementation.
-	// implementation copied from instST_out.cpp::gpsInst:;sendSeatalk()
-	// just fill up to ST limits in PRN order
+	//-----------------------
+	// ST_SAT_INFO
+	//-----------------------
+	// Use arbitray value of 0/5 satelites based on fix
 
-	#define E80_PORT2	1
-
-	static void sendNeoST()
+	if (1)
 	{
-		display(dbg_neo_ST,"sendNeoST(%d)",E80_PORT2);
+		// NOTE ST_SAT_INFO does not like numsats=11 (0xb0)
+		// *perhaps* it is actually the number of sats used in the solution
+		// and, thus would be limited to 9
+
+		display(dbg_neo_ST+1,"st%d SatInfo()",E80_PORT2);
+		dg[0] = ST_SAT_INFO;	// 0x157
+		dg[1] = gps_model.fix_type ? 0x50 : 0x00;      		// num_sats USED=5 << 4
+		dg[2] = gps_model.fix_type ? 0x02 : 0xff;          	// HDOP = 2
+		queueDatagram(E80_PORT2,dg);
+	}
+
+	//------------------------------------------------
+	// SAT_DET_INFO (A5 57)  — GPS Fix + HDOP block
+	//------------------------------------------------
+	// note we send hdop 3 from this as opposed to 2 above
+
+	if (1)
+	{
+		display(dbg_neo_ST+1,"st%d SatDetail(1)",E80_PORT2);
+
+		dg[0] = ST_SAT_DETAIL;		// // 0x1A5
+		dg[1] = 0x57;
+
+		// QQ
+		// 		fix = QQ&0xF 						    = .... 00nn = 0x0nn = 1 "Fix"
+		//		fix_available = QQ&0x10 			    = ...1 .... = 0x10 = 1
+		// 		high 3 bits of numsats=5= QQ&0xE0/16  	= 010. .... = 0x40 = 2
+		// Knauf uses QQ&0xE0/16 to mean (QQ&0xE0)>>4 in exprssion for numsats
+
+		uint8_t QQ = 0;
+		if (gps_model.fix_type > 0)
+			QQ = (gps_model.fix_type & 0x0f) | 0x10 | 0x40;
+		dg[2] = QQ;
+
+		// HH:
+		//		HDOP = HH&0x7C = HH & 01111100			= .000 11.. = 0x0C = 3
+		//		HDOP availability = HH&0x80 		    = 1... .... = 0x80 = 1
+		//		low bit of numsats = HH&0x01			= .... ...1 = 0x01 = 1
+		//		numsats available = HH&0x02				= .... ..1. = 0x20 = 1
+		// hdop = 3, hdop_available = 1, num_sats_available = 1, low bit of num_sats = 1, numsats available = 1
+
+		int ihdop = roundf(gps_model.hdop);
+
+		uint8_t HH = 0;
+		if (gps_model.fix_type > 0)
+			HH = 0x80 | ((ihdop & 0x3f) << 2) | 0x01 | 0x02;
+		dg[3] = HH;
+
+		dg[4] = 0x00;               // ?? = unknown
+		dg[5] = 0x33;               // AA = antenna height; apparenly 0x33 is a constant that is seen in real Raystar GPS devices
+		dg[6] = 0x20;               // GG = geoidal separation (32 * 16 = 512 m)
+		dg[7] = 0x00;               // ZZ = differential age high bits
+		dg[8] = 0x00;               // YY = diff age low bits + flags + station ID high bits
+		dg[9] = 0x00;               // DD = station ID low
+
+		queueDatagram(E80_PORT2,dg);
+	}
+
+
+	//-----------------------------------
+	// SAT_DETAIL1..4 && SATS_USED
+	//-----------------------------------
+
+	if (gps_model.year > 0)
+	{
+		int num_total = 0;
+		int num_used = 0;
+		initStSatMessages();
+
+		for (int prn_m1=0; prn_m1<MAX_PRN && num_total < ST_MAX_VIEW; prn_m1++)
+		{
+			gps_sat_t *sat = &gps_model.sats[prn_m1];
+			if (!sat->elev) continue;		// SEEN
+			num_total++;
+
+			bool used = sat->flags & SAT_USED_IN_SOLUTION;
+			bool viewed = sat->flags & SAT_IN_VIEW;
+
+			if (used)	// prevent used overflow
+			{
+				if (num_used<ST_MAX_TRACKED)
+					num_used++;
+				else
+					used = 0;
+			}
+
+			// map snr to 0 for E80 to show "search" if !viewed and !used
+			uint8_t snr = sat->snr;
+			if (!used && !viewed) snr = 0;
+
+			// add it
+			addStSatMessage(prn_m1+1, sat->elev, sat->azim, snr, used?2:0);
+		}
+
+		// send all 5 datagrams
+
+		sendStSatMessags(E80_PORT2);
+	}
+
+
+	//----------------------------------
+	// SATS_DONE
+	//----------------------------------
+
+	if (gps_model.year > 0)
+	{
+		dg[0] = ST_SAT_DETAIL;
+		dg[1] = 0x98;
+		dg[2] = 0;
+		dg[3] = 0;
+		dg[4] = 0;
+		dg[5] = 0;
+		dg[6] = 0;
+		dg[7] = 0;
+		dg[8] = 0;
+		dg[9] = 0;
+		dg[10] = 0;
+		queueDatagram(E80_PORT2,dg);
+	}
+
+
+	//------------------------------------------
+	// LATLON
+	//------------------------------------------
+
+	if (1)
+	{
+		double lat = gps_model.lat;
+		double lon = gps_model.lon;
+		display(dbg_neo_ST+1,"st%d LatLon(%0.6f,%0.6f)",E80_PORT2,lat,lon);
+
+		uint8_t Z1 = 0;
+		uint8_t Z2 = 0x20;
+		if (lat < 0)
+		{
+			lat = abs(lat);
+			Z1 = 0x10;
+		}
+		if (lon < 0)
+		{
+			lon = abs(lon);
+			Z2 = 0x0;
+		}
+
+		// integer portions
+		uint16_t i_lat = lat;
+		uint16_t i_lon = lon;
+
+		// right of decimal point
+		float frac_lat = lat - i_lat;
+		float frac_lon = lon - i_lon;
+
+		// converted to minutes
+		float min_lat = frac_lat * 60.0;
+		float min_lon = frac_lon * 60.0;
+
+		// times 1000 into integers
+		int imin_lat = round(min_lat * 1000.0);
+		int imin_lon = round(min_lon * 1000.0);
+
 		proc_entry();
-		uint16_t dg[MAX_ST_BUF];
-
-		//-----------------------
-		// ST_SAT_INFO
-		//-----------------------
-		// Use arbitray value of 0/5 satelites based on fix
-
-		if (1)
-		{
-			// NOTE ST_SAT_INFO does not like numsats=11 (0xb0)
-			// *perhaps* it is actually the number of sats used in the solution
-			// and, thus would be limited to 9
-
-			display(dbg_neo_ST+1,"st%d SatInfo()",E80_PORT2);
-			dg[0] = ST_SAT_INFO;	// 0x157
-			dg[1] = gps_model.fix_type ? 0x50 : 0x00;      		// num_sats USED=5 << 4
-			dg[2] = gps_model.fix_type ? 0x02 : 0xff;          	// HDOP = 2
-			queueDatagram(E80_PORT2,dg);
-		}
-
-		//------------------------------------------------
-		// SAT_DET_INFO (A5 57)  — GPS Fix + HDOP block
-		//------------------------------------------------
-		// note we send hdop 3 from this as opposed to 2 above
-
-		if (1)
-		{
-			display(dbg_neo_ST+1,"st%d SatDetail(1)",E80_PORT2);
-
-			dg[0] = ST_SAT_DETAIL;		// // 0x1A5
-			dg[1] = 0x57;
-
-			// QQ
-			// 		fix = QQ&0xF 						    = .... 00nn = 0x0nn = 1 "Fix"
-			//		fix_available = QQ&0x10 			    = ...1 .... = 0x10 = 1
-			// 		high 3 bits of numsats=5= QQ&0xE0/16  	= 010. .... = 0x40 = 2
-			// Knauf uses QQ&0xE0/16 to mean (QQ&0xE0)>>4 in exprssion for numsats
-
-			uint8_t QQ = 0;
-			if (gps_model.fix_type > 0)
-				QQ = (gps_model.fix_type & 0x0f) | 0x10 | 0x40;
-			dg[2] = QQ;
-
-			// HH:
-			//		HDOP = HH&0x7C = HH & 01111100			= .000 11.. = 0x0C = 3
-			//		HDOP availability = HH&0x80 		    = 1... .... = 0x80 = 1
-			//		low bit of numsats = HH&0x01			= .... ...1 = 0x01 = 1
-			//		numsats available = HH&0x02				= .... ..1. = 0x20 = 1
-			// hdop = 3, hdop_available = 1, num_sats_available = 1, low bit of num_sats = 1, numsats available = 1
-
-			int ihdop = roundf(gps_model.hdop);
-
-			uint8_t HH = 0;
-			if (gps_model.fix_type > 0)
-				HH = 0x80 | ((ihdop & 0x3f) << 2) | 0x01 | 0x02;
-			dg[3] = HH;
-
-			dg[4] = 0x00;               // ?? = unknown
-			dg[5] = 0x33;               // AA = antenna height; apparenly 0x33 is a constant that is seen in real Raystar GPS devices
-			dg[6] = 0x20;               // GG = geoidal separation (32 * 16 = 512 m)
-			dg[7] = 0x00;               // ZZ = differential age high bits
-			dg[8] = 0x00;               // YY = diff age low bits + flags + station ID high bits
-			dg[9] = 0x00;               // DD = station ID low
-
-			queueDatagram(E80_PORT2,dg);
-		}
-
-
-		//-----------------------------------
-		// SAT_DETAIL1..4 && SATS_USED
-		//-----------------------------------
-
-		if (gps_model.year > 0)
-		{
-			int num_total = 0;
-			int num_used = 0;
-			initStSatMessages();
-
-			for (int prn_m1=0; prn_m1<MAX_PRN && num_total < ST_MAX_VIEW; prn_m1++)
-			{
-				gps_sat_t *sat = &gps_model.sats[prn_m1];
-				if (!sat->elev) continue;		// SEEN
-				num_total++;
-
-				bool used = sat->flags & SAT_USED_IN_SOLUTION;
-				bool viewed = sat->flags & SAT_IN_VIEW;
-
-				if (used)	// prevent used overflow
-				{
-					if (num_used<ST_MAX_TRACKED)
-						num_used++;
-					else
-						used = 0;
-				}
-
-				// map snr to 0 for E80 to show "search" if !viewed and !used
-				uint8_t snr = sat->snr;
-				if (!used && !viewed) snr = 0;
-
-				// add it
-				addStSatMessage(prn_m1+1, sat->elev, sat->azim, snr, used?2:0);
-			}
-
-			// send all 5 datagrams
-
-			sendStSatMessags(E80_PORT2);
-		}
-
-
-		//----------------------------------
-		// SATS_DONE
-		//----------------------------------
-
-		if (gps_model.year > 0)
-		{
-			dg[0] = ST_SAT_DETAIL;
-			dg[1] = 0x98;
-			dg[2] = 0;
-			dg[3] = 0;
-			dg[4] = 0;
-			dg[5] = 0;
-			dg[6] = 0;
-			dg[7] = 0;
-			dg[8] = 0;
-			dg[9] = 0;
-			dg[10] = 0;
-			queueDatagram(E80_PORT2,dg);
-		}
-
-
-		//------------------------------------------
-		// LATLON
-		//------------------------------------------
-
-		if (1)
-		{
-			double lat = gps_model.lat;
-			double lon = gps_model.lon;
-			display(dbg_neo_ST+1,"st%d LatLon(%0.6f,%0.6f)",E80_PORT2,lat,lon);
-
-			uint8_t Z1 = 0;
-			uint8_t Z2 = 0x20;
-			if (lat < 0)
-			{
-				lat = abs(lat);
-				Z1 = 0x10;
-			}
-			if (lon < 0)
-			{
-				lon = abs(lon);
-				Z2 = 0x0;
-			}
-
-			// integer portions
-			uint16_t i_lat = lat;
-			uint16_t i_lon = lon;
-
-			// right of decimal point
-			float frac_lat = lat - i_lat;
-			float frac_lon = lon - i_lon;
-
-			// converted to minutes
-			float min_lat = frac_lat * 60.0;
-			float min_lon = frac_lon * 60.0;
-
-			// times 1000 into integers
-			int imin_lat = round(min_lat * 1000.0);
-			int imin_lon = round(min_lon * 1000.0);
-
-			proc_entry();
-			display(dbg_neo_ST+1+1,"i_lat(%d) frac_lat(%0.6f) min_lat(%0.6f) imin_lat(%d)",i_lat,frac_lat,min_lat,imin_lat);
-			display(dbg_neo_ST+1+1,"i_lon(%d) frac_lon(%0.6f) min_lon(%0.6f) imin_lon(%d)",i_lon,frac_lon,min_lon,imin_lon);
-			proc_leave();
-
-			dg[0] = ST_LATLON;					// 0x158
-			dg[1] = 0x5 | Z1 | Z2;
-			dg[2] = i_lat;
-			dg[3] = (imin_lat >> 8) & 0xff;
-			dg[4] = imin_lat & 0xff;
-			dg[5] = i_lon;
-			dg[6] = (imin_lon >> 8) & 0xff;
-			dg[7] = imin_lon & 0xff;
-			queueDatagram(E80_PORT2,dg);
-		}
-
-
-		//------------------------------------------
-		// COG/SOG
-		//------------------------------------------
-
-		if (gps_model.year > 0)
-		{
-			if (gps_model.sog >= 0)
-			{
-				float degrees = boat_sim.makeMagnetic(gps_model.cog);
-
-				int halfs_total = roundf(degrees * 2.0);
-				int nineties = halfs_total / 180;
-				int rem = halfs_total % 180;
-				int twos = rem / 4;
-				int halfs = rem % 4;
-
-				display(dbg_neo_ST+1,"st%d COG(%0.1f) = nineties(%d) twos(%d) halfs(%d)",E80_PORT2,degrees,nineties,twos,halfs);
-
-				dg[0] = ST_COG;		// 0x153
-				dg[1] = 0 | (nineties << 4) | (halfs<<6);
-				dg[2] = twos;
-				queueDatagram(E80_PORT2,dg);
-			}
-
-			if (gps_model.sog >= 0)
-			{
-				double speed = gps_model.sog ;
-				int ispeed = (speed+ 0.05) * 10;
-				display(dbg_neo_ST+1,"st%d SOG & stSOG(%0.1f)",E80_PORT2,speed);
-
-				dg[0] = ST_SOG;		// 0x152
-				dg[1] = 0x01;
-				dg[2] = ispeed & 0xff;
-				dg[3] = (ispeed >> 8) & 0xff;
-				queueDatagram(E80_PORT2,dg);
-			}
-		}
-
-
-		//------------------------------------------
-		// DATE and TIME
-		//------------------------------------------
-
-		if (gps_model.year > 0)
-		{
-			int y = gps_model.year % 100;
-			int m = gps_model.month;
-			int d = gps_model.day;
-
-			display(dbg_neo_ST+1,"st%d Date(%02d/%02d/%02d)",E80_PORT2,y,m,d);
-			dg[0] = ST_DATE;			// 0x156
-			dg[1] = 0x01 | (m << 4);
-			dg[2] = d;
-			dg[3] = y;
-			queueDatagram(E80_PORT2,dg);
-
-			// RST is 12 bits (6 bits for minute, 6 bits for second)
-			// T is four bits (low order four bits of second)
-			// RS is eight bits (6 bits of minute followed by 2 bits of second)
-
-			int s = gps_model.seconds;
-			int h = gps_model.hour;
-			int mm = gps_model.minute;
-
-			uint16_t RST = (mm << 6) | s;
-			uint16_t T = RST & 0xf;
-			uint16_t RS = RST >> 4;
-
-			display(dbg_neo_ST+1,"st%d Date(%02d:%02d:%02d)",E80_PORT2,h,mm,s);
-			dg[0] = ST_TIME;				// 0x154
-			dg[1] = 0x01 | (T << 4);
-			dg[2] = RS;
-			dg[3] = h;
-			queueDatagram(E80_PORT2,dg);
-		}
-
+		display(dbg_neo_ST+1+1,"i_lat(%d) frac_lat(%0.6f) min_lat(%0.6f) imin_lat(%d)",i_lat,frac_lat,min_lat,imin_lat);
+		display(dbg_neo_ST+1+1,"i_lon(%d) frac_lon(%0.6f) min_lon(%0.6f) imin_lon(%d)",i_lon,frac_lon,min_lon,imin_lon);
 		proc_leave();
 
-	}	// sendNeoST()
-
-
-#else
-
-	// sendNeo2000
-	//
-	// Sends the same messages in the same order as inst2000_out.cpp
-	// gpsInst::send2000() which is known to work with the E80
-	// GPS status window to show bars and icons.
-	//
-	// MY invalid values are -1.
-	// Here I provide methods to map my invalid values to the
-	// NMEAInvalid values as needed.
-
-	static double mapDoubleNA(double v)
-	{
-		return (v < 0.0) ? N2kDoubleNA : v;
-	}
-
-	static uint8_t mapUInt8NA(int v)
-	{
-		return (v < 0) ? N2kUInt8NA : (uint8_t)v;
-	}
-
-	static double mapDegToRadNA(double v)
-		// NOT USED BELOW FOR lat/lon/altituged which were
-		// initialized to NA
-	{
-		return (v < 0) ? N2kDoubleNA : DegToRad(v);
+		dg[0] = ST_LATLON;					// 0x158
+		dg[1] = 0x5 | Z1 | Z2;
+		dg[2] = i_lat;
+		dg[3] = (imin_lat >> 8) & 0xff;
+		dg[4] = imin_lat & 0xff;
+		dg[5] = i_lon;
+		dg[6] = (imin_lon >> 8) & 0xff;
+		dg[7] = imin_lon & 0xff;
+		queueDatagram(E80_PORT2,dg);
 	}
 
 
-	static void sendNeo2000()
-		// We use gps_model.year>0 both as a flag that the year is valid for
-		// PGN 126992, but perhaps more importantly, as a flag that the
-		// entire gps_model data structure is valid for PGN 129540
+	//------------------------------------------
+	// COG/SOG
+	//------------------------------------------
+
+	if (gps_model.year > 0)
 	{
-		tN2kMsg msg;
-
-		int actual_num_viewed = 0;
-		int actual_num_used = 0;
-		for (int i=0; i<MAX_PRN; i++)
+		if (gps_model.sog >= 0)
 		{
-			if (gps_model.sats[i].flags & SAT_IN_VIEW)
-				actual_num_viewed++;
-			if (gps_model.sats[i].flags & SAT_USED_IN_SOLUTION)
-				actual_num_used++;
+			float degrees = boat_sim.makeMagnetic(gps_model.cog);
+
+			int halfs_total = roundf(degrees * 2.0);
+			int nineties = halfs_total / 180;
+			int rem = halfs_total % 180;
+			int twos = rem / 4;
+			int halfs = rem % 4;
+
+			display(dbg_neo_ST+1,"st%d COG(%0.1f) = nineties(%d) twos(%d) halfs(%d)",E80_PORT2,degrees,nineties,twos,halfs);
+
+			dg[0] = ST_COG;		// 0x153
+			dg[1] = 0 | (nineties << 4) | (halfs<<6);
+			dg[2] = twos;
+			queueDatagram(E80_PORT2,dg);
 		}
 
-		// PGN 129029 - GNSS Position Data
-
-		if (gps_model.fix_type >= 1)
+		if (gps_model.sog >= 0)
 		{
-			// teensy TimeLib.h has already been updated in the RMC parser:
-			// ^^^ this may be a bad assumption since fix_type is not from RMC,
-			// but at least they're valid values (not NA) in all cases below
+			double speed = gps_model.sog ;
+			int ispeed = (speed+ 0.05) * 10;
+			display(dbg_neo_ST+1,"st%d SOG & stSOG(%0.1f)",E80_PORT2,speed);
 
-			time_t t = now();
-			uint32_t days = t / 86400;
-			uint32_t secs = t % 86400;
-
-			display(dbg_neo_2000,
-				"129029 GNSS lat=%.6f lon=%.6f alt=%.1f fix=%d actual_num_used=%d hdop=%.1f vdop=%.1f pdop=%.1f",
-				gps_model.lat,
-				gps_model.lon,
-				gps_model.altitude,
-				gps_model.fix_type,
-				actual_num_used,
-				gps_model.hdop,
-				gps_model.vdop,
-				gps_model.pdop
-			);
-
-			SetN2kPGN129029(msg,
-				255,							// SID (sequence ID)
-				days,							// Days since 1970-01-01	gotten from teensy clock, whatever that is
-				secs,							// Seconds since midnight	gotten from teensy clock, whatever that is
-				gps_model.lat,					// Latitude (deg)			already mapped to NA if un-inited
-				gps_model.lon,					// Longitude (deg)			already mapped to NA if un-inited
-				gps_model.altitude,				// Altitude (m)				already mapped to NA if un-inited
-				N2kGNSSt_GPS,					// GNSS type (GPS)
-				N2kGNSSm_GNSSfix,				// GNSS method (GNSS fix)
-				actual_num_used,				// Number of satellites used
-				mapDoubleNA(gps_model.hdop),		// HDOP						turned into NA if < 0
-				mapDoubleNA(gps_model.pdop),		// PDOP						turned into NA if < 0
-				0,								// Geoidal separation (m)
-				0,								// Position accuracy estimate (m)
-				N2kGNSSt_GPS,					// Integrity type
-				0,								// Reserved
-				0 );							// Reserved
-			nmea2000.SendMsg(msg);
+			dg[0] = ST_SOG;		// 0x152
+			dg[1] = 0x01;
+			dg[2] = ispeed & 0xff;
+			dg[3] = (ispeed >> 8) & 0xff;
+			queueDatagram(E80_PORT2,dg);
 		}
+	}
 
 
-		// inst2000 instGPS sends PGN_DIRECTION_DATA 130577 here
-		// we only send sog and cog, we don't presume to know the heading
-		// or anything about the water speed, set, or drift
+	//------------------------------------------
+	// DATE and TIME
+	//------------------------------------------
 
-		if (gps_model.year > 0 && (gps_model.sog >= 0 || gps_model.cog >= 0))		// valid DT from GPS
+	if (gps_model.year > 0)
+	{
+		int y = gps_model.year % 100;
+		int m = gps_model.month;
+		int d = gps_model.day;
+
+		display(dbg_neo_ST+1,"st%d Date(%02d/%02d/%02d)",E80_PORT2,y,m,d);
+		dg[0] = ST_DATE;			// 0x156
+		dg[1] = 0x01 | (m << 4);
+		dg[2] = d;
+		dg[3] = y;
+		queueDatagram(E80_PORT2,dg);
+
+		// RST is 12 bits (6 bits for minute, 6 bits for second)
+		// T is four bits (low order four bits of second)
+		// RS is eight bits (6 bits of minute followed by 2 bits of second)
+
+		int s = gps_model.seconds;
+		int h = gps_model.hour;
+		int mm = gps_model.minute;
+
+		uint16_t RST = (mm << 6) | s;
+		uint16_t T = RST & 0xf;
+		uint16_t RS = RST >> 4;
+
+		display(dbg_neo_ST+1,"st%d Date(%02d:%02d:%02d)",E80_PORT2,h,mm,s);
+		dg[0] = ST_TIME;				// 0x154
+		dg[1] = 0x01 | (T << 4);
+		dg[2] = RS;
+		dg[3] = h;
+		queueDatagram(E80_PORT2,dg);
+	}
+
+	proc_leave();
+
+}	// sendNeoST()
+
+
+//----------------------------------------------------
+// NMEA2000 Sender
+//----------------------------------------------------
+// Sends the same messages in the same order as inst2000_out.cpp
+// gpsInst::send2000() which is known to work with the E80
+// GPS status window to show bars and icons.
+//
+// MY invalid values are -1.
+// Here I provide methods to map my invalid values to the
+// NMEAInvalid values as needed.
+
+static double mapDoubleNA(double v)
+{
+	return (v < 0.0) ? N2kDoubleNA : v;
+}
+
+static uint8_t mapUInt8NA(int v)
+{
+	return (v < 0) ? N2kUInt8NA : (uint8_t)v;
+}
+
+static double mapDegToRadNA(double v)
+	// NOT USED BELOW FOR lat/lon/altituged which were
+	// initialized to NA
+{
+	return (v < 0) ? N2kDoubleNA : DegToRad(v);
+}
+
+
+static void sendNeo2000()
+	// We use gps_model.year>0 both as a flag that the year is valid for
+	// PGN 126992, but perhaps more importantly, as a flag that the
+	// entire gps_model data structure is valid for PGN 129540
+{
+	tN2kMsg msg;
+
+	int actual_num_viewed = 0;
+	int actual_num_used = 0;
+	for (int i=0; i<MAX_PRN; i++)
+	{
+		if (gps_model.sats[i].flags & SAT_IN_VIEW)
+			actual_num_viewed++;
+		if (gps_model.sats[i].flags & SAT_USED_IN_SOLUTION)
+			actual_num_used++;
+	}
+
+	// PGN 129029 - GNSS Position Data
+
+	if (gps_model.fix_type >= 1)
+	{
+		// teensy TimeLib.h has already been updated in the RMC parser:
+		// ^^^ this may be a bad assumption since fix_type is not from RMC,
+		// but at least they're valid values (not NA) in all cases below
+
+		time_t t = now();
+		uint32_t days = t / 86400;
+		uint32_t secs = t % 86400;
+
+		display(dbg_neo_2000,
+			"129029 GNSS lat=%.6f lon=%.6f alt=%.1f fix=%d actual_num_used=%d hdop=%.1f vdop=%.1f pdop=%.1f",
+			gps_model.lat,
+			gps_model.lon,
+			gps_model.altitude,
+			gps_model.fix_type,
+			actual_num_used,
+			gps_model.hdop,
+			gps_model.vdop,
+			gps_model.pdop
+		);
+
+		SetN2kPGN129029(msg,
+			255,							// SID (sequence ID)
+			days,							// Days since 1970-01-01	gotten from teensy clock, whatever that is
+			secs,							// Seconds since midnight	gotten from teensy clock, whatever that is
+			gps_model.lat,					// Latitude (deg)			already mapped to NA if un-inited
+			gps_model.lon,					// Longitude (deg)			already mapped to NA if un-inited
+			gps_model.altitude,				// Altitude (m)				already mapped to NA if un-inited
+			N2kGNSSt_GPS,					// GNSS type (GPS)
+			N2kGNSSm_GNSSfix,				// GNSS method (GNSS fix)
+			actual_num_used,				// Number of satellites used
+			mapDoubleNA(gps_model.hdop),		// HDOP						turned into NA if < 0
+			mapDoubleNA(gps_model.pdop),		// PDOP						turned into NA if < 0
+			0,								// Geoidal separation (m)
+			0,								// Position accuracy estimate (m)
+			N2kGNSSt_GPS,					// Integrity type
+			0,								// Reserved
+			0 );							// Reserved
+		nmea2000.SendMsg(msg);
+	}
+
+
+	// inst2000 instGPS sends PGN_DIRECTION_DATA 130577 here
+	// we only send sog and cog, we don't presume to know the heading
+	// or anything about the water speed, set, or drift
+
+	if (gps_model.year > 0 && (gps_model.sog >= 0 || gps_model.cog >= 0))		// valid DT from GPS
+	{
+		// PGN_DIRECTION_DATA
+
+		double sog_mps = gps_model.sog < 0 ? N2kDoubleNA : KnotsToms(gps_model.sog);
+
+		SetN2kPGN130577(msg, 					// msg
+			N2kDD025_Estimated,					// tN2kDataMode
+			N2khr_true,							// tN2kHeadingReference,
+			255,								// sid,
+			mapDegToRadNA(gps_model.cog),			// COG in radians
+			sog_mps,							// SOG in m/s
+			N2kDoubleNA,						// heading in radians
+			N2kDoubleNA,						// speed through water in m/s
+			N2kDoubleNA,						// Set
+			N2kDoubleNA);						// Drift
+		nmea2000.SendMsg(msg);
+	}
+
+	if (gps_model.year > 0)		// valid DT from GPS
+	{
+		// PGN 126992 - System Time
+
+		time_t now = time(NULL);
+		uint32_t days = now / 86400;
+		uint32_t secs = now - days * 86400;
+
+		display(dbg_neo_2000,
+			"126992 Time %04d-%02d-%02d %02d:%02d:%.1f",
+			gps_model.year,
+			gps_model.month,
+			gps_model.day,
+			gps_model.hour,
+			gps_model.minute,
+			gps_model.seconds
+		);
+
+		SetN2kPGN126992(msg,
+			255,
+			days,
+			secs,
+			N2ktimes_GPS
+		);
+		nmea2000.SendMsg(msg);
+	}
+
+
+	if (gps_model.year > 0)	// Valid (if partly unitialized) gps_model record from a cycle
+	{
+		// PGN 129540 - Satellites in View
+		// we count the sats in view based on the SAT_IN_VIEW bit, and
+		// only emit this message if the number is nonzero
+
+		if (actual_num_viewed > 0)
 		{
-			// PGN_DIRECTION_DATA
+			display(dbg_neo_2000,"129540 SatsInView actual_num_viewed(%d)",actual_num_viewed);
+			proc_entry();
 
-			double sog_mps = gps_model.sog < 0 ? N2kDoubleNA : KnotsToms(gps_model.sog);
+			int sid = 7;  // or any fixed non-255 SID
+			SetN2kPGN129540(msg,sid,N2kDD072_Unavailable);
+				// N2kDD072_Unavailable == the GNSS receiver did not provide any integrity/differential status information
 
-			SetN2kPGN130577(msg, 					// msg
-				N2kDD025_Estimated,					// tN2kDataMode
-				N2khr_true,							// tN2kHeadingReference,
-				255,								// sid,
-				mapDegToRadNA(gps_model.cog),			// COG in radians
-				sog_mps,							// SOG in m/s
-				N2kDoubleNA,						// heading in radians
-				N2kDoubleNA,						// speed through water in m/s
-				N2kDoubleNA,						// Set
-				N2kDoubleNA);						// Drift
-			nmea2000.SendMsg(msg);
-		}
-
-		if (gps_model.year > 0)		// valid DT from GPS
-		{
-			// PGN 126992 - System Time
-
-			time_t now = time(NULL);
-			uint32_t days = now / 86400;
-			uint32_t secs = now - days * 86400;
-
-			display(dbg_neo_2000,
-				"126992 Time %04d-%02d-%02d %02d:%02d:%.1f",
-				gps_model.year,
-				gps_model.month,
-				gps_model.day,
-				gps_model.hour,
-				gps_model.minute,
-				gps_model.seconds
-			);
-
-			SetN2kPGN126992(msg,
-				255,
-				days,
-				secs,
-				N2ktimes_GPS
-			);
-			nmea2000.SendMsg(msg);
-		}
-
-
-		if (gps_model.year > 0)	// Valid (if partly unitialized) gps_model record from a cycle
-		{
-			// PGN 129540 - Satellites in View
-			// we count the sats in view based on the SAT_IN_VIEW bit, and
-			// only emit this message if the number is nonzero
-
-			if (actual_num_viewed > 0)
+			for (int prn_m1=0; prn_m1<MAX_PRN; prn_m1++)
 			{
-				display(dbg_neo_2000,"129540 SatsInView actual_num_viewed(%d)",actual_num_viewed);
-				proc_entry();
+				if (!(gps_model.sats[prn_m1].flags & SAT_IN_VIEW))
+					continue;  // not in most recent GSV
+				bool used = gps_model.sats[prn_m1].flags & SAT_USED_IN_SOLUTION ? 1 : 0;
 
-				int sid = 7;  // or any fixed non-255 SID
-				SetN2kPGN129540(msg,sid,N2kDD072_Unavailable);
-					// N2kDD072_Unavailable == the GNSS receiver did not provide any integrity/differential status information
+				display(dbg_neo_2000 + 1,
+					"PGN SAT PRN[%d] elev(%d) azim(%d) snr(%d) used(%d)",
+					prn_m1 + 1,
+					gps_model.sats[prn_m1].elev,
+					gps_model.sats[prn_m1].azim,
+					gps_model.sats[prn_m1].snr,
+					used);
 
-				for (int prn_m1=0; prn_m1<MAX_PRN; prn_m1++)
+				tSatelliteInfo sat;
+				if (0)
 				{
-					if (!(gps_model.sats[prn_m1].flags & SAT_IN_VIEW))
-						continue;  // not in most recent GSV
-					bool used = gps_model.sats[prn_m1].flags & SAT_USED_IN_SOLUTION ? 1 : 0;
-
-					display(dbg_neo_2000 + 1,
-						"PGN SAT PRN[%d] elev(%d) azim(%d) snr(%d) used(%d)",
-						prn_m1 + 1,
-						gps_model.sats[prn_m1].elev,
-						gps_model.sats[prn_m1].azim,
-						gps_model.sats[prn_m1].snr,
-						used);
-
-					tSatelliteInfo sat;
-					if (0)
-					{
-						sat.PRN = prn_m1 + 1;
-						sat.Elevation = DegToRad(gps_model.sats[prn_m1].elev);
-						sat.Azimuth = DegToRad(gps_model.sats[prn_m1].azim);
-						sat.SNR = gps_model.sats[prn_m1].snr;
-						sat.RangeResiduals = N2kDoubleNA;
-					}
-					else
-					{
-						sat.PRN        = prn_m1 + 1;
-						sat.Elevation  = mapDegToRadNA(gps_model.sats[prn_m1].elev);
-						sat.Azimuth    = mapDegToRadNA(gps_model.sats[prn_m1].azim);
-						sat.SNR        = mapUInt8NA(gps_model.sats[prn_m1].snr);
-						sat.RangeResiduals = N2kDoubleNA;
-					}
-					sat.UsageStatus =  used ?
-						N2kDD124_UsedInSolutionWithoutDifferentialCorrections :
-						N2kDD124_TrackedButNotUsedInSolution;
-					AppendN2kPGN129540(msg, sat);
+					sat.PRN = prn_m1 + 1;
+					sat.Elevation = DegToRad(gps_model.sats[prn_m1].elev);
+					sat.Azimuth = DegToRad(gps_model.sats[prn_m1].azim);
+					sat.SNR = gps_model.sats[prn_m1].snr;
+					sat.RangeResiduals = N2kDoubleNA;
 				}
-
-				nmea2000.SendMsg(msg);
-				proc_leave();
+				else
+				{
+					sat.PRN        = prn_m1 + 1;
+					sat.Elevation  = mapDegToRadNA(gps_model.sats[prn_m1].elev);
+					sat.Azimuth    = mapDegToRadNA(gps_model.sats[prn_m1].azim);
+					sat.SNR        = mapUInt8NA(gps_model.sats[prn_m1].snr);
+					sat.RangeResiduals = N2kDoubleNA;
+				}
+				sat.UsageStatus =  used ?
+					N2kDD124_UsedInSolutionWithoutDifferentialCorrections :
+					N2kDD124_TrackedButNotUsedInSolution;
+				AppendN2kPGN129540(msg, sat);
 			}
+
+			nmea2000.SendMsg(msg);
+			proc_leave();
 		}
 	}
-
-#endif	// !NEO_HOW_ST
-
+}
 
 
 
@@ -1282,11 +1288,10 @@ void doNeo6M_GPS()
 			#endif
 
 			cycle_count++;
-			#if NEO_HOW_ST
+			if (st_enabled)
 				sendNeoST();
-			#else
+			if (nmea2000_enabled)
 				sendNeo2000();
-			#endif
 		}
 		else
 		{

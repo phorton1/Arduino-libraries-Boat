@@ -89,7 +89,7 @@ static const unsigned long TransmitMessages[] = {
 
 
 
-void inst2000::init()
+void inst2000::init(bool as_teensyBoat /*=true*/)
 {
 	display(dbg_mon,"inst2000::init() started",0);
 	proc_entry();
@@ -105,23 +105,23 @@ void inst2000::init()
 	//		https://web.archive.org/web/20190529161431/http://www.nmea.org/Assets/20121020%20nmea%202000%20registration%20list.pdf
 	// I am not currently calling SetDeviceInstance() but it's working "ok"
 
-	#if 1
-
+	if (as_teensyBoat)
+	{
 		SetProductInformation(
-			"prh_model_1000",            // Manufacturer's Model serial code
-			1000,                        // Manufacturer's uint8_t product code
-			"teensyBoat multi-interface",       // Manufacturer's Model ID
-			"prh_sw_100.0",             // Manufacturer's Software version code
-			"prh_mv_100.0",             // Manufacturer's uint8_t Model version
-			3,                          // LoadEquivalency uint8_t 3=150ma; Default=1. x * 50 mA
-			2101,                       // N2kVersion Default=2101
-			1,                          // CertificationLevel Default=1
-			0                           // iDev (int) index of the device on \ref Devices
+			"teensyBoat1",            		// Manufacturer's Model serial code
+			1000,                        	// Manufacturer's uint8_t product code
+			"teensyBoat multi-interface",   // Manufacturer's Model ID
+			"tb_sw_1.0",             		// Manufacturer's Software version code
+			"tb_v_1.0",             		// Manufacturer's uint8_t Model version
+			3,                          	// LoadEquivalency uint8_t 3=150ma; Default=1. x * 50 mA
+			2101,                       	// N2kVersion Default=2101
+			1,                          	// CertificationLevel Default=1
+			0                           	// iDev (int) index of the device on \ref Devices
 			);
 		SetConfigurationInformation(
-			"prhSystems",           // ManufacturerInformation
-			"MonitorInstall1",      // InstallationDescription1
-			"MonitorInstall2"       // InstallationDescription2
+			"prhSystems",      // ManufacturerInformation
+			"tbInstall1",      // InstallationDescription1
+			"tbInstall2"       // InstallationDescription2
 			);
 		SetDeviceInformation(
 			123456,  // uint32_t Unique number, i.e. Serial number.
@@ -129,9 +129,10 @@ void inst2000::init()
 			25,      // uint8_t  Device class = Inter/Intranetwork Device
 			2046     // uint16_t Registration/Company) ID // 2046 does not exist; choosen arbitrarily
 			);
+	}
 
-	#else	// trying to get E80 to see genset
-
+	if (0) 		// trying to get E80 to see genset
+	{
 		SetProductInformation(
 			"RayGen_1000",               // Manufacturer's Model serial code (Raymarine-style prefix)
 			1000,                        // Manufacturer's product code
@@ -154,8 +155,7 @@ void inst2000::init()
 			30,      // Device class = Electrical Generation
 			1851     // Manufacturer ID (can remain arbitrary if not claiming a known brand)
 		);
-
-	#endif
+	}
 
 
 	// set Device Mode and it's address(99)

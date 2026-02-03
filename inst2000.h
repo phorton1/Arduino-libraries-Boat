@@ -131,7 +131,7 @@ public:
 #endif
 	{}
 
-	void init();
+	void init(bool as_teensyBoat=true);
 
 	void loop();
 
