@@ -357,7 +357,7 @@ void instSimulator::sendBinaryState()
 	proc_leave();
 	Serial.write(buf,offset);
 
-	#ifdef WITH_TB_ESP32
+	#if WITH_TB_ESP32
 		if (doTbEsp32())
 			SERIAL_ESP32.write(buf,offset);
 	#endif
@@ -383,7 +383,7 @@ void instSimulator::setGP8Function(uint8_t fxn)
 			warning(0,"PIN_SPEED_PULSE==0; GP8 FUNCTION does nothing");
 		#endif
 
-		#ifdef WITH_TB_ESP32
+		#if WITH_TB_ESP32
 			if (fxn == GP8_FUNCTION_PULSE)
 			{
 				pinMode(PIN_UDP_ENABLE,INPUT_PULLDOWN);
@@ -395,18 +395,18 @@ void instSimulator::setGP8Function(uint8_t fxn)
 			warning(0,"WITH_TB_ESP32==0; GP8 FUNCTION does nothing");
 		#endif
 		
-		#ifdef WITH_NEO6M
+		#if WITH_NEO6M
 			if (fxn == GP8_FUNCTION_NEOST)
 			{
 				SERIAL_ESP32.end();
-				initNeo6M_GPS();
+				initNeo6M_GPS(1,0x50);
 				enableNeoSeatalk(true);
 				enableNeoNMEA200(false);
 			}
 			if (fxn == GP8_FUNCTION_NEO2000)
 			{
 				SERIAL_ESP32.end();
-				initNeo6M_GPS();
+				initNeo6M_GPS(1,0x50);
 				enableNeoSeatalk(false);
 				enableNeoNMEA200(true);
 			}
@@ -605,7 +605,13 @@ void instSimulator::run()
 		boat_sim.run();
 		if (boat_sim.running())
 		{
-			clearSTQueues();
+			// This should not be necessary unless we are queing more ST messages
+			// than can, in fact, be sent in a single second. I commented it out
+			// because it clears the queue separate from the asynchronous neoGPS
+			// usage of the queue.
+			//
+			//		clearSTQueues();
+
 			for (int i=0; i<NUM_INSTRUMENTS; i++)
 			{
 				delay(10);

@@ -6,7 +6,7 @@
 
 #pragma once
 
-extern void initNeo6M_GPS();
+extern void initNeo6M_GPS(uint8_t version, uint8_t subversion);
 extern void doNeo6M_GPS();
 
 extern void enableNeoSeatalk(bool enable);
@@ -16,3 +16,10 @@ extern bool NeoNMEA2000Enabled();
 
 
 
+extern volatile bool st_neo_device_query_pending;
+	// set by client code (instST_in.cpp or teensyGPS.ino) when a device query is
+	// received, in which case, the neo will reply with a device id message
+
+extern void replyToRestartGPSButton();
+	// called by client code when a specific SAT_DETAIL message is
+	// received that is transmitted by the E80 "Restart GPS Button"

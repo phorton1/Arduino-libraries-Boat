@@ -9,6 +9,11 @@
 #include "boatUtils.h"
 #include "boatBinary.h"
 
+#if WITH_NEO6M
+	#include "neoGPS.h"
+#endif
+
+
 #define dbg_st7000	0
 
 // notes
@@ -56,7 +61,7 @@ const st_info_type st_known[] =
 	/* 0x158 */ { ST_LATLON,		"LATLON",		},
 	/* 0x159 */ { ST_59,			"59",			},
 	/* 0x161 */ { ST_E80_SIG,		"E80_SIG",		},
-	/* 0x182 */ { ST_TARGET_NAME,	"TARGET_NAME",	},
+	/* 0x182 */ { ST_TARGET_ID,		"TARGET_NAME",	},
 	/* 0x184 */	{ ST_AUTOPILOT,		"AUTOPILOT",	},
 	/* 0x185 */ { ST_NAV_TO_WP,		"NAV_TO_WP",	},
 	/* 0x186 */ { ST_AP_KEYSTROKE,	"AP_KEY",		},
@@ -66,6 +71,7 @@ const st_info_type st_known[] =
 	/* 0x199 */ { ST_COMPASS_VAR,	"COMPASS_VAR",	},
 	/* 0x19c */ { ST_RUDDER,		"RUDDER",		},
 	/* 0x19e */	{ ST_WP_DEF,		"WP_DEF",		},
+	/* 0x1a1 */ { ST_TARGET_NAME,	"TARGET_NAME",  },
 	/* 0x1a2 */ { ST_ARRIVAL,		"ARRIVAL",		},
 	/* 0z1a4 */	{ ST_DEV_QUERY,		"DEV_QUERY",	},
 	/* 0z1a5 */	{ ST_SAT_DETAIL,	"SAT_DETAIL",	},
@@ -248,7 +254,7 @@ static const char *deviceName(uint8_t device_id)
 
 
 
-static String decodeST(uint16_t st, const uint8_t *dg, const char **p_name)
+static String decodeST(bool out, uint16_t st, const uint8_t *dg, const char **p_name)
 {
 	String retval;
 
@@ -525,7 +531,7 @@ static String decodeST(uint16_t st, const uint8_t *dg, const char **p_name)
 		retval += strDegreeMinutes(lon);
 		retval += ")";
 	}
-	else if (st == ST_TARGET_NAME)	// 0x182
+	else if (st == ST_TARGET_ID)	// 0x182
 	{
 		uint8_t XX = dg[2];
 		uint8_t YY = dg[4];
@@ -534,7 +540,7 @@ static String decodeST(uint16_t st, const uint8_t *dg, const char **p_name)
 		uint8_t char2 = (YY & 0xf)*4 + (XX & 0xc0)/64;
 		uint8_t char3 = (ZZ & 0x3)*16 + (YY & 0xf0)/16;
 		uint8_t char4 = (ZZ & 0xfc)/4;
-		retval = "name(";
+		retval = "id(";
 		retval += (char) (char1 + 0x30);
 		retval += (char) (char2 + 0x30);
 		retval += (char) (char3 + 0x30);
@@ -882,6 +888,25 @@ static String decodeST(uint16_t st, const uint8_t *dg, const char **p_name)
 		retval += rudder;
 		retval += ")";
 	}
+	else if (st == ST_TARGET_NAME)		// 0x1a1
+	{
+		int part = (dg[1] & 0xf0) >> 4;
+		static char st_name[20];
+		sprintf(st_name,"Z%c%c%c%c%c%c_%X",
+			dg[2],
+			dg[3],
+			dg[4],
+			dg[5],
+			dg[6],
+			dg[7],
+			part);
+		*p_name = st_name;
+	
+		retval = " name(";
+		for (int i=0; i<8 && dg[8+i]; i++)
+			retval += (char) dg[8+i];
+		retval += ")";
+	}
 	else if (st == ST_ARRIVAL)		// 0x1a2
 	{
 		// #define ST_ARRIVAL		0x1A2
@@ -912,6 +937,9 @@ static String decodeST(uint16_t st, const uint8_t *dg, const char **p_name)
 		{
 			retval = "QUERY";
 			st_device_query_pending = 1;
+			#if WITH_NEO6M
+				st_neo_device_query_pending = 1;
+			#endif
 		}
 		else if (dg[1] == 0x12)
 		{
@@ -1055,8 +1083,15 @@ static String decodeST(uint16_t st, const uint8_t *dg, const char **p_name)
 				*p_name = "SAT_DETAIL3";
 			else if (dg[1] == 0x8D)
 				*p_name = "SAT_DETAIL4";
-			else if (st != ST_DIF_DETAIL)	// 0x1a7
-				*p_name = "SAT_DETAIL";
+			else
+			{
+				if (st != ST_DIF_DETAIL)	// 0x1a7
+					*p_name = "SAT_DETAIL";
+				#if WITH_NEO6M
+					if (!out && dg[0] == 0xa5 && dg[1]==0x4d && dg[15] == 0x08)
+						replyToRestartGPSButton();
+				#endif
+			}
 
 			uint8_t NN = dg[2];
 			uint8_t AA = dg[3];
@@ -1153,31 +1188,13 @@ void showDatagram16(bool port2, bool out, const uint16_t *dg)
 
 void showDatagram(bool port2, bool out, const uint8_t *dg)
 {
-	int port_num = port2 ? PORT_ST2 : PORT_ST1;
-	int binary_type = port2 ? BINARY_TYPE_ST2 : BINARY_TYPE_ST1;
-	if (!inst_sim.g_MON[port_num] && !(g_BINARY & binary_type))
-		return;
-
-	#define WIDTH_OF_HEX	3
-	#define PAD_HEX         (MAX_ST_SEEN * WIDTH_OF_HEX)
-
-	static int in_counter = 0;
-	in_counter++;
-
 	uint16_t st = dg[0] | 0x100;
+	int port_num = port2 ? PORT_ST2 : PORT_ST1;
 
-	const st_info_type *found = 0;
-	const st_info_type *search = st_known;
-	while (!found && search->st)
-	{
-		if (search->st == st) found = search;
-		search++;
-	}
+	bool mon = inst_sim.g_MON[port_num];
 
-
-	const char *name = found ? found->name : NULL;
-	String decode = decodeST(st,dg,&name);
-	if (name == NULL) name = "unknown";
+	int binary_type = port2 ? BINARY_TYPE_ST2 : BINARY_TYPE_ST1;
+	bool bin = g_BINARY & binary_type;
 
 	bool fwd = 0;
 	if (!out && (
@@ -1189,69 +1206,98 @@ void showDatagram(bool port2, bool out, const uint8_t *dg)
 
 
 
-	String st_name(fwd ? "S" : "ST");
-	st_name += port2 ? '2' : '1';			// STx for sends and non-forwarded receives
-	if (fwd)								// Sxy for forwarded receives
-		st_name += port2 ? '1' : '2';
+	static int in_counter = 0;
+	in_counter++;
 
-	st_name += '_';
-	st_name += name;
-	if (!found)
+	const char *name = NULL;
+	const st_info_type *found = 0;
+
+	if (mon || bin)
 	{
-		char buf[10];
-		sprintf(buf,"(%02x)",dg[0] & 0xff);
-		st_name += buf;
+		#define WIDTH_OF_HEX	3
+		#define PAD_HEX         (20 * WIDTH_OF_HEX)	// for monitor only
+
+		const st_info_type *search = st_known;
+		while (!found && search->st)
+		{
+			if (search->st == st) found = search;
+			search++;
+		}
+		if (found) name = found->name;
 	}
 
-	// fill out the hex buf
+	// decode needed for listeners
 
-	String hex;
-	int len = (dg[1] & 0xf) + 3;
-	char hex_buf[WIDTH_OF_HEX + 1];
-	for (int i=0; i<len && i<MAX_ST_BUF; i++)
+	String decode = decodeST(out,st,dg,&name);
+	if (name == NULL) name = "unknown";
+
+	if (mon || bin)
 	{
-		uint8_t byte = dg[i];
-		sprintf(hex_buf,"%02x ",byte);
-		hex += hex_buf;
-	}
+		String st_name(fwd ? "S" : "ST");
+		st_name += port2 ? '2' : '1';			// STx for sends and non-forwarded receives
+		if (fwd)								// Sxy for forwarded receives
+			st_name += port2 ? '1' : '2';
 
-	String arrow(fwd ? "<->" : out ? "-->" : "<--");
+		st_name += '_';
+		st_name += name;
+		if (!found)
+		{
+			char buf[10];
+			sprintf(buf,"(%02x)",dg[0] & 0xff);
+			st_name += buf;
+		}
 
-	if (inst_sim.g_MON[port_num])
-	{
-		String out = pad(in_counter,7);
-		out += arrow;
-		out += " ";
-		out += pad(st_name,MAX_ST_NAME+3);
-		out += " ";
-		out += pad(hex,PAD_HEX);
-		out += " ";
-		out += decode;
-		Serial.println(out.c_str());
-		#if WITH_TB_ESP32
-			if (inst_sim.doTbEsp32())
-				SERIAL_ESP32.println(out.c_str());
-		#endif
-	}
+		// fill out the hex buf
 
-	if (g_BINARY & binary_type)
-	{
-		#define MSG_BUF_SIZE 256
-		String bin =
-			arrow + "\t" +
-			st_name + "\t" +
-			hex + "\t" +
-			decode;
-		/*static*/ uint8_t binary_buf[BINARY_HEADER_LEN + MSG_BUF_SIZE];
-		int offset = startBinary(binary_buf,binary_type);
-		offset = binaryVarStr(binary_buf, offset, bin.c_str(), MSG_BUF_SIZE);
-		endBinary(binary_buf,offset);
-		Serial.write(binary_buf,offset);
-		#if WITH_TB_ESP32
-			if (inst_sim.doTbEsp32())
-				SERIAL_ESP32.write(binary_buf,offset);
-		#endif
+		String hex;
+		int len = (dg[1] & 0xf) + 3;
+		char hex_buf[WIDTH_OF_HEX + 1];
+		for (int i=0; i<len && i<MAX_ST_BUF; i++)
+		{
+			uint8_t byte = dg[i];
+			sprintf(hex_buf,"%02x ",byte);
+			hex += hex_buf;
+		}
+
+		String arrow(fwd ? "<->" : out ? "-->" : "<--");
+
+		if (mon)
+		{
+			String out = pad(in_counter,7);
+			out += arrow;
+			out += " ";
+			out += pad(st_name,MAX_ST_NAME+3);
+			out += " ";
+			out += pad(hex,PAD_HEX);
+			out += " ";
+			out += decode;
+			Serial.println(out.c_str());
+			#if WITH_TB_ESP32
+				if (inst_sim.doTbEsp32())
+					SERIAL_ESP32.println(out.c_str());
+			#endif
+		}
+
+		if (bin)
+		{
+			#define MSG_BUF_SIZE 256
+			String bin =
+				arrow + "\t" +
+				st_name + "\t" +
+				hex + "\t" +
+				decode;
+			/*static*/ uint8_t binary_buf[BINARY_HEADER_LEN + MSG_BUF_SIZE];
+			int offset = startBinary(binary_buf,binary_type);
+			offset = binaryVarStr(binary_buf, offset, bin.c_str(), MSG_BUF_SIZE);
+			endBinary(binary_buf,offset);
+			Serial.write(binary_buf,offset);
+			#if WITH_TB_ESP32
+				if (inst_sim.doTbEsp32())
+					SERIAL_ESP32.write(binary_buf,offset);
+			#endif
+		}
 	}
+	
 
 	if (fwd)
 	{

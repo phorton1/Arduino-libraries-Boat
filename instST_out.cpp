@@ -19,7 +19,9 @@ volatile bool st_device_query_pending = 0;
 #define WRITE_TIMEOUT			50
 
 #define NUM_ST_PORTS		    2
-#define CIRC_BUF_SIZE  			20
+#define CIRC_BUF_SIZE  			50
+	// must be large enough to reasonably send all instruments for one cycle
+	
 
 static uint16_t dg[MAX_ST_BUF];
 	// there is only one dg message being built at a time
@@ -65,6 +67,7 @@ void queueDatagram(bool port2, const uint16_t *dg)
 		head[port2] = 0;
 	if (head[port2] == tail[port2])
 	{
+		warning(0,"ST circular buffer overflow",0);
 		tail[port2]++;
 		if (tail[port2] >= CIRC_BUF_SIZE)
 			tail[port2] = 0;
@@ -538,7 +541,7 @@ void gpsInst::sendSeatalk(bool port2)
 
 
 {
-	if (sendDeviceId(port2,0xc5,1,5))  // RS125 GPS device
+	if (sendDeviceId(port2,0xc5,1,0))  // RS125 GPS device
 		return;
 	display(dbg_data,"gpsInst:sendSeatalk(%d)",port2);
 	proc_entry();
@@ -986,7 +989,7 @@ void apInst::sendSeatalk(bool port2)
 
 
 	//------------------------------------------------------------
-	// ST_NAV_TO_WP, ST_TARGET_NAME, and ST_ARRIVAL only if routing
+	// ST_NAV_TO_WP, ST_TARGET_ID, and ST_ARRIVAL only if routing
 	//------------------------------------------------------------
 	// routing == TRACK mode
 	// getDesiredHeading() returns headingToWaypoint()
@@ -995,7 +998,7 @@ void apInst::sendSeatalk(bool port2)
 	{
 		if (1)	
 		{
-			// ST_NAV_TO_WP	0x185 "should be sent before ST_TARGET_NAME	0x182"
+			// ST_NAV_TO_WP	0x185 "should be sent before ST_TARGET_ID	0x182"
 			//	85  X6  XX  VU ZW ZZ YF 00 yf   Navigation to waypoint information
 			//		Cross Track Error: XXX/100 nautical miles
 			//			Example: X-track error 2.61nm => 261 dec => 0x105 => X6XX=5_10
@@ -1084,7 +1087,7 @@ void apInst::sendSeatalk(bool port2)
 
 		if (1)
 		{
-			// #define ST_TARGET_NAME	0x182
+			// #define ST_TARGET_ID	0x182
 			//	82  05  XX  xx YY yy ZZ zz   Target waypoint name
 			//		XX+xx = YY+yy = ZZ+zz = FF (allows error detection)
 			//		Takes the last 4 chars of name, assumes upper case only
@@ -1113,7 +1116,7 @@ void apInst::sendSeatalk(bool port2)
 			uint8_t yy = 0xff - YY;
 			uint8_t zz = 0xff - ZZ;
 
-			dg[0] = ST_TARGET_NAME;
+			dg[0] = ST_TARGET_ID;
 			dg[1] = 0x05;
 			dg[2] = XX;
 			dg[3] = xx;

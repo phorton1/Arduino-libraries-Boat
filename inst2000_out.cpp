@@ -107,7 +107,7 @@ void gpsInst::send2000()
         N2kGNSSt_GPS,		// tN2kGNSStype GNSStype,
 		N2kGNSSm_GNSSfix,	// tN2kGNSSmethod GNSSmethod,
         5,					// unsigned char nSatellites,
-		0,					// double HDOP,
+		4.0,					// double HDOP,
 		0,					// double PDOP=0,
 		0,					// double GeoidalSeparation=0,
         0,					// unsigned char nReferenceStations=0,

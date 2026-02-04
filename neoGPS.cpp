@@ -28,6 +28,12 @@
 #include "instST.h"
 #include "boatSimulator.h"
 
+volatile bool st_neo_device_query_pending;
+	// set by client code (instST_in.cpp or teensyGPS.ino) when a device query is
+	// received, in which case, the neo will reply with a device id message
+	
+
+
 // NMEA200
 #include "inst2000.h"
 #include <N2kMessages.h>
@@ -43,6 +49,12 @@
 #define DBG_STATUS		1			// show msg every 100 parses + status advances
 
 
+static bool st_enabled = 1;
+static bool nmea2000_enabled = 0;
+static uint8_t version;
+static uint8_t subversion;
+
+
 #define FRAME_IDLE_TIME	50			// 50 ms idle defines a frame
 	// we skip first, possibly partial, frame after initialization
 
@@ -50,7 +62,6 @@
 
 #define SAT_IN_VIEW     		0x01   // appeared in GSV this cycle
 #define SAT_USED_IN_SOLUTION    0x02   // listed in GSA (used in solution)
-
 
 typedef struct
 {
@@ -147,8 +158,6 @@ static void initCycle()
 // API
 //---------------------------------------
 
-static bool st_enabled = 1;
-static bool nmea2000_enabled = 0;
 
 bool NeoSeatalkEnabled()	{ return st_enabled; }
 bool NeoNMEA2000Enabled()   { return nmea2000_enabled; }
@@ -283,7 +292,7 @@ static bool genuineNeoModule()
 
 
 
-void initNeo6M_GPS()
+void initNeo6M_GPS(uint8_t v, uint8_t sv)
 	// extern'd in instSimulator.h
 {
 	// I was getting a lot of checksum errors and the system was crashing, and
@@ -312,8 +321,12 @@ void initNeo6M_GPS()
 	// elements, rather than the number of bytes the bug went away and
 	// my program seems to work, and is undergoing further long-term testing.
 	
-	display(dbg_neo,"initNeo6M_GPS() called",0);
+
+	display(dbg_neo,"initNeo6M_GPS(%02x.%02x) called",v,sv);
 	proc_entry();
+
+	version = v;
+	subversion = sv;
 
 	#if 1
 		// Allocate a larger RX buffer for NEO_SERIAL
@@ -693,19 +706,97 @@ static void parseNeo0183(const char *msg)
 
 
 
-//----------------------------------------------------
-// Seatalk Sender
-//----------------------------------------------------
-// sendNeoST
-// quick and dirty implementation.
-// implementation copied from instST_out.cpp::gpsInst:;sendSeatalk()
-// just fill up to ST limits in PRN order
+
+//===================================================
+//===================================================
+// Seatalk Sender and replyToRestartGPSButton()
+//===================================================
+//===================================================
+
+
+void replyToRestartGPSButton()
+	// Called from instST_in.cpp while parsing "in" SAT_DETAIL
+	// and DIF_DETAIL messages that are not otherwise expected.
+{
+	if (!st_enabled) return;
+	warning(0,"replyToRestartGPSButton()",0);
+
+	// This very specific signature and response allows the "Restart GPS" button
+	// to "work" as a signal to this code which normally sends:
+	//
+	//		ST2_SAT_DETAIL  a5 4d 00 00 00 00 00 00 00 00 00 00 00 00 00 08
+	//      ST2_DIF_DETAIL  a7 06 ff `ff 07 00 00 00 fe
+	//
+	// We do not retspond to the DIF_DETAIL message(s)
+	// We will get a number of messages until the system calms down,
+	// including some 0x1a5 4d's, and if we respond to them, we create
+	// an endless loop of them.
+	//
+	// Therefore clients are careful to call this method except in response
+	// to this one specific signature
+	//  	dg[0] == 0xa5 && dg[1]==0x4d && dg[15] == 0x08
+
+	uint16_t out_dg[MAX_ST_BUF];
+
+	// minimal low order reply determined empirically
+
+	out_dg[0] = 0x1a5;		// ST_SAT_DETAIL = 0x1a5
+	out_dg[1]  = 0x4d;
+	out_dg[2]  = 0x00;
+	out_dg[3]  = 0x80;	// 0x80 works
+	out_dg[4]  = 0x00;
+	out_dg[5]  = 0x00;
+	out_dg[6]  = 0x00;
+	out_dg[7]  = 0x00;
+	out_dg[8]  = 0x00;
+	out_dg[9]  = 0x00;
+	out_dg[10] = 0x00;
+	out_dg[11] = 0x00;
+	out_dg[12] = 0x00;
+	out_dg[13] = 0x00;
+	out_dg[14] = 0x00;
+	out_dg[15] = 0x08;
+		// 0x08, 0x10, and 0x18 all "works" to satisfy the Restart GPS button.
+		// 		all of these show the default "Mode: Non-Differential"
+		// If the 0x04 bit added it shows "Mode: Automatic Differential"
+		// 		and then subsequently returns 0x0c (not 0x08) in the request
+		//		which blows are signature.
+
+	clearSTQueues();
+	queueDatagram(E80_PORT2,out_dg);
+	sendDatagram(E80_PORT2);
+}
+
+
 
 static void sendNeoST()
+	// implementation copied from instST_out.cpp::gpsInst:;sendSeatalk()
+	// and just fills up to ST limits in PRN order
 {
 	display(dbg_neo_ST,"sendNeoST(%d)",E80_PORT2);
-	proc_entry();
+
+	// handle device requires separate from instSimulator
+	// we return version 1.99 to differentiate from instST_out which returns version 1.01
+	
 	uint16_t dg[MAX_ST_BUF];
+	if (st_neo_device_query_pending)
+	{
+		uint8_t dev_id = 0xc5;	// Unit ID = RS125 GPS
+		warning(0,"neoGPS sending DEV_QUERY(%02x)",dev_id);
+
+		dg[0] = ST_DEV_QUERY;	// 0x1a4
+		dg[1] = 0x12;      		// 0x10 constant + length
+		dg[2] = dev_id;      	// Unit ID
+		dg[3] = version;      	// Main SW version
+		dg[4] = subversion;     // Minor SW version
+		queueDatagram(E80_PORT2,dg);
+
+		st_neo_device_query_pending = 0;
+		return;
+	}
+
+	proc_entry();
+
 
 	//-----------------------
 	// ST_SAT_INFO
@@ -718,7 +809,7 @@ static void sendNeoST()
 		// *perhaps* it is actually the number of sats used in the solution
 		// and, thus would be limited to 9
 
-		display(dbg_neo_ST+1,"st%d SatInfo()",E80_PORT2);
+		display(dbg_neo_ST+1,"neoGPS sending st_sat_info",0);
 		dg[0] = ST_SAT_INFO;	// 0x157
 		dg[1] = gps_model.fix_type ? 0x50 : 0x00;      		// num_sats USED=5 << 4
 		dg[2] = gps_model.fix_type ? 0x02 : 0xff;          	// HDOP = 2
@@ -732,7 +823,7 @@ static void sendNeoST()
 
 	if (1)
 	{
-		display(dbg_neo_ST+1,"st%d SatDetail(1)",E80_PORT2);
+		display(dbg_neo_ST+1,"neoGPS sending st_sat_detail info",0);
 
 		dg[0] = ST_SAT_DETAIL;		// // 0x1A5
 		dg[1] = 0x57;
@@ -783,6 +874,9 @@ static void sendNeoST()
 		int num_used = 0;
 		initStSatMessages();
 
+		display(dbg_neo_ST+1,"neoGPS sending st_sat_details",0);
+		proc_entry();
+
 		for (int prn_m1=0; prn_m1<MAX_PRN && num_total < ST_MAX_VIEW; prn_m1++)
 		{
 			gps_sat_t *sat = &gps_model.sats[prn_m1];
@@ -805,8 +899,11 @@ static void sendNeoST()
 			if (!used && !viewed) snr = 0;
 
 			// add it
+			display(dbg_neo_ST+2,"neoGPS sending prn(%d) elev(%d) asim(%d) snr(%d) used(%d)",
+				prn_m1+1, sat->elev, sat->azim, snr, used);
 			addStSatMessage(prn_m1+1, sat->elev, sat->azim, snr, used?2:0);
 		}
+		proc_leave();
 
 		// send all 5 datagrams
 
@@ -820,6 +917,7 @@ static void sendNeoST()
 
 	if (gps_model.year > 0)
 	{
+		display(dbg_neo_ST+1,"neoGPS sending st_sats_done",0);
 		dg[0] = ST_SAT_DETAIL;
 		dg[1] = 0x98;
 		dg[2] = 0;
@@ -843,7 +941,7 @@ static void sendNeoST()
 	{
 		double lat = gps_model.lat;
 		double lon = gps_model.lon;
-		display(dbg_neo_ST+1,"st%d LatLon(%0.6f,%0.6f)",E80_PORT2,lat,lon);
+		display(dbg_neo_ST+1,"neoGPS sending LatLon(%0.6f,%0.6f)",lat,lon);
 
 		uint8_t Z1 = 0;
 		uint8_t Z2 = 0x20;
@@ -907,7 +1005,7 @@ static void sendNeoST()
 			int twos = rem / 4;
 			int halfs = rem % 4;
 
-			display(dbg_neo_ST+1,"st%d COG(%0.1f) = nineties(%d) twos(%d) halfs(%d)",E80_PORT2,degrees,nineties,twos,halfs);
+			display(dbg_neo_ST+1,"neoGPS sending COG(%0.1f) = nineties(%d) twos(%d) halfs(%d)",degrees,nineties,twos,halfs);
 
 			dg[0] = ST_COG;		// 0x153
 			dg[1] = 0 | (nineties << 4) | (halfs<<6);
@@ -919,7 +1017,7 @@ static void sendNeoST()
 		{
 			double speed = gps_model.sog ;
 			int ispeed = (speed+ 0.05) * 10;
-			display(dbg_neo_ST+1,"st%d SOG & stSOG(%0.1f)",E80_PORT2,speed);
+			display(dbg_neo_ST+1,"neoGPS sending SOG(%0.1f)",speed);
 
 			dg[0] = ST_SOG;		// 0x152
 			dg[1] = 0x01;
@@ -940,7 +1038,7 @@ static void sendNeoST()
 		int m = gps_model.month;
 		int d = gps_model.day;
 
-		display(dbg_neo_ST+1,"st%d Date(%02d/%02d/%02d)",E80_PORT2,y,m,d);
+		display(dbg_neo_ST+1,"neoGPS sending Date(%02d/%02d/%02d)",y,m,d);
 		dg[0] = ST_DATE;			// 0x156
 		dg[1] = 0x01 | (m << 4);
 		dg[2] = d;
@@ -959,7 +1057,7 @@ static void sendNeoST()
 		uint16_t T = RST & 0xf;
 		uint16_t RS = RST >> 4;
 
-		display(dbg_neo_ST+1,"st%d Date(%02d:%02d:%02d)",E80_PORT2,h,mm,s);
+		display(dbg_neo_ST+1,"neoGPS sending Time(%02d:%02d:%02d)",h,mm,s);
 		dg[0] = ST_TIME;				// 0x154
 		dg[1] = 0x01 | (T << 4);
 		dg[2] = RS;
@@ -972,9 +1070,12 @@ static void sendNeoST()
 }	// sendNeoST()
 
 
-//----------------------------------------------------
+
+//===================================================
+//===================================================
 // NMEA2000 Sender
-//----------------------------------------------------
+//===================================================
+//===================================================
 // Sends the same messages in the same order as inst2000_out.cpp
 // gpsInst::send2000() which is known to work with the E80
 // GPS status window to show bars and icons.
@@ -1179,6 +1280,7 @@ static void sendNeo2000()
 //---------------------------------------------------
 
 void doNeo6M_GPS()
+	// called from loop()
 	// extern'd in instSimulator.h
 {
 	while (NEO_SERIAL.available())
@@ -1243,6 +1345,8 @@ void doNeo6M_GPS()
 					Serial.print(gps_model.num_used);
 					Serial.print(") hdop(");
 					Serial.print(gps_model.hdop);
+					Serial.print(") year(");
+					Serial.print(gps_model.year);
 					Serial.println(")");
 		
 					// a PRN has been "seen" if it's elev is > 0, which defines the "almanac" for the neo

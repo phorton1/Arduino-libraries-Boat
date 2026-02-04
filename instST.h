@@ -8,7 +8,7 @@
 #include <Arduino.h>
 
 #define MAX_ST_BUF		20			// size of my maximum datagram buffers
-#define MAX_ST_SEEN		11			// space in the UI for long messages
+#define MAX_ST_SEEN		20			// space in the UI for long messages
 
 #define ST_COMMAND_BIT	0x100		// the 0th byte of 9bit ST commands have this
 #define ST_QUIET_BIT	0x200		// this is a flag I add to NOT echo the command while forwarding
@@ -39,7 +39,7 @@
 #define ST_LATLON			0x158		// gpsInst(x)				recd
 #define ST_59				0x159		// 					o		recd
 #define ST_E80_SIG			0x161		// 					o		recd
-#define ST_TARGET_NAME		0x182		// apInst(1)				recd
+#define ST_TARGET_ID		0x182		// apInst(1)				recd
 #define ST_AUTOPILOT		0x184		// apInst(1)				recd from AP cpu
 #define ST_NAV_TO_WP		0x185		// apInst(1)				recd
 #define ST_AP_KEYSTROKE		0x186		//							recd from ST7000
@@ -48,6 +48,7 @@
 #define ST_AP_CPU			0x198		// apInst(1)				recd from AP cpu in response to ST7000
 #define ST_COMPASS_VAR		0x199		// 							recd
 #define ST_RUDDER			0x19C		// apInst(1+1)				recd from AP cpu
+#define ST_TARGET_NAME		0x1A1		//							recd from E80 while routing
 #define ST_ARRIVAL			0x1A2		// apInst(1)				recd
 #define ST_WP_DEF			0x19E		// 					o		got it once, could be bogus bytes
 #define ST_DEV_QUERY		0x1A4		// 					o		we don't respond (yet)
