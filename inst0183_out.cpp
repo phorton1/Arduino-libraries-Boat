@@ -19,17 +19,17 @@ static char nmea_buf[MAX_NMEA_MSG+1];
 
 
 
-#define BINARY_BUF_SIZE		200
-#define SEND_NMEA0183_AS_BINARY		1
-	// send these messages out as binary so teensyBoat.pm can
-	// forward them to a VSPE COM29 for RNS
 
 static void sendNMEA0183(bool portB)
+	// send these messages out as binary so teensyBoat.pm can
+	// forward them to a VSPE COM29 for RNS
 {
-	if (SEND_NMEA0183_AS_BINARY)
+	#define BINARY_BUF_SIZE		200
+	int binary_type = portB?BINARY_TYPE_0183B:BINARY_TYPE_0183A;
+	if (g_BINARY & binary_type)
 	{
 		uint8_t buf[BINARY_BUF_SIZE+1];
-		int offset = startBinary(buf,portB?BINARY_TYPE_0183B:BINARY_TYPE_0183A);
+		int offset = startBinary(buf,binary_type);
 		offset = binaryVarStr(buf,offset,nmea_buf,BINARY_BUF_SIZE);
 		endBinary(buf,offset);
 		// display(0,"sending type(%d) %d bytes to binary serial port",BINARY_TYPE_0183,offset);

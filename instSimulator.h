@@ -28,7 +28,7 @@
 #define SERIAL_83A 		Serial3
 #define SERIAL_83B 		Serial4
 #define SERIAL_ESP32 	Serial5
-#define NEO_SERIAL 		Serial5
+#define NEO6M_SERIAL 	Serial5
 
 // Henceforth the function of the General Purpose of the 8 pin
 // connector is defined entirely in the Boat library, managed

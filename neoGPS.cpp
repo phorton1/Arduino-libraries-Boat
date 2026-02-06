@@ -14,14 +14,9 @@
 //
 // WE ARE ONLY USING GPS AND OUR ARRAY IS INDEXED BY PRN-1
 
-
-
-#ifndef NEO_SERIAL
-	#define NEO_SERIAL	Serial5
-#endif
-
 #include <myDebug.h>
 #include "TimeLib.h"
+
 
 // Seatalk
 #define E80_PORT2	1
@@ -49,6 +44,7 @@ volatile bool st_neo_device_query_pending;
 #define DBG_STATUS		1			// show msg every 100 parses + status advances
 
 
+static HardwareSerial *NEO_SERIAL;
 static bool st_enabled = 1;
 static bool nmea2000_enabled = 0;
 static uint8_t version;
@@ -192,7 +188,7 @@ static bool genuineNeoModule()
 		0x0E,0x34         // checksum
 	};
 
-    NEO_SERIAL.write(ubx_mon_ver_request, sizeof(ubx_mon_ver_request));
+		NEO_SERIAL->write(ubx_mon_ver_request, sizeof(ubx_mon_ver_request));
 
     uint32_t start = millis();
     int state = 0;
@@ -210,12 +206,12 @@ static bool genuineNeoModule()
 			return false;
 		}
 
-        if (!NEO_SERIAL.available()) {
+        if (!NEO_SERIAL->available()) {
             yield();
             continue;
         }
 
-        uint8_t b = NEO_SERIAL.read();
+        uint8_t b = NEO_SERIAL->read();
 
         switch (state) {
 
@@ -292,7 +288,7 @@ static bool genuineNeoModule()
 
 
 
-void initNeo6M_GPS(uint8_t v, uint8_t sv)
+void initNeo6M_GPS(HardwareSerial *neo_serial, uint8_t v, uint8_t sv)
 	// extern'd in instSimulator.h
 {
 	// I was getting a lot of checksum errors and the system was crashing, and
@@ -325,6 +321,7 @@ void initNeo6M_GPS(uint8_t v, uint8_t sv)
 	display(dbg_neo,"initNeo6M_GPS(%02x.%02x) called",v,sv);
 	proc_entry();
 
+	NEO_SERIAL = neo_serial;
 	version = v;
 	subversion = sv;
 
@@ -337,9 +334,9 @@ void initNeo6M_GPS(uint8_t v, uint8_t sv)
 		// And the use of uint8_t for the buffer is not correct
 		// within the context of the SERIAL_9BIT_SUPPORT:
 		// 		static uint8_t serial1_rxbuf[NUMBER_BUF_ELEMENTS];
-		NEO_SERIAL.addMemoryForRead(serial1_rxbuf, NUMBER_BUF_ELEMENTS);
+		NEO_SERIAL->addMemoryForRead(serial1_rxbuf, NUMBER_BUF_ELEMENTS);
 		// This causes hard crashes:
-		// 		NEO_SERIAL.addMemoryForRead(serial1_rxbuf, sizeof(serial1_rxbuf));
+		// 		NEO_SERIAL->addMemoryForRead(serial1_rxbuf, sizeof(serial1_rxbuf));
 	#endif
 
 
@@ -347,8 +344,8 @@ void initNeo6M_GPS(uint8_t v, uint8_t sv)
 	last_receive_time = 0;
 	initModel();
 
-	NEO_SERIAL.begin(9600);
-	display(dbg_neo,"GPS_SERIAL5 started",0);
+	NEO_SERIAL->begin(9600);
+	display(dbg_neo,"NEO_SERIAL started",0);
 	delay(300);
 
 	if (genuineNeoModule())
@@ -1283,11 +1280,11 @@ void doNeo6M_GPS()
 	// called from loop()
 	// extern'd in instSimulator.h
 {
-	while (NEO_SERIAL.available())
+	while (NEO_SERIAL->available())
 	{
 		#define MAX_0183_MSG 180
 
-		int c = NEO_SERIAL.read();
+		int c = NEO_SERIAL->read();
 		static char buf[MAX_0183_MSG+1];
 		static volatile int buf_ptr = 0;
 		last_receive_time = millis();

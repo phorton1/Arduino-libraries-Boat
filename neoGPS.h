@@ -6,7 +6,7 @@
 
 #pragma once
 
-extern void initNeo6M_GPS(uint8_t version, uint8_t subversion);
+extern void initNeo6M_GPS(HardwareSerial *neo_serial, uint8_t version, uint8_t subversion);
 extern void doNeo6M_GPS();
 
 extern void enableNeoSeatalk(bool enable);

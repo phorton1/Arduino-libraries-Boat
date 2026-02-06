@@ -8,9 +8,17 @@
 #include <N2kMessages.h>
 #include <myDebug.h>
 
+#define WITH_NMEA2000_BINARY	0
+
+#if WITH_NMEA2000_BINARY
+#include "boatBinary.h"
+#endif
+
 
 #define BUS_COLOR "\033[37m"
 	// 37 = WHITE
+
+
 
 
 static String showIfValid(double d, const char *format)
@@ -63,6 +71,69 @@ static String msgToString(const tN2kMsg &msg,  const char *prefix=0, bool with_d
 //---------------------------------
 // Handles sensor messages and can show others from the bus
 // i.e. PGN=130316 temperatureC = -100000000000 ?!?!?!
+
+#if WITH_NMEA2000_BINARY
+	// initialt implementation is only a binary packet to teensyBoat.pm
+
+
+	static void sendActisense(const tN2kMsg &msg)
+		// The Actisense frame is simple:
+		//		0xA0 start, length byte, 0x02, 0x93, then
+		//		priority, PGN (3 bytes LE), source, destination, data length, data bytes, and
+		//      finally an 8?bit checksum which is the sum of all bytes from the length field
+		//			through the last data byte. Timo’s
+	{
+		#define MAX_NMEA2000_BINARY_BUF 	(255 + 5)
+			// 255 is maximum actisense packet size, plus 5 for my binary wrapper
+
+		static uint8_t buf[MAX_NMEA2000_BINARY_BUF + 5];
+		int idx = 0;
+
+		// start the binary packet
+		idx = startBinary(buf, BINARY_TYPE_2000);
+
+		// Actisense header
+		buf[idx++] = 0xA0;        // Start delimiter
+		int cs_start = idx;
+		
+		buf[idx++] = 0x00;        // Placeholder for length
+		buf[idx++] = 0x02;        // Actisense "message" group
+		buf[idx++] = 0x93;        // NMEA2000 message type
+
+		// PGN metadata
+		buf[idx++] = msg.Priority;
+		buf[idx++] = msg.PGN & 0xFF;
+		buf[idx++] = (msg.PGN >> 8) & 0xFF;
+		buf[idx++] = (msg.PGN >> 16) & 0xFF;
+		buf[idx++] = msg.Source;
+		buf[idx++] = msg.Destination;
+		buf[idx++] = msg.DataLen;
+
+		// PGN data bytes
+		for (int i = 0; i < msg.DataLen; i++)
+		{
+			buf[idx++] = msg.Data[i];
+		}
+
+		// Compute length (everything after 0xA0 and before checksum)
+		int payload_len = idx - 2;   // exclude 0xA0 and length byte
+		buf[1] = payload_len;
+
+		// Compute checksum (sum of bytes from length through last data byte)
+		uint8_t csum = 0;
+		for (int i = cs_start; i < idx; i++)
+		{
+			csum += (uint8_t)buf[i];
+		}
+
+		buf[idx++] = csum;
+		endBinary(buf,idx);
+		Serial.write(buf,idx);
+	}
+#endif
+
+
+
 
 // static
 void inst2000::onBusMessage(const tN2kMsg &msg)
@@ -412,6 +483,13 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 
 	}	// 255 or MONITOR_NMEA_ADDRESS
 
+	// send "handled" messages via binary protocol
+	// before we "handle" proprietary and system messzges
+	
+	#if WITH_NMEA2000_BINARY
+		if (msg_handled && (g_BINARY & BINARY_TYPE_2000))
+			sendActisense(msg);
+	#endif
 
 	// I don't think we get bus messages here;
 	// if so, we want to filter them

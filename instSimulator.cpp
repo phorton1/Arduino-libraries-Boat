@@ -399,14 +399,14 @@ void instSimulator::setGP8Function(uint8_t fxn)
 			if (fxn == GP8_FUNCTION_NEOST)
 			{
 				SERIAL_ESP32.end();
-				initNeo6M_GPS(1,0x50);
+				initNeo6M_GPS(&NEO6M_SERIAL,1,0x50);
 				enableNeoSeatalk(true);
 				enableNeoNMEA200(false);
 			}
 			if (fxn == GP8_FUNCTION_NEO2000)
 			{
 				SERIAL_ESP32.end();
-				initNeo6M_GPS(1,0x50);
+				initNeo6M_GPS(&NEO6M_SERIAL,1,0x50);
 				enableNeoSeatalk(false);
 				enableNeoNMEA200(true);
 			}
