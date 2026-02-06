@@ -157,7 +157,7 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 	// display_string(BUS_COLOR,0,msgToString(msg,"BUS: ").c_str());
 
 	if (msg.Destination == 255 ||
-		msg.Destination == INST2000_NMEA_ADDRESS)
+		msg.Destination == nmea2000.m_source_address)
 	{
 		uint8_t sid;
 		double d1,d2,d3;

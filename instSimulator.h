@@ -28,7 +28,7 @@
 #define SERIAL_83A 		Serial3
 #define SERIAL_83B 		Serial4
 #define SERIAL_ESP32 	Serial5
-#define NEO6M_SERIAL 	Serial5
+
 
 // Henceforth the function of the General Purpose of the 8 pin
 // connector is defined entirely in the Boat library, managed
@@ -53,8 +53,6 @@
 #define GP8_FUNCTION_OFF 		0
 #define GP8_FUNCTION_PULSE 		1
 #define GP8_FUNCTION_ESP32 		2
-#define GP8_FUNCTION_NEOST 		3
-#define GP8_FUNCTION_NEO2000 	4
 
 
 // The following #ifdefs allow the functionality to be compiled out,
@@ -67,7 +65,6 @@
 	// Frequencies greater than 18 Hz are driven by PWM
 	// See the documentation for more details about ST50 instruments.
 #define WITH_TB_ESP32	 	1		// 0 to turn off
-#define WITH_NEO6M			1		// 0 to turn off
 
 
 //----------------------------------

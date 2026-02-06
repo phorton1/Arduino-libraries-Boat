@@ -89,9 +89,11 @@ static const unsigned long TransmitMessages[] = {
 
 
 
-void inst2000::init(bool as_teensyBoat /*=true*/)
+void inst2000::init(uint8_t source_address)
+	// source_address passed as zero => m_source_address=25 and below product definition used
+	// otherwise m_source_address=source_address and you must set product def before calling this
 {
-	display(dbg_mon,"inst2000::init() started",0);
+	display(dbg_mon,"inst2000::init(%d) started",source_address);
 	proc_entry();
 
 	//--------------------------------------
@@ -105,7 +107,8 @@ void inst2000::init(bool as_teensyBoat /*=true*/)
 	//		https://web.archive.org/web/20190529161431/http://www.nmea.org/Assets/20121020%20nmea%202000%20registration%20list.pdf
 	// I am not currently calling SetDeviceInstance() but it's working "ok"
 
-	if (as_teensyBoat)
+	m_source_address = source_address;
+	if (source_address == TEENSYBOAT_NMEA_ADDRESS)
 	{
 		SetProductInformation(
 			"teensyBoat1",            		// Manufacturer's Model serial code
@@ -131,36 +134,9 @@ void inst2000::init(bool as_teensyBoat /*=true*/)
 			);
 	}
 
-	if (0) 		// trying to get E80 to see genset
-	{
-		SetProductInformation(
-			"RayGen_1000",               // Manufacturer's Model serial code (Raymarine-style prefix)
-			1000,                        // Manufacturer's product code
-			"Raymarine Genset Interface",// Manufacturer's Model ID (clear Raymarine branding)
-			"RG_SW_1.0.0",               // Software version code (Raymarine-style prefix)
-			"RG_HW_1.0.0",               // Model version (Raymarine-style prefix)
-			3,                           // LoadEquivalency (3 × 50 mA = 150 mA)
-			2101,                        // NMEA 2000 version
-			1,                           // Certification level
-			0                            // Device index
-		);
-		SetConfigurationInformation(
-			"Raymarine Ltd.",            // ManufacturerInformation (official branding)
-			"RayGenSim Install 1",       // InstallationDescription1 (Raymarine-style naming)
-			"RayGenSim Install 2"        // InstallationDescription2
-		);
-		SetDeviceInformation(
-			123456,  // Unique number (serial)
-			10,       // Device function = AC Generator (or try 15)  (0=generic)
-			30,      // Device class = Electrical Generation
-			1851     // Manufacturer ID (can remain arbitrary if not claiming a known brand)
-		);
-	}
-
-
 	// set Device Mode and it's address(99)
 
-	SetMode(tNMEA2000::N2km_ListenAndNode, INST2000_NMEA_ADDRESS);
+	SetMode(tNMEA2000::N2km_ListenAndNode, m_source_address);
 		// N2km_NodeOnly
 		// N2km_ListenAndNode *
 		// N2km_ListenAndSend **
@@ -486,7 +462,7 @@ void inst2000::addSelfToDeviceList()
                     info.GetDeviceInstance(),
                     info.GetSystemInstance(),
                     info.GetIndustryGroup() );
-                msg.Source = INST2000_NMEA_ADDRESS;
+                msg.Source = m_source_address;
                 m_device_list->HandleMsg(msg);
                 break;
             }
@@ -505,7 +481,7 @@ void inst2000::addSelfToDeviceList()
                         info->N2kModelSerialCode,
                         info->CertificationLevel,
                         info->LoadEquivalency);
-                    msg.Source = INST2000_NMEA_ADDRESS;
+                    msg.Source = m_source_address;
                     m_device_list->HandleMsg(msg);
                 }
                 else
@@ -526,7 +502,7 @@ void inst2000::addSelfToDeviceList()
                 SetN2kPGN126998(msg,inst1,inst2,manuf,false);
                     // bool UsePgm=false
 
-                msg.Source = INST2000_NMEA_ADDRESS;
+                msg.Source = m_source_address;
                 m_device_list->HandleMsg(msg);
                 break;
             }

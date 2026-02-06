@@ -28,10 +28,6 @@
 #include <myDebug.h>
 
 
-
-
-
-
 #define UPDATE_MILLIS	1000
 
 #define BROADCAST_NMEA2000_INFO   1
@@ -61,11 +57,6 @@ uint8_t instSimulator::g_GP8_FUNCTION;
 //-------------------------------------------------
 // General Purpose Connector related
 //-------------------------------------------------
-
-#if WITH_NEO6M
-	#include "neoGPS.h"
-#endif
-
 
 #if WITH_TB_ESP32
 	#define SERIAL_ESP32		Serial5
@@ -395,23 +386,6 @@ void instSimulator::setGP8Function(uint8_t fxn)
 			warning(0,"WITH_TB_ESP32==0; GP8 FUNCTION does nothing");
 		#endif
 		
-		#if WITH_NEO6M
-			if (fxn == GP8_FUNCTION_NEOST)
-			{
-				SERIAL_ESP32.end();
-				initNeo6M_GPS(&NEO6M_SERIAL,1,0x50);
-				enableNeoSeatalk(true);
-				enableNeoNMEA200(false);
-			}
-			if (fxn == GP8_FUNCTION_NEO2000)
-			{
-				SERIAL_ESP32.end();
-				initNeo6M_GPS(&NEO6M_SERIAL,1,0x50);
-				enableNeoSeatalk(false);
-				enableNeoNMEA200(true);
-			}
-		#endif
-
 
 		if (!fxn)
 			warning(0,"GP8 FUNCTION turned off",0);
@@ -445,7 +419,7 @@ void instSimulator::init()
 	SERIAL_83A.begin(38400);
 	SERIAL_83B.begin(38400);
 
-	nmea2000.init();
+	nmea2000.init(TEENSYBOAT_NMEA_ADDRESS);
 
 	//---------------------------------
 	// boatSimulator initialization
@@ -563,14 +537,6 @@ void handleStPort(
 
 void instSimulator::run()
 {
-	#if WITH_NEO6M
-		if (g_GP8_FUNCTION == GP8_FUNCTION_NEOST ||
-			g_GP8_FUNCTION == GP8_FUNCTION_NEO2000)
-		{
-			doNeo6M_GPS();
-		}
-	#endif
-
 	#if WITH_TB_ESP32
 		if (g_GP8_FUNCTION == GP8_FUNCTION_ESP32)
 		{

@@ -9,18 +9,8 @@
 #include "boatUtils.h"
 #include "boatBinary.h"
 
-#if WITH_NEO6M
-	#include "neoGPS.h"
-#endif
-
 
 #define dbg_st7000	0
-
-// notes
-//
-// even with sim_0183, which is the only one to get the E80 to
-//		display a target wp name, the E80 only gives out internal
-//		numberic target wp names
 
 
 #define MAX_ST_NAME		12
@@ -937,9 +927,6 @@ static String decodeST(bool out, uint16_t st, const uint8_t *dg, const char **p_
 		{
 			retval = "QUERY";
 			st_device_query_pending = 1;
-			#if WITH_NEO6M
-				st_neo_device_query_pending = 1;
-			#endif
 		}
 		else if (dg[1] == 0x12)
 		{
@@ -1087,10 +1074,6 @@ static String decodeST(bool out, uint16_t st, const uint8_t *dg, const char **p_
 			{
 				if (st != ST_DIF_DETAIL)	// 0x1a7
 					*p_name = "SAT_DETAIL";
-				#if WITH_NEO6M
-					if (!out && dg[0] == 0xa5 && dg[1]==0x4d && dg[15] == 0x08)
-						replyToRestartGPSButton();
-				#endif
 			}
 
 			uint8_t NN = dg[2];

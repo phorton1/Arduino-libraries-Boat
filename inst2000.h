@@ -50,8 +50,8 @@
 // defines
 //-------------------------------
 
-#define INST2000_NMEA_ADDRESS	25
-	// The default NMEA2000 address of this device.
+#define TEENSYBOAT_NMEA_ADDRESS		25		// uses product definition in init() method
+#define TEENSYGPS_NMEA_ADDRESS		30		// otherwise you must set product definition before init
 
 
 #define PGN_REQUEST					59904L
@@ -131,8 +131,14 @@ public:
 #endif
 	{}
 
-	void init(bool as_teensyBoat=true);
-
+	void init(uint8_t source_address);
+		// passing source_address==0 will cause the init method
+		// 		to use the pre-defined product settings for teensyBoat
+		// 		and actual m_source_address=25.
+		// passing source_address!=0 requies that you define the
+		//		product settings before calling init() and those
+		//		product settings and the source address you pass in
+		//		will be used
 	void loop();
 
 	void broadcastNMEA2000Info();
@@ -147,6 +153,7 @@ public:
 protected:
 
 	tN2kDeviceList *m_device_list;
+	uint8_t m_source_address;
 
 	static void onBusMessage(const tN2kMsg &msg);
 		// in inst2000_in.cpp
