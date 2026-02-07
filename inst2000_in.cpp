@@ -66,6 +66,19 @@ static String msgToString(const tN2kMsg &msg,  const char *prefix=0, bool with_d
 }
 
 
+String RadOrNAToDeg(double v)
+{
+	if (!N2kIsNA(v))
+	{
+		static char buf[32];
+		snprintf(buf,sizeof(buf),"%0.1f",RadToDeg(v));
+		return String(buf);
+	}
+	return String("NA");
+}
+
+
+
 //---------------------------------
 // onBusMessage
 //---------------------------------
@@ -131,6 +144,8 @@ static String msgToString(const tN2kMsg &msg,  const char *prefix=0, bool with_d
 		Serial.write(buf,idx);
 	}
 #endif
+
+
 
 
 
@@ -280,6 +295,27 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			}
 			else
 				my_error("Parsing PGN_DEPTH(128267)",0);
+		}
+		else if (msg.PGN == PGN_DISTANCE_LOG)
+		{
+			uint16_t days;
+			double   secs;
+			uint32_t logv;
+			uint32_t tripv;
+
+			if (ParseN2kPGN128275(msg,days,secs,logv,tripv))
+			{
+				msg_handled = true;
+
+				if (b_mon_sensors)
+				{
+					display(0,"%3d(%d) distlog  : log(%0.1f) trip(%0.1f) NM",
+						msg.Source,msg_counter,
+						((float)logv)/NM_TO_METERS,((float)tripv)/NM_TO_METERS);
+				}
+			}
+			else
+				my_error("Parsing PGN_DISTANCE_LOG(128275)",0);
 		}
 		else if (msg.PGN == PGN_POSITION_RAPID_UPDATE)
 		{
@@ -464,6 +500,27 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			else
 				my_error("Parsing PGN_AIS_STATIC_B_PART_B",0);
 		}
+		else if (msg.PGN == PGN_WIND_DATA)
+		{
+			uint8_t sid;
+			double  wspd;
+			double  wang;
+			tN2kWindReference wref;
+			if (ParseN2kPGN130306(msg,sid,wspd,wang,wref))
+			{
+				msg_handled = true;
+				if (b_mon_sensors)
+				{
+					// it is a known flaw that the E80 will transmit speed(0) from Seatalk inputs.
+					
+					display(0,"%3d(%d) wind     : speed(%0.1f) angle(%0.1f)",
+						msg.Source,msg_counter,
+						wspd/NM_TO_METERS, RadToDeg(wang));
+				}
+			}
+			else
+				my_error("Parsing PGN_WIND_DATA(130306)",0);
+		}
 		else if (msg.PGN == PGN_TEMPERATURE)
 		{
 			// temperature is in kelvin
@@ -478,6 +535,42 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			}
 			else
 				my_error("Parsing PGN_TEMPERATURE(130316)",0);
+		}
+		else if (msg.PGN == PGN_DIRECTION_DATA)	// prh
+		{
+			tN2kDataMode dataMode;
+			tN2kHeadingReference cogRef;
+			uint8_t sid;
+			double  cog;			// usually NA from E80
+			double  headMag;		// usually NA from E80
+			double  headTrue;		// Raymarine puts heading here
+			double  variation;
+			double  deviation;
+			double  reserved;
+
+			if (ParseN2kPGN130577(msg,
+					dataMode,
+					cogRef,
+					sid,
+					cog,
+					headMag,
+					headTrue,
+					variation,
+					deviation,
+					reserved))
+			{
+				msg_handled = true;
+				if (b_mon_sensors)
+				{
+					display(0,"%3d(%d) dirdata  : cog(%s) headMag(%s) headTrue(%s)",
+						msg.Source,msg_counter,
+						RadOrNAToDeg(cog).c_str(),
+						RadOrNAToDeg(headMag).c_str(),
+						RadOrNAToDeg(headTrue).c_str() );
+				}
+			}
+			else
+				my_error("Parsing PGN_DIRECTION_DATA(130577)",0);
 		}
 
 
@@ -496,6 +589,7 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 	// show unhandled messages as UNKNOWN: in white
 
 	if (!msg_handled && (
+		msg.PGN == PGN_ACK				||
 		msg.PGN == PGN_REQUEST			||
 		msg.PGN == PGN_ADDRESS_CLAIM	||
 		msg.PGN == PGN_PGN_LIST			||
@@ -506,6 +600,7 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 		if (mon & MON2000_BUS_IN)
 		{
 			const char *name =
+				msg.PGN == PGN_ACK				? "BUS_ACK:" :
 				msg.PGN == PGN_REQUEST			? "BUS_REQUEST: " :
 				msg.PGN == PGN_ADDRESS_CLAIM	? "BUS_ADDRESS_CLAIM: " :
 				msg.PGN == PGN_PGN_LIST			? "BUS_PGN_LIST: " :
@@ -524,6 +619,8 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 		bool is_known_proprietary =
 			msg.PGN == PGN_PROP_B_65311 ||
 			msg.PGN == PGN_PROP_B_65362 ||
+			msg.PGN == PGN_PROP_B_65364 ||
+			msg.PGN == PGN_PROP_B_129044 ||
 			msg.PGN == PGN_PROP_B_130846;
 		const char *name =
 			is_known_proprietary ? "PROPRIETARY: " : "UNKNOWN: ";

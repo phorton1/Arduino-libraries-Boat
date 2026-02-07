@@ -54,6 +54,7 @@
 #define TEENSYGPS_NMEA_ADDRESS		30		// otherwise you must set product definition before init
 
 
+#define PGN_ACK						59392L 
 #define PGN_REQUEST					59904L
 #define PGN_ADDRESS_CLAIM			60928L
 #define PGN_PGN_LIST				126464L
@@ -76,30 +77,30 @@
 #define PGN_AGS_STATUS				127514L		//
 #define PGN_SPEED_WATER_REF			128259L		// D	1 = logInst
 #define PGN_WATER_DEPTH				128267L		// D	x = depthInst
-#define PGN_DISTANCE_LOG			128275L		// 		1 = logInst
+#define PGN_DISTANCE_LOG			128275L		// D	1 = logInst
 #define PGN_POSITION_RAPID_UPDATE	129025L		// D
 #define PGN_COG_SOG_RAPID_UPDATE	129026L		//
 #define PGN_GNSS_POSITION_DATA		129029L		// D	x = gpsInst
 #define PGN_LOCAL_TIME_OFFSET		129033L		//
 #define PGN_AIS_CLASS_B_POSITION	129039L		// D
 #define PGN_DATUM					129044L		//
-#define PGN_CROSS_TRACK_ERROR		129283L		// 		x = apInst(routing)
+#define PGN_CROSS_TRACK_ERROR		129283L		// D	x = apInst(routing)
 #define PGN_NAVIGATION_DATA			129284L		// 		x = apInst(routing)
 #define PGN_ROUTE_WP_INFO			129285L		// 		0 = apInst(routing)
 #define PGN_SET_AND_DRIFT			129291L		//
-#define PGN_GNSS_SATS_IN_VIEW		129540L		// D
+#define PGN_GNSS_SATS_IN_VIEW		129540L		// D	1 = gpsInst
 #define PGN_AIS_STATIC_B_PART_A		129809L		// D
 #define PGN_AIS_STATIC_B_PART_B		129810L		// D
-#define PGN_WIND_DATA				130306L		// 		x+0 = wind instrument
+#define PGN_WIND_DATA				130306L		// D	x+0 = wind instrument
 #define PGN_ENV_PARAMETERS			130310L		//
 #define PGN_TEMPERATURE    			130316L		// D
-#define PGN_DIRECTION_DATA			130577L		// 		1 = gpsInst
+#define PGN_DIRECTION_DATA			130577L		// D	1 = gpsInst
 
 
 // Raymarine/Proprietary
 // found on https://github.com/canboat/canboat/blob/master/analyzer/pgn.h
 
-#define PGN_SEATALK_ROUTE_INFO		130918L		// 1 = apInst(routine) 
+#define PGN_SEATALK_ROUTE_INFO		130918L		// 		1 = apInst(routine)
 
 #define PGN_GEN_PHASE_A_AC_POWER	65026L      // 1 = genInst
 #define PGN_GEN_PHASE_A_BASIC_AC	65027L      // 1 = genInst
@@ -107,11 +108,16 @@
 #define PGN_AVERAGE_AC_QUANTITIES	65030L      // 1 = genInst
 #define PGN_SEATALK_GEN_INFO		65288L      // 1 = genInst
 
-// proprietary messages from E80
+// known proprietary messages from E80
 
-#define PGN_PROP_B_65311			65311L		// proprietary
-#define PGN_PROP_B_65362			65362L		// proprietary
-#define PGN_PROP_B_130846			130846L		// proprietary
+#define PGN_PROP_B_65311			65311L		// proprietary sent by E80
+#define PGN_PROP_B_65362			65362L		// proprietary sent by E80
+#define PGN_PROP_B_65364			65364L		// proprietary sent by E80
+	// Raymarine proprietary “fast wind” mirror of 130306.
+#define PGN_PROP_B_129044			129044L		// proprietary sent by E80
+	// Raymarine proprietary navigation state/cross track error companion
+	// to 129283 (XTE), 129284 (Navigation Data), and 129285 (Route/Waypoint Data).
+#define PGN_PROP_B_130846			130846L		// proprietary sent by E80
 
 
 

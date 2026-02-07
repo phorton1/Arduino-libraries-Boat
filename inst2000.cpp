@@ -77,6 +77,7 @@ static const unsigned long TransmitMessages[] = {
 	PGN_SEATALK_ROUTE_INFO,
 
 	PGN_SEATALK_ROUTE_INFO,
+	
 	PGN_GEN_PHASE_A_AC_POWER,
 	PGN_GEN_PHASE_A_BASIC_AC,
 	PGN_TOTAL_AC_POWER,
