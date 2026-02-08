@@ -187,3 +187,82 @@ transmit ST instead of NMEA0183
 The brown is DMC for differential GPS, and is tied to GND
 to prevent noise from generating erroneous signals.
 
+## Seatalk 3 pin connectors
+
+### Ideal Male, facing, slot at top
+
+My terminology is the opposite of the industry standard.
+In my terminology the male is actually the one that has "sockets" for
+the pins on the "female", but which Inserts into the female.
+
+Facing the male 3 pin Seatlk connector, with the slot at the top
+you see a downwards pointing triangle.  Going clockwise the three
+sockets, with idealized colors, are:
+
+- 2 oclock =  12V **red**
+- 6 oclock =  ST Data **yellow**
+- 10 oclock = GND **black**
+
+### Ideal Female facing, slot at top
+
+Ergo, the female must be the opposite order
+
+My terminology is the opposite of the industry standard.
+In my terminology the female is actually the one that has "pins" but
+because you insert the male into it, it is termed the female.
+
+Facing the female 3 pin Seatlk connector, with the slot-pin at the top
+you see a downwards pointing triangle.  Going clockwise the three
+pins, with idealized colors, are:
+
+- 2 oclock = GND **black**
+- 6 oclock =  ST Data **yellow**
+- 10 oclock =  12V **red**
+
+### Defective Max Marine Female Pigtails
+
+Over the years I have collected quite a few Seatalk cables
+of varying pedigree and providance.
+
+In general most of the ones that I currently have that are
+Male to Female extensions, including ones I made, are known
+to carry all three pins
+
+I bought a pair of "ST50 3 Pin Round D127" female in my terminology,
+male in theirs, pigtails from Max Marine Electronics that suprised me.
+There are still 8 aailable.  The two I received were different, one
+matched the ad photo, one didnt match the ad photo, but neither carried
+the 6 oclock ST Data pin out to a conductor.  At best these are, as is,
+"ST Power pigtails".
+
+#### ST50 3 Pin Round D127 Max Marine cable that matched ad photo
+
+Has a shiny thinner black cable with no writing, braid, yellow, and red.
+The braid connects to GND, the red connects to 12V, but the yellow wire
+does not appear to connect to the corresponding pin on the connector,
+hence it is "defective" in my view.
+
+I used this initially as a cable from the desk ST7000 to the teensyBoat pcb
+and it didnt work.  Subsequent testing showed the yellow was not connected.
+
+
+#### ST50 3 Pin Round D127 Max Marine cable that matched ad photo
+
+Has a matte thicker cable labelled
+
+	AWM 2464 E45681 LL54185 CSM AWM I/II A/B 80'C 300V FT-1
+
+with braid, black and red, and red, where braid=GND, red=12V,
+and black=NC, once again, being essentially a "defective"
+Seatalk cable.
+
+
+### Working Old Ray11 Female Pigtail
+
+I have one more existing female pigtail, the old Ray11 removed
+from Rhapsody with Yellow, Red, and Braid-in-white-heatshrink.
+In this pigtail not only do the Red and Braid goto 12V and GND
+as expected but the Yellow goes to the ST Data pin, so this
+cable is considered functional.
+
+

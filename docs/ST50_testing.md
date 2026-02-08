@@ -100,3 +100,43 @@ to know is the wind speed though, to see if the LCD was bad (which it was).
 In an interesting side experiment I tore the polarization filter off of an old cheap
 tablet LCD, turned it at angle, and was able to barely see the ST50 Wind LCD was working,
 just old and weak.
+
+
+## ST50 Depth
+
+I had a somewhat miraculous lucky session attempting to spoof the ST50 Depth Head Unit.
+
+After much discussion with coPilot AI about how Sonars work and what I was likely to
+see on the 2 pin ST50 Depth Transducer connector we landed on first trying to visualize
+and characterize the output "pulse" on an oscilloscope and then *perhaps* to figure out
+a way to spoof it into "seeing" a transducer and sending Seatalk1 datagrams.  If the
+head unit doesn't "see" a transducer the display flashes "0.0 Feet" and never sends
+any Seatalk, so there was no way to know if it was working.
+
+I had at this point two head units, one with a bad LCD and one with a good LCD.
+
+Starting with the good LCD head unit, I took the two pins from the transducer
+via some jumper cable to a 10M/1M resistor divider network on a small breadboard.
+I plugged the GND and probe of my cheap Fnirsi 2C23T handheld oscilloscope across
+the 1M resistor likewise using short dupont jumpers clamped into the probe.
+I powered up the ST50 Depth Head and ..
+
+LO AND BEHOLD it stopped flashing "0.0 feet" and started showing a depth of
+50-65 feet ... AND it output Seatalk messages!!!!
+
+It also clearly showed the 200khz original pulse being generated on the scope.
+
+Without going into detail (I still have the coPilot conversation as a reference),
+we surmised that there was enough stray capacitance in our circuit to fake the
+ST50 head into seeing a "return" echo and reporting some number of feet.
+
+I was then able to plug the head unit with the bad LCD into that same setup,
+and never before able to verify if it was working or not, IT generated the same
+pulse AND IT TOO output seatalk messags of depth in the 50-65 foot range.
+
+Therefore I am able to conclude that it just has a bad LCD but that the electronics
+are otherwise probably working fine.
+
+BTW, the scope settings that worked were x10, AC coupling, 5-10V vertical divisions
+and 2us (to see the wave form) to 5ms (to see the whole burst) horizontal divisions,
+with "normal" triggering and the trigger set to about 1/2 division above zero.
