@@ -32,7 +32,7 @@ the E80 should display the Log information, providing further confirmation.
 The ST50 Speed Instrument sensor male connector has five pins and uses a
 a proprietary locking scheme similar to a 240-degree DIN type B connector.
 
-When facing the connector, with the blank position at the top, the
+When facing the Instrument connector, with the blank position at the top, the
 pins, and the presumed internal wire colors, are, clockwise, as follows:
 
 - 1	**blue**	Temperature Sensor
@@ -100,6 +100,33 @@ to know is the wind speed though, to see if the LCD was bad (which it was).
 In an interesting side experiment I tore the polarization filter off of an old cheap
 tablet LCD, turned it at angle, and was able to barely see the ST50 Wind LCD was working,
 just old and weak.
+
+
+
+#### REDO 2025-02-10
+
+Facing WIND VANE CONNECTOR.  counting clockwise from the blank spot.
+
+Measured resistances.
+
+1-2	= 2.28M
+1-3 = 2.25M
+1-4 = 103K
+1-5 = 103K
+
+2-3 = 2.35M
+2-4 = 102K
+2-5 = 101K
+
+3-4 = 100K
+3-5 = 99,5K
+
+4-5 = 531K
+
+
+
+
+102.9k
 
 
 ## ST50 Depth
