@@ -137,6 +137,9 @@ public:
 #endif
 	{}
 
+	virtual bool SendMsg(const tN2kMsg &N2kMsg, int DeviceIndex=0) override;
+		// made virtual in timo's library so I can monitor outgoing messages
+		
 	void init(uint8_t source_address);
 		// passing source_address==0 will cause the init method
 		// 		to use the pre-defined product settings for teensyBoat

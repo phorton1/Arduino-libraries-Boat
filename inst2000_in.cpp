@@ -16,9 +16,9 @@
 
 
 #define BUS_COLOR "\033[37m"
-	// 37 = WHITE
-
-
+	// 37 = LIGHT GREY
+#define RAW_COLOR "\033[95m"
+	// 95 = LIGHT MAGENTA
 
 
 static String showIfValid(double d, const char *format)
@@ -163,19 +163,25 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 	//	MON2000_PROPRIETARY
 	//	MON2000_UNKNOWN
 	//	MON2000_BUS_IN
-	//	MON2000_BUS_OUT	
-
-	int mon = inst_sim.g_MON[PORT_2000];
+	//	MON2000_BUS_OUT
+	//  MON2000_SELF
+	
+	uint32_t mon = inst_sim.g_MON[PORT_2000];
+	bool mon_self = mon & MON2000_SELF ? 1 :0;
+	bool is_self = msg.Source == nmea2000.m_source_address ? 1 :0;
+	
 	bool b_mon_sensors 	= mon & MON2000_SENSORS;
 	bool b_mon_ais_gps  = mon & MON2000_AIS_GPS;
 
-	// display_string(BUS_COLOR,0,msgToString(msg,"BUS: ").c_str());
-
-	if (msg.Destination == 255 ||
+	if ((mon_self && is_self) ||
+		msg.Destination == 255 ||
 		msg.Destination == nmea2000.m_source_address)
 	{
 		uint8_t sid;
 		double d1,d2,d3;
+
+		if (mon & MON2000_RAW)
+			display_string(RAW_COLOR,0,msgToString(msg,"RAW").c_str());
 
 		if (msg.PGN == PGN_VESSEL_HEADING)
 		{
@@ -597,7 +603,9 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 		msg.PGN == PGN_PRODUCT_INFO		||
 		msg.PGN == PGN_DEVICE_CONFIG ))
 	{
-		if (mon & MON2000_BUS_IN)
+
+		if ((is_self && (mon & MON2000_BUS_OUT)) ||
+			(!is_self && (mon & MON2000_BUS_IN)))
 		{
 			const char *name =
 				msg.PGN == PGN_ACK				? "BUS_ACK:" :
@@ -624,7 +632,6 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 			msg.PGN == PGN_PROP_B_130846;
 		const char *name =
 			is_known_proprietary ? "PROPRIETARY: " : "UNKNOWN: ";
-
 		if ((is_known_proprietary && b_mon_prop) ||
 			(!is_known_proprietary && b_mon_unknown))
 		{

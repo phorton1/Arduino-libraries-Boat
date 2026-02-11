@@ -115,13 +115,15 @@
 
 // g_MON[PORT_2000] is bitwise
 
-#define MON2000_SENSORS			0x01		// sensors out, known messages in
-#define MON2000_AIS_GPS			0x02      // GPS/AIS specifically
-#define MON2000_PROPRIETARY		0x04      // known proprietary in
-#define MON2000_UNKNOWN			0x08      // unknown (not busi.e. proprietary) in
-#define MON2000_BUS_IN			0x10      // BUS in
-#define MON2000_BUS_OUT			0x20      // BUS out
+#define MON2000_SENSORS			0x0001		// sensors out, known messages in
+#define MON2000_AIS_GPS			0x0002		// GPS/AIS specifically
+#define MON2000_PROPRIETARY		0x0004		// known proprietary in
+#define MON2000_UNKNOWN			0x0008 		// unknown (not sensors, known proprietary, or known bus) in
+#define MON2000_BUS_IN			0x0010		// known BUS in
+#define MON2000_BUS_OUT			0x0020		// known BUS out
 
+#define MON2000_SELF			0x1000		// self (sent) as well as received
+#define MON2000_RAW				0x8000		// show raw "instrument" messages
 
 
 //-------------------------------
@@ -195,8 +197,13 @@ public:
 
 	void setPorts(int inst_num, uint8_t port_mask);
 	void setAll(int port_num, bool on);
-	void setFWD(int fwd);
-
+	void setFWD(uint8_t fwd);
+	void setMonitor(int port, uint32_t value);
+	void clearState();
+		// clears all instruments, forwarding, monitoring, debugging, GP8 function
+		// as well as boat_sim.g_MON_SIM, calls sendBinaryState() but does not
+		// call saveToEEProm
+		
 	void saveToEEPROM();
 	void loadFromEEPROM();
 	void sendBinaryState();
@@ -215,7 +222,7 @@ public:
 
 
 	static uint8_t g_FWD;
-	static uint8_t g_MON[NUM_PORTS];
+	static uint32_t g_MON[NUM_PORTS];
 
 	instBase *getInst(int i)  { return i<NUM_INSTRUMENTS ? m_inst[i] : 0; }
 

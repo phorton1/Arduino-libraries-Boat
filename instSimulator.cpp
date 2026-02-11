@@ -49,9 +49,9 @@ apInst			i_autopilot;
 engInst			i_engine;
 genInst			i_genset;
 
-uint8_t instSimulator::g_MON[NUM_PORTS];
-uint8_t instSimulator::g_FWD;
-uint8_t instSimulator::g_GP8_FUNCTION;
+uint32_t instSimulator::g_MON[NUM_PORTS];
+uint8_t  instSimulator::g_FWD;
+uint8_t  instSimulator::g_GP8_FUNCTION;
 
 
 //-------------------------------------------------
@@ -220,8 +220,9 @@ void instSimulator::saveToEEPROM()
 	}
 	for (int i=0; i<NUM_PORTS; i++)
 	{
-		EEPROM.write(offset++, g_MON[i]);
-		display(dbg_eeprom,"wrote MON(%d)=%02x to EEPROM",i,g_MON[i]);
+		EEPROM.put(offset, g_MON[i]);	// put "knows" these are uint32_t's and stores four bytes
+		offset += sizeof(uint32_t);
+		display(dbg_eeprom,"wrote MON(%d)=%08x to EEPROM",i,g_MON[i]);
 	}
 	EEPROM.write(offset++,g_FWD);
 	EEPROM.write(offset++,getE80Filter());
@@ -247,8 +248,9 @@ void instSimulator::loadFromEEPROM()
 	}
 	for (int i=0; i<NUM_PORTS; i++)
 	{
-		g_MON[i] = EEPROM.read(offset++);
-		display(dbg_eeprom,"got G_MON(%d)=%02x",i,g_MON[i]);
+		EEPROM.get(offset,g_MON[i]);	// get knows uint32_t takes 4 bytes
+		offset += sizeof(uint32_t);
+		display(dbg_eeprom,"got G_MON(%d)=%08x",i,g_MON[i]);
 	}
 	g_FWD = EEPROM.read(offset++);
 	display(dbg_eeprom,"got FWD=%02x",g_FWD);
@@ -298,7 +300,7 @@ void instSimulator::setAll(int port_num, bool on)
 }
 
 
-void instSimulator::setFWD(int fwd)
+void instSimulator::setFWD(uint8_t fwd)
 {
 	bool ok = 1;
 	display(0,"setFWD(0x%02x)",fwd);
@@ -317,6 +319,36 @@ void instSimulator::setFWD(int fwd)
 }
 
 
+void instSimulator::setMonitor(int port, uint32_t value)
+{
+	display(0,"instSimulator::setMonitor(port=%d) value=%08x",port,value);
+	if (port<0 || port>NUM_PORTS-1)
+		my_error("illegal port number*%d) in instSimulator::stMonitor()",port);
+	else
+		g_MON[port] = value;
+}
+
+
+void instSimulator::clearState()
+	// clears all instruments, forwarding, monitoring, debugging, and GP8
+	// and calls sendBinaryState
+{
+	for (int i=0; i<NUM_INSTRUMENTS; i++)
+	{
+		instBase *inst = m_inst[i];
+		inst->setPorts(0);
+	}
+	g_FWD = 0;
+	for (int i=0; i<NUM_PORTS; i++)
+	{
+		g_MON[i] = 0;
+	}
+	setGP8Function(0);
+	boat_sim.g_MON_SIM = 0;
+	sendBinaryState();
+
+}
+
 
 void instSimulator::sendBinaryState()
 {
@@ -325,7 +357,7 @@ void instSimulator::sendBinaryState()
 	
 	display(send_state,"sendBinaryState()",0);
 	proc_entry();
-	uint8_t buf[BINARY_HEADER_LEN + NUM_INSTRUMENTS + NUM_PORTS + 3];
+	uint8_t buf[BINARY_HEADER_LEN + NUM_INSTRUMENTS + NUM_PORTS*4 + 3];
 	int offset = startBinary(buf,BINARY_TYPE_PROG);
 	display(send_state+1,"offset after header=%d",offset);
 	for (int i=0; i<NUM_INSTRUMENTS; i++)
@@ -337,7 +369,7 @@ void instSimulator::sendBinaryState()
 	for (int i=0; i<NUM_PORTS; i++)
 	{
 		display(send_state+1,"g_MON[%i]=%02x",i,g_MON[i]);
-		offset = binaryUint8(buf,offset,g_MON[i]);
+		offset = binaryUint32(buf,offset,g_MON[i]);
 	}
 	offset = binaryUint8(buf,offset,g_FWD);
 	offset = binaryUint8(buf,offset,getE80Filter());
@@ -419,8 +451,6 @@ void instSimulator::init()
 	SERIAL_83A.begin(38400);
 	SERIAL_83B.begin(38400);
 
-	nmea2000.init(TEENSYBOAT_NMEA_ADDRESS);
-
 	//---------------------------------
 	// boatSimulator initialization
 	//---------------------------------
@@ -443,19 +473,13 @@ void instSimulator::init()
 
 	loadFromEEPROM();
 
-	// initialize the GP8 General purpose state
-
+	// init nmea2000 after EEPROM loaded
+	
+	nmea2000.init(TEENSYBOAT_NMEA_ADDRESS);
 
 	proc_leave();
 	display(0,"instSimulator::init() finished",0);
 }
-
-
-
-
-
-
-
 
 
 

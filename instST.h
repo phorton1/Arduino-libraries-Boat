@@ -37,8 +37,8 @@
 #define ST_DATE				0x156		// gpsInst(1)				recd
 #define ST_SAT_INFO			0x157		// gpsInst(x)				recd
 #define ST_LATLON			0x158		// gpsInst(x)				recd
-#define ST_59				0x159		// 					o		recd
-#define ST_E80_SIG			0x161		// 					o		recd
+#define ST_59				0x159		// 					o		recd always "59 11 ce ff"?
+#define ST_E80_SIG			0x161		// 					o		recd always "61 03 03 00 00 00"?
 #define ST_TARGET_ID		0x182		// apInst(1)				recd
 #define ST_AUTOPILOT		0x184		// apInst(1)				recd from AP cpu
 #define ST_NAV_TO_WP		0x185		// apInst(1)				recd

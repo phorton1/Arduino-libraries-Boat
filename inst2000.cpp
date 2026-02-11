@@ -3,6 +3,7 @@
 //-----------------------------------------------------
 
 #include "inst2000.h"
+#include "instSimulator.h"
 #include <myDebug.h>
 #include <N2kMessages.h>
 #include <N2kMessagesEnumToStr.h>
@@ -189,6 +190,20 @@ void inst2000::init(uint8_t source_address)
 
 }	// inst2000::init()
 
+
+
+
+// virtual
+bool inst2000::SendMsg(const tN2kMsg &msg, int deviceIndex /*=0*/)
+{
+
+    bool result = tNMEA2000::SendMsg(msg, deviceIndex);
+
+    if (inst_sim.g_MON[PORT_2000] & MON2000_SELF)
+		onBusMessage(msg);  // monitor outgoing
+
+	return result;
+}
 
 
 //---------------------------------
