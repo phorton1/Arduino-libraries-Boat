@@ -34,6 +34,8 @@
 #define ST_SOG				0x152		// gpsInst(1)				recd
 #define ST_COG				0x153		// gpsInst(1)				recd
 #define ST_TIME				0x154		// gpsInst(1)				recd
+// note that 0x155 01 03 fc is sent by the E80 when Config-Autopilot control is enabled
+// and you press the STOP_GOTO button
 #define ST_DATE				0x156		// gpsInst(1)				recd
 #define ST_SAT_INFO			0x157		// gpsInst(x)				recd
 #define ST_LATLON			0x158		// gpsInst(x)				recd
