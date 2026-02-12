@@ -2,6 +2,11 @@
 
 Note that you can use "lamp=0..3" to set the lamp level on any connected ST50 instruments.
 
+- ST50 Multi - works directly from my Seatalk simulator
+- ST50 Speed - simple 5V pulse to emulate paddle wheel
+- ST50 Wind  - 5V pulse to emulate wind speed, 2-8V orthognal signals for direction.
+- ST50 Depth - 2 pin Piezo Driver and Listener
+
 
 ## ST50 Multi Instrument
 
@@ -15,6 +20,16 @@ ST50 Speed (log) is a fairly simple device. It expects pulses as the log wheel t
 For testing, I connect the device to the second teensyBoat Seatalk ports (PORT_ST2),
 which provides it with power and allows me to monitor its output.
 
+When facing the Instrument connector, with the blank position at the top, the
+pins, and the presumed internal wire colors, are, clockwise, as follows:
+
+- 1	**blue**	Temperature Sensor
+- 2 **white**	Temperature Bias (~8V relative to ground)
+- 3 **green**	Speed Pulse (active low, ~4.38V pulled to ground is a 'pulse')
+- 4 **black**   Ground
+- 5 **red**		Power (~5.0V to power transducer circutry)
+
+
 The **green** pin #3 is pulled high to 5V by the instrument.  It is a simple matter
 to pull it down to ground through a BC547 transistor in a square wave to provide
 the pulses.
@@ -26,20 +41,6 @@ teensyBoat Seatalk port where it can be monitored, displayed, and or forwarded t
 the other Seatalk port. If the E80 is connected to the other teensyBoat Seatalk port,
 the E80 should display the Log information, providing further confirmation.
 
-
-### ST50 Speed Instrument Connector Pinouts
-
-The ST50 Speed Instrument sensor male connector has five pins and uses a
-a proprietary locking scheme similar to a 240-degree DIN type B connector.
-
-When facing the Instrument connector, with the blank position at the top, the
-pins, and the presumed internal wire colors, are, clockwise, as follows:
-
-- 1	**blue**	Temperature Sensor
-- 2 **white**	Temperature Bias (~8V relative to ground)
-- 3 **green**	Speed Pulse (active low, ~4.38V pulled to ground is a 'pulse')
-- 4 **black**   Ground
-- 5 **red**		Power (~5.0V to power transducer circutry)
 
 ### Observations
 
@@ -58,75 +59,100 @@ pins, and the presumed internal wire colors, are, clockwise, as follows:
 
 ## ST50 Wind
 
-ST50 Wind: With Keyway at Bottom (Solder Side)
-Yellow @ 7 O'clock
-Green @ 10 O'clock
-Blue @ 12 O'clock
-Ground @ 2 O'clock
-Red @ 5 O'clock
+Facing the INSTRUMENT connector (SOCKETS) with the notch at 6:00pm:
 
-The correct order per notes here and from Raymarine should be clockwise from the notch at 6:00pm:
-y=wind speed, 7:00pm
-g=starboard wind direction, 10:00pm
-blue=port wind direction, 12:00pm
-shield=ground, 2:00pm
-r=power, 5:00pm
-
-the actual order at the masthead (thank you marina after working on it!):
-y, blue, g, r, shield
+- 1 - Red @ 7 O'clock = 8V DC out
+- 2 - Black/Shield @ 10 O'clock = ground
+- 3 - Blue @ 12 O'clock = port wind direction
+- 4 - Green @ 2 O'clock = starboard wind direction
+- 5 - Yellow @ 5 O'clock = wind speed
 
 
 
+Facing the VANE connector (PINS) with the notch at 6:00pm
+
+- 1 - Yellow @ 7 o'clock = wind speed
+- 2 - Blue @ 10 o'clock = port wind direction
+- 3 - Green @ 12 o'clock = starboard wind direction
+- 4 - Red @ 2 o'clock = 8VDC in
+- 5 - Black/Shield @ 5 o'clock = ground
+
+Note that most puslished descripitons of the VANE connector take the
+point of view of looking at the SOCKETS on the mast mounted receptacle,
+and not the PINS on the Wind Vane itself, and hence are backwards
+from the my description above.
 
 
 
+The ST50 Wind instrument is a bit more complicated. It provides the Vane with
+GND and 8V, and expects a 0-5V square wave returned on the Yellow pin for the wind speed.
+In addition it expects two 2-8V signals returne don the Green and Blue pins that determine
+the direction as sine waves 90 degrees out of phase.
 
-I then modified the breadboard, and the program, slightly, to allow me to
-do some rudimentary testing of a few of the ST50 instruments.
+NOTE THAT UNTIL IT RECEIVES signals on the Green and Blue pins, the ST50 Wind Instrument
+will not come alive. After that it start starts sending Seatalk messages which can
+be monitored.
 
-- ST50 Multi - works directly from my Seatalk simulator
-- ST50 Speed - simple 5V pulse to emulate paddle wheel
-- ST50 Wind  - 5V pulse to emulate wind speed, 2-8V orthognal signals for direction.
+### Initial ST50 Wind Instrument Testing
 
-
-The ST50 Wind instrument is a bit more complicated. In addition to a pulse to emulate
-the wind speed, it expects two 2-8V signals that determine the direction.  So I created
-a voltage divider from 12V to 8V and used a pair of potentiometers in another set of
-voltage dividers to allow me to send 2V to 8V to the two direction signal pins on the
-ST50 Wind instrument.  By changing the pots I got the instrument to display various
-directions and verified, basically, that the instrument was working. What I mostly wanted
-to know is the wind speed though, to see if the LCD was bad (which it was).
-
-In an interesting side experiment I tore the polarization filter off of an old cheap
-tablet LCD, turned it at angle, and was able to barely see the ST50 Wind LCD was working,
-just old and weak.
+My initial testing was to use the pulse output from the teensy to drive a similar
+BC547 that pulled the Yellow to ground with the gate wired through 1K resistor to
+a teensy GPIO pin. This worked more or less as expected (10 hz =~ 18 knots of wind
+speed).
 
 
-
-#### REDO 2025-02-10
-
-Facing WIND VANE CONNECTOR.  counting clockwise from the blank spot.
-
-Measured resistances.
-
-1-2	= 2.28M
-1-3 = 2.25M
-1-4 = 103K
-1-5 = 103K
-
-2-3 = 2.35M
-2-4 = 102K
-2-5 = 101K
-
-3-4 = 100K
-3-5 = 99,5K
-
-4-5 = 531K
+For the Green and Blue, I brought the Red 8V to a breadboard, connecting to
+two voltage dividers formed by 10K potentiometers on the top, to a
+a 3.3K resistor to ground, with the Green and Blue attached to the wipers.
+Thus the wipers receive approx 2v to 8v depending on the pot setting.
+This allowed me to bring the unit alive, and probe, but not accurately control,
+the wind indicator.
 
 
 
+### Initial ST50 Vane Testing
 
-102.9k
+I started very cautiously proving the pinouts with my bench supply
+and a multi-meter starting on 3V and 10ma over current protection,
+noticing I was getting signals on the Blue, Green, and Yellow
+before proceeding to the full 8V and about 30ma current protection.
+
+At 8V, as advertised, I saw values between 2v and 8v on the Blue
+and Green pins, but only 0 to 1.4V or so on the Yellow. I determined
+that the head unit supplying 5V is a pullup, probably through a 10K
+resistor.
+
+Soon after I made a circuit with a teensy4.0 that can read the
+Blue and Green and turn them into an angle 0..360.  I have
+not yet implemented the Yellow pulse sensing, but am sure I could.
+
+To begin with I needed to generate an 8V rail. To the degree that
+I can envision a teensyWind device that works with ST or NMEA2000,
+both of whiich provide 12V low power, I decided to start by using
+12V and a L708CV voltage regulator.  The vane draws very little
+power so heat from the regulator is not a problem.
+
+- Red to the outpupt leg of the L708CV
+- Black to common 12V / teensy grounds
+- Blue to a 15K/10K voltage divider to pull it down to teensy 3.3V ranges
+- Green to a 15K/10K voltage divider to pull it down to teensy 3.3V ranges
+- Yellow pulled up through a 10K resistor to the teeny's 3.3V regulator.
+
+After first using the Arduino plotter to visualize the outputs, i then
+switched to 12bit resolution and just went ahead and coded up the angle
+math with some help from the coPilot AI.  It worked the first time and
+is checked into my new Arduino-boat-teensyWind repo.
+
+### A lot to think about
+
+This gives me a LOT to think about as not only can I test the ST50 Wind
+instrument, but am in a position to potentially replace it with a teensy
+based solution that speaks Seatalk and/or NMEA2000.
+
+The other side of the coin is that I want to create a "better" ST50 Wind
+Instrument tester based on what i learned from the Vane, that can "peg"
+a given wind direction and thus fit into my teensyBoat simulation architecture.
+
 
 
 ## ST50 Depth
