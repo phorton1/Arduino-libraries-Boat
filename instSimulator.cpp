@@ -78,9 +78,9 @@ uint8_t  instSimulator::g_GP8_FUNCTION;
 	#define PULSE_MODE_WATER 	2			// Use water speed to generate pulses for ST50 log instrument
 
 	static int pulse_mode = 1;				// defaults to ON
-	static int user_pulse_hz = 1000; 		// defaults to 1000 Hz PWM
+	static float user_pulse_hz = 1000; 		// defaults to 1000 Hz PWM
 
-	static int pulse_hz	= -1;				// current hz being output
+	static float pulse_hz= -1;				// current hz being output
 
 	static bool pulse_state = false;		// whether pulse is on or off in last explicit toggle
 	static uint32_t last_pulse_toggle = 0;	// millis() at last explicit pulse toggle
@@ -112,15 +112,15 @@ uint8_t  instSimulator::g_GP8_FUNCTION;
 			initSpeedPulse();
 		}
 	}
-	void instSimulator::setSpeedPulseHz(int hz)
+	void instSimulator::setSpeedPulseHz(float hz)
 	{
 		if (hz<0)
 		{
-			my_error("Illegal PULSE_HZ(%d)",hz);
+			my_error("Illegal PULSE_HZ(%0.1f)",hz);
 		}
 		else
 		{
-			display(0,"PULSE_HZ(%d)",hz);
+			display(0,"PULSE_HZ(%0.1f)",hz);
 			user_pulse_hz = hz;
 			initSpeedPulse();
 		}
@@ -132,7 +132,7 @@ uint8_t  instSimulator::g_GP8_FUNCTION;
 		if (!pulse_mode)
 			return;
 
-		int hz = 0;
+		float hz = 0;
 		if (pulse_mode == PULSE_MODE_ON)
 		{
 			hz = user_pulse_hz;
@@ -147,9 +147,9 @@ uint8_t  instSimulator::g_GP8_FUNCTION;
 			// and we need to increase the hz by a fudge factor.
 
 			float speed = boat_sim.getWaterSpeed();
-			hz = round(speed * HZ_PER_KNOT);
+			hz = speed * HZ_PER_KNOT;
 			if (hz < 18)
-				hz = round(speed * HZ_PER_KNOT * FUDGE_FACTOR);
+				hz = speed * HZ_PER_KNOT * FUDGE_FACTOR;
 		}
 
 		// if the pulse frequency has changed, setup PWM or restart explicit toggle
@@ -162,7 +162,7 @@ uint8_t  instSimulator::g_GP8_FUNCTION;
 			pulse_interval_ms = 0;
 			pinMode(PIN_SPEED_PULSE, OUTPUT);
 			digitalWrite(PIN_SPEED_PULSE,0);
-			if (!pulse_hz)
+			if (pulse_hz == 0.0)
 			{
 				display(0,"pulse_hz==0; pin forced low",0);
 				return;;
@@ -171,17 +171,19 @@ uint8_t  instSimulator::g_GP8_FUNCTION;
 			if (pulse_hz >= 18)
 			{
 				// Use PWM for higher frequencies
-				display(0,"using PWM Hz(%d)", pulse_hz);
+				int pulse_int = roundf(pulse_hz);
+				display(0,"using PWM Hz(%0.1f)=%d", pulse_hz,pulse_int);
 				pinMode(PIN_SPEED_PULSE, OUTPUT);
-				analogWriteFrequency(PIN_SPEED_PULSE, pulse_hz);
+				analogWriteFrequency(PIN_SPEED_PULSE, pulse_int);
 				analogWrite(PIN_SPEED_PULSE, 128); // 50% duty
 			}
 			else
 			{
 				// Use manual toggling for lower frequencies
-				pulse_interval_ms = 500.0 / pulse_hz;
+				float f_interval = 500.0 / pulse_hz;
+				pulse_interval_ms = round(f_interval);
 				last_pulse_toggle = millis();  // reset timer
-				display(0,"using MS timer Hz(%d) MS(%d)",pulse_hz,pulse_interval_ms);
+				display(0,"using MS timer Hz(%0.1f) MS(%d)",pulse_hz,pulse_interval_ms);
 			}
 		}
 		else if (pulse_hz < 18)	// implement manual toggling

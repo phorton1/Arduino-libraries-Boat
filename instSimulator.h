@@ -213,7 +213,7 @@ public:
 	
 	#if PIN_SPEED_PULSE
 		void setSpeedPulseMode(int mode);
-		void setSpeedPulseHz(int hz);
+		void setSpeedPulseHz(float hz);
 	#endif
 	
 	#if WITH_TB_ESP32
