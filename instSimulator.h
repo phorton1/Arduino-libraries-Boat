@@ -27,44 +27,26 @@
 #define SERIAL_ST2		Serial2
 #define SERIAL_83A 		Serial3
 #define SERIAL_83B 		Serial4
-#define SERIAL_ESP32 	Serial5
-
-
-// Henceforth the function of the General Purpose of the 8 pin
-// connector is defined entirely in the Boat library, managed
-// as a global boolean supported by a BINARY_PROG option and
-// reflected in the UI.
-//
-// Initially this implementation allows four states.
-//
-//		OFF - the pins on the gp8 connector are not used by teensyBoat
-//		PULSE - the pins drive the Pulse logic moved from teensyBoat.ino
-//			which means that the PULSE variables also have to become globals.
-//		ESP32 - the Serial5 port is given over to the tbESP32 secheme
-//			which also utilizes PIN_UDP_ENABLE to orchestrate datagram
-//			transmission over wifi to the teensyBoat.pm perl program.
-//		NEO6M - the gp8 connector uses Serial5 to receive NMEA0183 data
-//			from the Serial5 (RX only) port and send it as NMEA2000
-//
-// For safety, even though PULSE *could* be run at the same time as ESP32/NE06M,
-// ESP32 and NEO6M definitely cannot, so all pins involved in all features are
-// safely set to floating (MODE_INPUT) if they are not used.
+#define SERIAL_ESP32	Serial5
 
 #define GP8_FUNCTION_OFF 		0
-#define GP8_FUNCTION_PULSE 		1
-#define GP8_FUNCTION_ESP32 		2
+#define GP8_FUNCTION_SPEED 		1
+#define GP8_FUNCTION_WIND 		2
+#define GP8_FUNCTION_ESP32 		3
 
+#define PIN_SPEED_PULSE	 		2	// GREEN on ST50 Speed, YELLOW on ST50 Wind
 
-// The following #ifdefs allow the functionality to be compiled out,
-// even though the UI remains.
+#define PIN_WIND_PWMA			11		// GREEN
+#define PIN_WIND_PWMB			12		// BLUE
+#define PIN_UDP_ENABLE			13
 
-#define PIN_SPEED_PULSE	 	2		// 0 to turn off
-	// The SPEED_PULSE pin has been used to generate square
-	// wave pulses that can drive the LOG and WIND instruments.
-	// Frequencies of less than 18 Hz are driven by explicit PIN toggles.
-	// Frequencies greater than 18 Hz are driven by PWM
-	// See the documentation for more details about ST50 instruments.
-#define WITH_TB_ESP32	 	1		// 0 to turn off
+// These ranges are measured at the opamp output BEFORE the 1K series resistor
+// to the SIGNALA/SIGNALB output pins WHILE the instrument is attached.
+// With 1k series to the ST50, the actual instrument pin sees about 0.5V higher
+// at the low end and about 0.3V lower at the high end.
+
+#define WIND_PWM_8V				150	//	187		// green=8.00V->7.40V; blue=7.55V->7.30
+#define WIND_PWM_2V				70	//	50		// green=2.01V->2.52V; blue=2.02V->1.94V
 
 
 //----------------------------------
@@ -209,17 +191,18 @@ public:
 	void sendBinaryState();
 
 	void setGP8Function(uint8_t fxn);
-	uint8_t getGP8Function()  { return g_GP8_FUNCTION; }
+	uint8_t getGP8Function()  	{ return g_GP8_FUNCTION; }
 	
-	#if PIN_SPEED_PULSE
-		void setSpeedPulseMode(int mode);
-		void setSpeedPulseHz(float hz);
-	#endif
-	
-	#if WITH_TB_ESP32
-		bool doTbEsp32();
-	#endif
+	void setTestMode(bool sim_mode);
+	int getTestMode()			{ return m_test_sim_mode; }
 
+	void setUserPulseHz(float hz);
+	float getUserPulseHz()  	{ return m_user_hz; }
+	
+	void setWindPWM(bool pwm_b, uint8_t duty);
+	uint8_t getWindPWM(bool pwm_b) { return pwm_b ? m_user_pwmB : m_user_pwmA; }
+
+	bool doTbEsp32();
 
 	static uint8_t g_FWD;
 	static uint32_t g_MON[NUM_PORTS];
@@ -228,10 +211,29 @@ public:
 
 private:
 
+	instBase *m_inst[NUM_INSTRUMENTS];
+
 	static uint8_t g_GP8_FUNCTION;
 
-	instBase *m_inst[NUM_INSTRUMENTS];
-	
+	bool  m_test_sim_mode;			// true => use sim for speed pulses & pwm
+
+	float m_user_hz;				// user provided hertz
+	float m_pulse_hz;				// hertz actua setting
+	bool  m_pulse_state;			// whether pulse is on or off in last explicit toggle
+	uint32_t m_last_pulse_toggle;	// millis() at last explicit pulse toggle
+	uint32_t m_pulse_interval_ms;	// hz represented as millis for toggle mode
+
+	int m_user_pwmA;				// user provided 0..255
+	int m_user_pwmB;
+	int m_wind_pwmA;				// acutal setting 0..255
+	int m_wind_pwmB;
+	int m_last_pwmA;				// previous setting & change detection: -1..255
+	int m_last_pwmB;
+
+	void initST50Testing();
+	void initSpeedPulse();
+	void doST50Testing();
+
 };	// class instSimulator
 
 

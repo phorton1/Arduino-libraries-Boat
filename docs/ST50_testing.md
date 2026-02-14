@@ -109,6 +109,44 @@ This allowed me to bring the unit alive, and probe, but not accurately control,
 the wind indicator.
 
 
+### windTester Breadboard
+
+After the Initial ST50 Wind Instrument tester breadboard, I decided to make
+a circuit that could emulate the 2-8V 90 degree off phase inputs to the instrument
+more accurately.
+
+The windBreadboard is a dedicated bench tool that generates synthetic
+wind vane signals for an ST50 Wind instrument using 2 PWM signals and a square wave
+from teensyBoat's Teensy 4.0 over the GP8 general purpose connector and an additional
+Setalk connector.
+
+**2V to 8V outputs drive the Wind Instrument Angle Indicator**
+
+Instead of pots or a real masthead unit, for the 2-8V signals, the Teensy outputs two
+PWM channels, PWMA=Green and PWMB=Blue, which are converted into smooth analog voltages
+in the 0–10.2V range using an LM358 dual opAmp.  The LM358 gnd/12V is powered from
+the additional Seatalk connector, and the two of the opamp sections form identical
+PWM to DC converters with gain and offset. Each PWM input is first filtered by a
+by a 10kOhm/100nf RC network into the non-inverting input of each opamp. The
+inverting input of each opamp is biased by a 10K resistor to ground and a 22K
+resistor from the output, SIGNALA or SIGNALB to give the 0-10.2V working voltage range.
+The firmware can then turn the SIGNALA/B off with a duty cycle of zero, or range
+it from 2V to 8V with duty cycles constrained analogWrite() values of 50 to 194.
+A firmware algorithm converts the teensyBoat's simulated WindAngle into the proper
+phase shifted 2-8V valeus to cause the windInstrument to display the given angle.
+
+**Driving the Speed pulse square wave
+
+The square wave is well undertood. A signal (PULSE_SQUARE) comes from a teensy gpio
+pin and is sent through a 1K resistor to the gate of a BC546 transistor.  The collector
+of the transistor (WIND_SQUARE) is connected to the Wind Instrument's Yellow pin,
+which is pulled up to 5V by the instrument, and the emitter of the transistor is
+connected to GND. When the teensy outputs a PULSE_SQUARE=high signal, the gate opens
+the transistor pulling the WIND_SQUARE 5V to ground, thus making the square wave.
+A firmware algorithm convertts the teensyBoats simulated WindSpeed in knots
+into the proper frequency in Hz to cause the Wind Instrument to display the given speed.
+
+
 
 ### Initial ST50 Vane Testing
 
@@ -142,6 +180,7 @@ After first using the Arduino plotter to visualize the outputs, i then
 switched to 12bit resolution and just went ahead and coded up the angle
 math with some help from the coPilot AI.  It worked the first time and
 is checked into my new Arduino-boat-teensyWind repo.
+
 
 ### A lot to think about
 

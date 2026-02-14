@@ -58,147 +58,279 @@ uint8_t  instSimulator::g_GP8_FUNCTION;
 // General Purpose Connector related
 //-------------------------------------------------
 
-#if WITH_TB_ESP32
-	#define SERIAL_ESP32		Serial5
-	#define PIN_UDP_ENABLE		12
-	bool udp_enabled;
-		// turned on only if PIN_UDP_ENABLE pulled high by ESP32
+static bool udp_enabled;
+	// turned on only if PIN_UDP_ENABLE pulled high by ESP32
 
-	bool instSimulator::doTbEsp32()
+
+void instSimulator::setGP8Function(uint8_t fxn)
+{
+	// if (g_GP8_FUNCTION != fxn)
 	{
-		return (g_GP8_FUNCTION==GP8_FUNCTION_ESP32) && udp_enabled;
-	}
-#endif
+		display(0,"setGPSFunction(%d)",fxn);
 
+		// turn off ESP32 Serial Port if it is on
 
-#if PIN_SPEED_PULSE
+		if (g_GP8_FUNCTION == GP8_FUNCTION_ESP32)
+			SERIAL_ESP32.end();
 
-	#define PULSE_MODE_OFF 	 	0
-	#define PULSE_MODE_ON  	 	1			// Use user supplied pulse_hz for pulse speeds
-	#define PULSE_MODE_WATER 	2			// Use water speed to generate pulses for ST50 log instrument
+		// Set ALL GP8 io pins to known states
+		// NOTE THIS WILL NOT WORK IF GP8_FUNCTION_SCREEN IS ADDED !!
 
-	static int pulse_mode = 1;				// defaults to ON
-	static float user_pulse_hz = 1000; 		// defaults to 1000 Hz PWM
-
-	static float pulse_hz= -1;				// current hz being output
-
-	static bool pulse_state = false;		// whether pulse is on or off in last explicit toggle
-	static uint32_t last_pulse_toggle = 0;	// millis() at last explicit pulse toggle
-	static uint32_t pulse_interval_ms = 0;	// hz represented as millis for toggle mode
-
-	void initSpeedPulse()
-		// called initially and whenever user changes mode or user_pulse_hz
-		// causes the pulse output to re-initialize
-	{
 		pinMode(PIN_SPEED_PULSE,OUTPUT);
+		pinMode(PIN_WIND_PWMA,OUTPUT);
+		pinMode(PIN_WIND_PWMB,OUTPUT);
+		pinMode(PIN_UDP_ENABLE,INPUT_PULLDOWN);
+
 		digitalWrite(PIN_SPEED_PULSE,0);
+		analogWrite(PIN_WIND_PWMA,0);
+		analogWrite(PIN_WIND_PWMB,0);
 
-		pulse_hz = -1;
-		pulse_state = false;
-		last_pulse_toggle = 0;
-		pulse_interval_ms = 0;
+		initST50Testing();
+
+		if (fxn == GP8_FUNCTION_ESP32)
+		{
+			SERIAL_ESP32.begin(921600);
+			delay(500);
+			display(0,"SERIAL_ESP32 started",0);
+		}
+
+		if (!fxn)
+			warning(0,"GP8 FUNCTION turned off",0);
+
+		g_GP8_FUNCTION = fxn;
+	}
+}
+
+
+
+
+bool instSimulator::doTbEsp32()
+{
+	return (g_GP8_FUNCTION==GP8_FUNCTION_ESP32) && udp_enabled;
+}
+
+
+
+void instSimulator::initST50Testing()
+{
+	initSpeedPulse();
+	analogWrite(PIN_WIND_PWMA,0);
+	analogWrite(PIN_WIND_PWMB,0);
+	m_wind_pwmA = 0;
+	m_wind_pwmB = 0;
+	m_last_pwmA = -1;
+	m_last_pwmB = -1;
+}
+
+
+void instSimulator::initSpeedPulse()
+	// called initially and whenever user changes mode or user_pulse_hz
+	// causes the pulse output to re-initialize
+{
+	digitalWrite(PIN_SPEED_PULSE,0);
+	m_pulse_hz = -1;
+	m_pulse_state = false;
+	m_last_pulse_toggle = 0;
+	m_pulse_interval_ms = 0;
+}
+
+
+void instSimulator::setTestMode(bool sim_mode)
+{
+	display(0,"TEST_SIM_MODE(%d)",sim_mode);
+	m_test_sim_mode = sim_mode;
+	initST50Testing();
+}
+
+
+void instSimulator::setUserPulseHz(float hz)
+{
+	if (hz<0)
+	{
+		my_error("Illegal PULSE_HZ(%0.1f)",hz);
+	}
+	else
+	{
+		display(0,"PULSE_HZ(%0.1f)",hz);
+		m_user_hz = hz;
+		initSpeedPulse();
+	}
+}
+
+
+void instSimulator::setWindPWM(bool pwm_b, uint8_t duty)
+{
+	display(0,"setWindPWM(%d=%s)=%d",pwm_b,pwm_b?"B":"A",duty);
+	
+	// if (duty > WIND_PWM_8V) duty = WIND_PWM_8V;
+		// note: here I limit the duty cycle to WIND_PWM_8V ~= 194
+		// 		to limit the output voltage to 8V FOR SAFETY in case the
+		// 		tester is actually hooked up to an ST50 Wind Instrument.
+		// To calibrate the values of WIND_PWM_8V and WIND_PWM_2V
+		//		DISCONNECT ANY REAL WIND INSTRUMENTS
+		// 		comment the above line out
+		//		and use the "raw" m_test_sim_mode=0 and
+		//		attache a multimeter to the tester SIGNALA and SIGNALB pins
+		// to determine the constant values.
+
+	if (pwm_b)
+	{
+		m_last_pwmB = -1;
+		m_user_pwmB = duty;
+	}
+	else
+	{
+		m_last_pwmA = -1;
+		m_user_pwmA = duty;
+	}
+}
+
+
+void instSimulator::doST50Testing()
+{
+	float hz = 0;
+	if (!m_test_sim_mode)
+	{
+		hz = m_user_hz;
+		if (g_GP8_FUNCTION == GP8_FUNCTION_WIND)
+		{
+			m_wind_pwmA = m_user_pwmA;
+			m_wind_pwmB = m_user_pwmB;
+		}
+	}
+	else	// TEST_MODE_SIM
+	{
+		#define HZ_PER_KNOT  		5.6
+		#define FUDGE_FACTOR 		1.0
+
+		// when using explicit toggling, at less than 18 hz,
+		// apparently the formula falls off for the ST_LOG instrument
+		// and we need to increase the hz by a fudge factor.
+
+		float speed = boat_sim.getWaterSpeed();
+		hz = speed * HZ_PER_KNOT;
+		if (hz < 18)
+			hz = speed * HZ_PER_KNOT * FUDGE_FACTOR;
+
+		if (g_GP8_FUNCTION == GP8_FUNCTION_WIND)
+		{
+			static uint32_t last_heading_change;
+			uint32_t now = millis();
+
+			if (now > last_heading_change + 1000)
+			{
+				last_heading_change = now;
+
+				static float wa = 0;
+
+				boat_sim.setHeading(0);
+				wa += 5;
+				if (wa>360) wa=0;
+				boat_sim.setWindAngle(wa);
+			}
+
+			#define DEFAULT_NORTH	145.0
+				// raw angle calculated when the vane pointing forward at my desk
+				// from the teensyWind.ino program
+
+			float apparent_angle = boat_sim.apparentWindAngle();		// degrees relative to the bow of the boat
+			float theta_deg = apparent_angle + DEFAULT_NORTH;
+			while (theta_deg >= 360.0f) theta_deg -= 360.0f;
+			while (theta_deg <   0.0f) theta_deg += 360.0f;
+
+			float theta = theta_deg * 3.14159265358979f / 180.0f;
+			float c = cosf(theta);
+			float s = sinf(theta);
+			float WIND_MID_RANGE = (WIND_PWM_8V - WIND_PWM_2V) / 2;
+
+			int pwm_blue  = (int)roundf(WIND_PWM_2V + WIND_MID_RANGE * (1.0f + c));
+			int pwm_green = (int)roundf(WIND_PWM_2V + WIND_MID_RANGE * (1.0f + s));
+
+			// optional clamp to [50,194]
+			if (pwm_blue  < WIND_PWM_2V) pwm_blue  = WIND_PWM_2V;
+			if (pwm_blue  > WIND_PWM_8V) pwm_blue = WIND_PWM_8V;
+			if (pwm_green < WIND_PWM_2V) pwm_green = WIND_PWM_2V;
+			if (pwm_green > WIND_PWM_8V) pwm_green = WIND_PWM_8V;
+
+			// pwm_blue = WIND_PWM_2V + WIND_PWM_8V - pwm_blue;
+			// pwm_green = WIND_PWM_2V + WIND_PWM_8V - pwm_green;
+
+			m_wind_pwmA = pwm_green;
+			m_wind_pwmB = pwm_blue;
+
+			static float last_apparent_angle = 0;
+			if (last_apparent_angle != apparent_angle)
+			{
+				last_apparent_angle = apparent_angle;
+				warning(0,"apparent_angle(%0.1F)  theta_deg(%0.1f)  theta(%0.4f) c(%0.4f) s(%0.4f) pwm_blue=%d pwm_green=%d",
+					apparent_angle,theta_deg,theta,c,s,pwm_blue,pwm_green);
+			}
+		}
 	}
 
-	void instSimulator::setSpeedPulseMode(int mode)
+	// if the pulse frequency has changed, setup PWM or restart explicit toggle
+
+	if (m_pulse_hz != hz)
 	{
-		if (mode<PULSE_MODE_OFF || mode>PULSE_MODE_WATER)
+		m_pulse_hz = hz;
+		m_pulse_state = false;
+		m_last_pulse_toggle = 0;
+		m_pulse_interval_ms = 0;
+		pinMode(PIN_SPEED_PULSE, OUTPUT);
+		digitalWrite(PIN_SPEED_PULSE,0);
+		if (m_pulse_hz == 0.0)
 		{
-			my_error("Illegal PULSE_MODE(%d)",mode);
-		}
-		else
-		{
-			display(0,"PULSE_MODE(%d)",mode);
-			pulse_mode = mode;
-			initSpeedPulse();
-		}
-	}
-	void instSimulator::setSpeedPulseHz(float hz)
-	{
-		if (hz<0)
-		{
-			my_error("Illegal PULSE_HZ(%0.1f)",hz);
-		}
-		else
-		{
-			display(0,"PULSE_HZ(%0.1f)",hz);
-			user_pulse_hz = hz;
-			initSpeedPulse();
-		}
-	}
-
-
-	void doPulses()
-	{
-		if (!pulse_mode)
-			return;
-
-		float hz = 0;
-		if (pulse_mode == PULSE_MODE_ON)
-		{
-			hz = user_pulse_hz;
-		}
-		else	// PULSE_MODE_WATER
-		{
-			#define HZ_PER_KNOT  		5.6
-			#define FUDGE_FACTOR 		1.0
-
-			// when using explicit toggling, at less than 18 hz,
-			// apparently the formula falls off for the ST_LOG instrument
-			// and we need to increase the hz by a fudge factor.
-
-			float speed = boat_sim.getWaterSpeed();
-			hz = speed * HZ_PER_KNOT;
-			if (hz < 18)
-				hz = speed * HZ_PER_KNOT * FUDGE_FACTOR;
+			display(0,"pulse_hz==0; pin forced low",0);
+			return;;
 		}
 
-		// if the pulse frequency has changed, setup PWM or restart explicit toggle
-
-		if (pulse_hz != hz)
+		if (m_pulse_hz >= 18)
 		{
-			pulse_hz = hz;
-			pulse_state = false;
-			last_pulse_toggle = 0;
-			pulse_interval_ms = 0;
+			// Use PWM for higher frequencies
+			int pulse_int = roundf(m_pulse_hz);
+			display(0,"using PWM Hz(%0.1f)=%d", m_pulse_hz,pulse_int);
 			pinMode(PIN_SPEED_PULSE, OUTPUT);
-			digitalWrite(PIN_SPEED_PULSE,0);
-			if (pulse_hz == 0.0)
-			{
-				display(0,"pulse_hz==0; pin forced low",0);
-				return;;
-			}
-
-			if (pulse_hz >= 18)
-			{
-				// Use PWM for higher frequencies
-				int pulse_int = roundf(pulse_hz);
-				display(0,"using PWM Hz(%0.1f)=%d", pulse_hz,pulse_int);
-				pinMode(PIN_SPEED_PULSE, OUTPUT);
-				analogWriteFrequency(PIN_SPEED_PULSE, pulse_int);
-				analogWrite(PIN_SPEED_PULSE, 128); // 50% duty
-			}
-			else
-			{
-				// Use manual toggling for lower frequencies
-				float f_interval = 500.0 / pulse_hz;
-				pulse_interval_ms = round(f_interval);
-				last_pulse_toggle = millis();  // reset timer
-				display(0,"using MS timer Hz(%0.1f) MS(%d)",pulse_hz,pulse_interval_ms);
-			}
+			analogWriteFrequency(PIN_SPEED_PULSE, pulse_int);
+			analogWrite(PIN_SPEED_PULSE, 128); // 50% duty
 		}
-		else if (pulse_hz < 18)	// implement manual toggling
+		else
 		{
-			uint32_t pulse_now = millis();
-			if (pulse_now - last_pulse_toggle >= pulse_interval_ms)
-			{
-				last_pulse_toggle = pulse_now;
-				pulse_state = !pulse_state;
-				display(1,"MS pulse(%d)",pulse_state);
-				digitalWrite(PIN_SPEED_PULSE, pulse_state ? HIGH : LOW);
-			}
+			// Use manual toggling for lower frequencies
+			float f_interval = 500.0 / m_pulse_hz;
+			m_pulse_interval_ms = round(f_interval);
+			m_last_pulse_toggle = millis();  // reset timer
+			display(0,"using MS timer Hz(%0.1f) MS(%d)",m_pulse_hz,m_pulse_interval_ms);
 		}
 	}
-#endif
+	else if (m_pulse_hz < 18)	// implement manual toggling
+	{
+		uint32_t pulse_now = millis();
+		if (pulse_now - m_last_pulse_toggle >= m_pulse_interval_ms)
+		{
+			m_last_pulse_toggle = pulse_now;
+			m_pulse_state = !m_pulse_state;
+			display(1,"MS pulse(%d)",m_pulse_state);
+			digitalWrite(PIN_SPEED_PULSE, m_pulse_state ? HIGH : LOW);
+		}
+	}
+
+	if (g_GP8_FUNCTION == GP8_FUNCTION_WIND)
+	{
+		if (m_last_pwmA != m_wind_pwmA)
+		{
+			m_last_pwmA = m_wind_pwmA;
+			display(0,"writing WIND_PMWA(%d)",m_wind_pwmA);
+			analogWrite(PIN_WIND_PWMA,m_wind_pwmA);
+		}
+		if (m_last_pwmB != m_wind_pwmB)
+		{
+			m_last_pwmB = m_wind_pwmB;
+			display(0,"writing WIND_PMWB(%d)",m_wind_pwmB);
+			analogWrite(PIN_WIND_PWMB,m_wind_pwmB);
+		}
+	}
+}	// doST50Testing()
+
 
 
 //----------------------------------------------------
@@ -389,47 +521,6 @@ void instSimulator::sendBinaryState()
 }
 
 
-
-void instSimulator::setGP8Function(uint8_t fxn)
-{
-	if (g_GP8_FUNCTION != fxn)
-	{
-		display(0,"setGPSFunction(%d)",fxn);
-		#if PIN_SPEED_PULSE
-			if (fxn == GP8_FUNCTION_PULSE)
-			{
-				initSpeedPulse();
-			}
-			else
-			{
-				pinMode(PIN_SPEED_PULSE,INPUT);
-			}
-		#else
-			warning(0,"PIN_SPEED_PULSE==0; GP8 FUNCTION does nothing");
-		#endif
-
-		#if WITH_TB_ESP32
-			if (fxn == GP8_FUNCTION_PULSE)
-			{
-				pinMode(PIN_UDP_ENABLE,INPUT_PULLDOWN);
-				SERIAL_ESP32.begin(921600);
-				delay(500);
-				display(0,"SERIAL_ESP32 started",0);
-			}
-		#else
-			warning(0,"WITH_TB_ESP32==0; GP8 FUNCTION does nothing");
-		#endif
-		
-
-		if (!fxn)
-			warning(0,"GP8 FUNCTION turned off",0);
-
-		g_GP8_FUNCTION = fxn;
-	}
-}
-
-
-
 //----------------------------------------------------
 // implementation
 //----------------------------------------------------
@@ -563,26 +654,24 @@ void handleStPort(
 
 void instSimulator::run()
 {
-	#if WITH_TB_ESP32
-		if (g_GP8_FUNCTION == GP8_FUNCTION_ESP32)
+	if (g_GP8_FUNCTION == GP8_FUNCTION_ESP32)
+	{
+		bool enabled = digitalRead(PIN_UDP_ENABLE);
+		if (udp_enabled != enabled)
 		{
-			bool enabled = digitalRead(PIN_UDP_ENABLE);
-			if (udp_enabled != enabled)
+			udp_enabled = enabled;
+			if (enabled)
 			{
-				udp_enabled = enabled;
-				if (enabled)
-				{
-					extraSerial = &SERIAL_ESP32;
-					display(0,"attaching extraSerial to SERIAL_ESP32",0);
-				}
-				else
-				{
-					display(0,"detaching extraSerial from SERIAL_ESP32",0);
-					extraSerial = 0;
-				}
+				extraSerial = &SERIAL_ESP32;
+				display(0,"attaching extraSerial to SERIAL_ESP32",0);
+			}
+			else
+			{
+				display(0,"detaching extraSerial from SERIAL_ESP32",0);
+				extraSerial = 0;
 			}
 		}
-	#endif
+	}
 
 
 	//-----------------
@@ -705,11 +794,14 @@ void instSimulator::run()
 		handleStPort(true,&last_st_in,&last_st_out,&outp,&dlen,datagram,SERIAL_ST2);
 	}
 
-	#if PIN_SPEED_PULSE
-		if (g_GP8_FUNCTION == GP8_FUNCTION_PULSE)
-			doPulses();
-	#endif
 
+	//----------------------------
+	// ST$0 Testing
+	//----------------------------
+
+	if (g_GP8_FUNCTION == GP8_FUNCTION_SPEED ||
+		g_GP8_FUNCTION == GP8_FUNCTION_WIND)
+		doST50Testing();
 
 }	// instSimulator::run()
 

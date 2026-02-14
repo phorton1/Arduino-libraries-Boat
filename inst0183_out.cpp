@@ -34,10 +34,8 @@ static void sendNMEA0183(bool portB)
 		endBinary(buf,offset);
 		// display(0,"sending type(%d) %d bytes to binary serial port",BINARY_TYPE_0183,offset);
 		Serial.write(buf,offset);
-		#if WITH_TB_ESP32
-			if (inst_sim.doTbEsp32())
-				SERIAL_ESP32.write(buf,offset);
-		#endif
+		if (inst_sim.doTbEsp32())
+			SERIAL_ESP32.write(buf,offset);
 	}
 
 	int port_num = portB ? PORT_83B : PORT_83A;
