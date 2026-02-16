@@ -26,6 +26,7 @@
 #include "boatBinary.h"
 #include <EEPROM.h>
 #include <myDebug.h>
+#include <IntervalTimer.h>
 
 
 #define UPDATE_MILLIS	1000
@@ -52,6 +53,9 @@ genInst			i_genset;
 uint32_t instSimulator::g_MON[NUM_PORTS];
 uint8_t  instSimulator::g_FWD;
 uint8_t  instSimulator::g_GP8_FUNCTION;
+
+static IntervalTimer s_pulseTimer;
+static volatile bool s_pulse_state;			// whether pulse is on or off in last explicit toggle
 
 
 //-------------------------------------------------
@@ -123,15 +127,27 @@ void instSimulator::initST50Testing()
 }
 
 
+void speed_pulse_isr()
+{
+    s_pulse_state = !s_pulse_state;
+    digitalWriteFast(PIN_SPEED_PULSE, s_pulse_state);
+}
+
+
+
+
 void instSimulator::initSpeedPulse()
 	// called initially and whenever user changes mode or user_pulse_hz
 	// causes the pulse output to re-initialize
 {
+	if (m_pulse_timer_running)
+	{
+		s_pulseTimer.end();
+		m_pulse_timer_running = 0;
+	}
 	digitalWrite(PIN_SPEED_PULSE,0);
 	m_pulse_hz = -1;
-	m_pulse_state = false;
-	m_last_pulse_toggle = 0;
-	m_pulse_interval_ms = 0;
+	s_pulse_state = false;
 }
 
 
@@ -147,11 +163,11 @@ void instSimulator::setUserPulseHz(float hz)
 {
 	if (hz<0)
 	{
-		my_error("Illegal PULSE_HZ(%0.1f)",hz);
+		my_error("Illegal PULSE_HZ(%0.3f)",hz);
 	}
 	else
 	{
-		display(0,"PULSE_HZ(%0.1f)",hz);
+		display(0,"setUserPulseHz(%0.3f)",hz);
 		m_user_hz = hz;
 		initSpeedPulse();
 	}
@@ -186,9 +202,54 @@ void instSimulator::setWindPWM(bool pwm_b, uint8_t duty)
 }
 
 
+int volts_to_pwm(float volts)
+{
+	#if 1
+		// Use second stage scaling from "not connected" before series resistor
+		// to "connected" after series resistor pwm values
+		#define WIND_STAGE2_SCALE   1.0000f
+		#define WIND_STAGE2_OFFSET  (-0.20f)
+		float v = volts * WIND_STAGE2_SCALE + WIND_STAGE2_OFFSET;
+	#else
+		float v = volts;
+	#endif
+
+    // map corrected volts to PWM range
+    // WIND_PWM_2V and WIND_PWM_8V define the endpoints
+	//
+	// These ranges are measured at the opamp output BEFORE the 1K series resistor
+	// to the SIGNALA/SIGNALB output pins WHILE the instrument is attached.
+	// With 1k series to the ST50, the actual instrument pin sees about 0.5V higher
+	// at the low end and about 0.3V lower at the high end.
+
+	#define VOLTS_2   				2.00f
+	#define VOLTS_8   				8.00f
+	#define WIND_PWM_8V				187		// green=8.00V->7.40V; blue=7.55V->7.30
+	#define WIND_PWM_2V				50		// green=2.01V->2.52V; blue=2.02V->1.94V
+
+	float pwm = (v - VOLTS_2) * (WIND_PWM_8V - WIND_PWM_2V) /
+				(VOLTS_8 - VOLTS_2) + WIND_PWM_2V;
+
+    // if (pwm < WIND_PWM_2V) pwm = WIND_PWM_2V;
+    // if (pwm > WIND_PWM_8V) pwm = WIND_PWM_8V;
+	
+	if (pwm < 0) pwm = 0;
+    if (pwm > 255) pwm = 255;
+
+    return (int)(pwm + 0.5f);
+}
+
+
+
 void instSimulator::doST50Testing()
 {
 	float hz = 0;
+
+	#define QUICK_TEST 1
+	#if QUICK_TEST
+		m_test_sim_mode = 1;
+	#endif
+	
 	if (!m_test_sim_mode)
 	{
 		hz = m_user_hz;
@@ -200,84 +261,195 @@ void instSimulator::doST50Testing()
 	}
 	else	// TEST_MODE_SIM
 	{
-		#define HZ_PER_KNOT  		5.6
-		#define FUDGE_FACTOR 		1.0
-
-		// when using explicit toggling, at less than 18 hz,
-		// apparently the formula falls off for the ST_LOG instrument
-		// and we need to increase the hz by a fudge factor.
-
-		float speed = boat_sim.getWaterSpeed();
-		hz = speed * HZ_PER_KNOT;
-		if (hz < 18)
-			hz = speed * HZ_PER_KNOT * FUDGE_FACTOR;
-
 		if (g_GP8_FUNCTION == GP8_FUNCTION_WIND)
 		{
-			static uint32_t last_heading_change;
-			uint32_t now = millis();
+			#if QUICK_TEST
+				// do two circles at 90 seconds per circle 2 degrees per inc
+				// before going to 15 degree increments and 20 second delays
 
-			if (now > last_heading_change + 1000)
-			{
-				last_heading_change = now;
+				uint32_t now = millis();
+				static uint num_circles = 0;
+				static uint32_t last_heading_change;
 
-				static float wa = 0;
+				#if 0	// two calibration circles at 2 degrees per 500ms, then
+						// switch to Measurement circles at 15 degrees per 20 seconds
+					int wait_delay = num_circles > 1 ? 20000 : 500;
+					int degree_inc = num_circles > 1 ? 15 : 2;
+				#else	// Measurement circle at 15 degrees per 20 seconds
+					int wait_delay = 20000;
+					int degree_inc = 15;
+				#endif
 
-				boat_sim.setHeading(0);
-				wa += 5;
-				if (wa>360) wa=0;
-				boat_sim.setWindAngle(wa);
-			}
+				if (now - last_heading_change > wait_delay)
+				{
+					last_heading_change = now;
+					
+					extern volatile float st_wind_angle;
+					display(0,"ACHIEVED ST_WIND_ANGLE=%0.2f",st_wind_angle);
 
-			#define DEFAULT_NORTH	145.0
-				// raw angle calculated when the vane pointing forward at my desk
-				// from the teensyWind.ino program
+					static float wa = 0;
+					boat_sim.setHeading(0);
+					wa += degree_inc;
+					if (wa>360)
+					{
+						wa=0;
+						num_circles++;
+						display(0,"---------------- CIRCLE(%d) COMPLETED -------------",num_circles);
+					}
+					boat_sim.setWindAngle(wa);
+				}
+			#endif
+
+			// This algorithm is based on the data captured from our reference
+			// Wind Vane attached to our reference Wind Instrument and the voltages
+			// measured for the Blue and Green pins while they are connected, with
+			// any biases introduced by the Instrument in place.
+			//
+			// Each angle from 0 to 360 in 15 degree increments was measured.
+			//
+			// The reference instrument was previously calibrated so that when the
+			// Vane was physically pointing straight forward (0 degrees) or straight
+			// backwards (180 degrees) the instrument dial indicator displayed
+			// 0/180 degrees and reported 0/180 degrees via seatalk messages, and
+			// was visually confirmed to more or less match the physical angles
+			// throughout the entire circle (i.e. 90 degrees looked like 90 degrees,
+			// 270 degrees looked like 270 degrees, etc).
+			//
+			// The algorithm has two stages.  The first (major) stage attempts
+			// to produce values for the observed measured voltages at the given angles
+			// by abstracting the ellipse centers and axes in terms of ideal voltages
+			// and an elipse rotation angle and a simple linear voltage-to-pwm
+			// determined by measuring a few reference voltages of our circuit,
+			// disconnected from the instrument, at the opAmp output node.
+			//
+			// The second stage then accounts for the fact that on the other sice
+			// of the series resistor after the opAmp output node, when the Instrument
+			// is connected, the Instrument biases those voltages modeled by an
+			// offset and scaling factor.
+			//
+			// The difference between testing the algorithm at the opAmp output
+			// with no instrument attached, and at the signal node after the series
+			// resistore WITH the instrument attached is entirely encapsulated in
+			// the volts_to_pwm() method which is separate from this algorithm
+			//
+			// Finally, there is the notion of the Instruments Angular Calibration
+			// which merely rotates the displayed and reported angle of the Instrument
+			// forward or positive by some number of degrees.  Since we based this
+			// algorithm on a completely calibrated Vane/Instrument reference pair,
+			// this parameter is initially 0.0, but will eventually be supported by
+			// a UI and/or persistent storage to EEPROM. so as to allow the angle to
+			// be adjusted to match other Instruments which have not yet been calibrated
+			// to our reference Wind Vane.
+			//
+			// ANGLE_OFFSET might become a parameter that can be used to rotate the angle to
+			// match a given Instrument that has not been calibrated to our reference
+			// wind vane.
+
+			//-----------------------
+			// CONSTANTS
+			//-----------------------
+
+			#define ANGLE_OFFSET	18
+
+			float Cx = 3.96;			//	3.96;			// 3.96f;   // blue center voltage
+			float Cy = 3.97;			//	3.97;			// 3.97f;   // green center voltage
+			float Ax = 1.68;			//	1.70;			// 1.68f;   // semi-major axis
+			float Ay = 1.68;			//	1.55;			// 1.58f;   // semi-minor axis
+			float R  = -36.0;			//	-38.0;			// -50.0f;  // ellipse rotation in degrees
+
+			//-----------------------
+			// ALGORITHM
+			//-----------------------
 
 			float apparent_angle = boat_sim.apparentWindAngle();		// degrees relative to the bow of the boat
-			float theta_deg = apparent_angle + DEFAULT_NORTH;
+			float theta_deg = -(apparent_angle + ANGLE_OFFSET);			// negative to make it clockwisie for bow-stbd angles
 			while (theta_deg >= 360.0f) theta_deg -= 360.0f;
 			while (theta_deg <   0.0f) theta_deg += 360.0f;
+			float theta = radians(theta_deg);
 
-			float theta = theta_deg * 3.14159265358979f / 180.0f;
+			// rotate the angle into ellipse space
 			float c = cosf(theta);
 			float s = sinf(theta);
-			float WIND_MID_RANGE = (WIND_PWM_8V - WIND_PWM_2V) / 2;
 
-			int pwm_blue  = (int)roundf(WIND_PWM_2V + WIND_MID_RANGE * (1.0f + c));
-			int pwm_green = (int)roundf(WIND_PWM_2V + WIND_MID_RANGE * (1.0f + s));
+			// precompute rotation
+			float cr = cosf(R * M_PI / 180.0f);
+			float sr = sinf(R * M_PI / 180.0f);
 
-			// optional clamp to [50,194]
-			if (pwm_blue  < WIND_PWM_2V) pwm_blue  = WIND_PWM_2V;
-			if (pwm_blue  > WIND_PWM_8V) pwm_blue = WIND_PWM_8V;
-			if (pwm_green < WIND_PWM_2V) pwm_green = WIND_PWM_2V;
-			if (pwm_green > WIND_PWM_8V) pwm_green = WIND_PWM_8V;
+			// parametric ellipse in rotated frame
+			float ex = Ax * c;
+			float ey = Ay * s;
 
-			// pwm_blue = WIND_PWM_2V + WIND_PWM_8V - pwm_blue;
-			// pwm_green = WIND_PWM_2V + WIND_PWM_8V - pwm_green;
+			// rotate ellipse back to instrument frame
+			float Vb_alg = Cx + ex * cr - ey * sr;
+			float Vg_alg = Cy + ex * sr + ey * cr;
 
-			m_wind_pwmA = pwm_green;
-			m_wind_pwmB = pwm_blue;
+			m_wind_pwmB  = volts_to_pwm(Vb_alg);
+			m_wind_pwmA = volts_to_pwm(Vg_alg);
 
 			static float last_apparent_angle = 0;
 			if (last_apparent_angle != apparent_angle)
 			{
 				last_apparent_angle = apparent_angle;
-				warning(0,"apparent_angle(%0.1F)  theta_deg(%0.1f)  theta(%0.4f) c(%0.4f) s(%0.4f) pwm_blue=%d pwm_green=%d",
-					apparent_angle,theta_deg,theta,c,s,pwm_blue,pwm_green);
+				warning(0,"angle(%0.1F)  deg(%0.1f)  theta(%0.4f) c(%0.4f) s(%0.4f) cr(%0.4f) sr(%0.4f) ex(%0.4f) ey(%0.4f) Vb(%0.4f) Vg(%0.4f)",
+					apparent_angle,
+					theta_deg,
+					theta,
+					c,s,
+					cr,sr,
+					ex,ey,
+					Vb_alg,Vg_alg);
+				warning(0,"    angle(%0.1F)  pwma_green=%d pwmb_blue=%d",
+					apparent_angle,
+					m_wind_pwmA,
+					m_wind_pwmB);
 			}
+
+			//-------------------------------------------------
+			// Calculate hz for Wind Instrument Speed Pulses
+			//-------------------------------------------------
+
+			float knots = boat_sim.apparentWindSpeed();
+			if (knots >= 2)
+				hz = 0.9 + 0.72 * (knots - 1.9);
+			else
+				hz = 0.215 * pow(knots, 1.8);
+
+			static float last_knots = 0;
+			if (last_knots != knots)
+			{
+				last_knots = knots;
+				display(0,"knots(%0.1f) => hz(%0.3f)",knots,hz);
+			}
+		}
+
+		//------------------------------------------
+		// Calculate hz for SPEED instrument
+		//------------------------------------------
+
+		else
+		{
+			#define HZ_PER_KNOT  		5.6
+			#define FUDGE_FACTOR 		1.0
+
+			// when using explicit toggling, at less than 18 hz,
+			// apparently the formula falls off for the ST_LOG instrument
+			// and we need to increase the hz by a fudge factor.
+
+			float speed = boat_sim.getWaterSpeed();
+			hz = speed * HZ_PER_KNOT;
+			if (hz < 18)
+				hz = speed * HZ_PER_KNOT * FUDGE_FACTOR;
 		}
 	}
 
-	// if the pulse frequency has changed, setup PWM or restart explicit toggle
+	//--------------------
+	// OUTPUT
+	//--------------------
+	// if the pulse frequency has changed, setup PWM or start pulseTimer
 
 	if (m_pulse_hz != hz)
 	{
 		m_pulse_hz = hz;
-		m_pulse_state = false;
-		m_last_pulse_toggle = 0;
-		m_pulse_interval_ms = 0;
-		pinMode(PIN_SPEED_PULSE, OUTPUT);
-		digitalWrite(PIN_SPEED_PULSE,0);
 		if (m_pulse_hz == 0.0)
 		{
 			display(0,"pulse_hz==0; pin forced low",0);
@@ -288,44 +460,49 @@ void instSimulator::doST50Testing()
 		{
 			// Use PWM for higher frequencies
 			int pulse_int = roundf(m_pulse_hz);
-			display(0,"using PWM Hz(%0.1f)=%d", m_pulse_hz,pulse_int);
+			display(0,"using PWM Hz(%0.3f)=%d", m_pulse_hz,pulse_int);
+
+			// stop timer if running
+			if (m_pulse_timer_running)
+			{
+				s_pulseTimer.end();
+				m_pulse_timer_running = false;
+			}
+
 			pinMode(PIN_SPEED_PULSE, OUTPUT);
 			analogWriteFrequency(PIN_SPEED_PULSE, pulse_int);
 			analogWrite(PIN_SPEED_PULSE, 128); // 50% duty
 		}
 		else
 		{
-			// Use manual toggling for lower frequencies
-			float f_interval = 500.0 / m_pulse_hz;
-			m_pulse_interval_ms = round(f_interval);
-			m_last_pulse_toggle = millis();  // reset timer
-			display(0,"using MS timer Hz(%0.1f) MS(%d)",m_pulse_hz,m_pulse_interval_ms);
+			// stop PWM before switching to timer
+			analogWrite(PIN_SPEED_PULSE, 0);   // detach PWM
+			pinMode(PIN_SPEED_PULSE, OUTPUT);
+			digitalWriteFast(PIN_SPEED_PULSE, LOW);
+
+			double f_interval = 500000.0 / m_pulse_hz;
+			uint32_t pulse_interval_us = round(f_interval);
+			display(0,"using pulseTimer Hz(%0.3f) fus(%0.2f) us(%d)",m_pulse_hz,f_interval,pulse_interval_us);
+			s_pulseTimer.begin(speed_pulse_isr,pulse_interval_us);
+			m_pulse_timer_running = true;
 		}
 	}
-	else if (m_pulse_hz < 18)	// implement manual toggling
-	{
-		uint32_t pulse_now = millis();
-		if (pulse_now - m_last_pulse_toggle >= m_pulse_interval_ms)
-		{
-			m_last_pulse_toggle = pulse_now;
-			m_pulse_state = !m_pulse_state;
-			display(1,"MS pulse(%d)",m_pulse_state);
-			digitalWrite(PIN_SPEED_PULSE, m_pulse_state ? HIGH : LOW);
-		}
-	}
+
+
+	// if WIND mode and pwm has changed, output new value(s)
 
 	if (g_GP8_FUNCTION == GP8_FUNCTION_WIND)
 	{
 		if (m_last_pwmA != m_wind_pwmA)
 		{
 			m_last_pwmA = m_wind_pwmA;
-			display(0,"writing WIND_PMWA(%d)",m_wind_pwmA);
+			// display(0,"writing WIND_PMWA(%d)",m_wind_pwmA);
 			analogWrite(PIN_WIND_PWMA,m_wind_pwmA);
 		}
 		if (m_last_pwmB != m_wind_pwmB)
 		{
 			m_last_pwmB = m_wind_pwmB;
-			display(0,"writing WIND_PMWB(%d)",m_wind_pwmB);
+			// display(0,"writing WIND_PMWB(%d)",m_wind_pwmB);
 			analogWrite(PIN_WIND_PWMB,m_wind_pwmB);
 		}
 	}

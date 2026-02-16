@@ -187,6 +187,7 @@ transmit ST instead of NMEA0183
 The brown is DMC for differential GPS, and is tied to GND
 to prevent noise from generating erroneous signals.
 
+
 ## Seatalk 3 pin connectors
 
 ### Ideal Male, facing, slot at top

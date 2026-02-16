@@ -40,14 +40,6 @@
 #define PIN_WIND_PWMB			12		// BLUE
 #define PIN_UDP_ENABLE			13
 
-// These ranges are measured at the opamp output BEFORE the 1K series resistor
-// to the SIGNALA/SIGNALB output pins WHILE the instrument is attached.
-// With 1k series to the ST50, the actual instrument pin sees about 0.5V higher
-// at the low end and about 0.3V lower at the high end.
-
-#define WIND_PWM_8V				150	//	187		// green=8.00V->7.40V; blue=7.55V->7.30
-#define WIND_PWM_2V				70	//	50		// green=2.01V->2.52V; blue=2.02V->1.94V
-
 
 //----------------------------------
 // constant defines
@@ -218,10 +210,8 @@ private:
 	bool  m_test_sim_mode;			// true => use sim for speed pulses & pwm
 
 	float m_user_hz;				// user provided hertz
-	float m_pulse_hz;				// hertz actua setting
-	bool  m_pulse_state;			// whether pulse is on or off in last explicit toggle
-	uint32_t m_last_pulse_toggle;	// millis() at last explicit pulse toggle
-	uint32_t m_pulse_interval_ms;	// hz represented as millis for toggle mode
+	float m_pulse_hz;				// hertz actual setting
+	bool m_pulse_timer_running;		// if using the pulse timer
 
 	int m_user_pwmA;				// user provided 0..255
 	int m_user_pwmB;

@@ -82,9 +82,9 @@ void boatSimulator::init()
 	m_rudder = 0;
 	
 	m_depth 	 	= 10;
-	m_heading		= 180;
+	m_heading		= 0;	// 180;
 	m_water_speed   = 0;
-	m_wind_angle 	= 90;			// from true east
+	m_wind_angle 	= 0;	// 90;			// from true east
 	m_wind_speed 	= 12;
 	m_current_set 	= 45;			// to north east
 	m_current_drift = 0;

@@ -10,6 +10,10 @@
 #include "boatBinary.h"
 
 
+volatile float st_wind_angle;
+
+
+
 #define dbg_st7000	0
 
 
@@ -273,6 +277,8 @@ static String decodeST(bool out, uint16_t st, const uint8_t *dg, const char **p_
 		retval += "apparent_angle(";
 		retval += angle;
 		retval += ")";
+
+		st_wind_angle = angle;
 	}
 	else if (st == ST_WIND_SPEED)	// 0x111
 	{
