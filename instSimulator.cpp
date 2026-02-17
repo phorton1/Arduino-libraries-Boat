@@ -124,6 +124,10 @@ void instSimulator::initST50Testing()
 	m_wind_pwmB = 0;
 	m_last_pwmA = -1;
 	m_last_pwmB = -1;
+
+	m_st50_wind_circle = 0;
+	m_circle_delay = 0;
+	m_circle_increment = 0;
 }
 
 
@@ -151,15 +155,15 @@ void instSimulator::initSpeedPulse()
 }
 
 
-void instSimulator::setTestMode(bool sim_mode)
+void instSimulator::setRawST50TestMode(bool sim_mode)
 {
-	display(0,"TEST_SIM_MODE(%d)",sim_mode);
-	m_test_sim_mode = sim_mode;
+	display(0,"ST50 RAW MODE(%d)",sim_mode);
+	m_ST50_raw_mode = sim_mode;
 	initST50Testing();
 }
 
 
-void instSimulator::setUserPulseHz(float hz)
+void instSimulator::setRawPulseHz(float hz)
 {
 	if (hz<0)
 	{
@@ -167,16 +171,16 @@ void instSimulator::setUserPulseHz(float hz)
 	}
 	else
 	{
-		display(0,"setUserPulseHz(%0.3f)",hz);
-		m_user_hz = hz;
+		display(0,"setRawPulseHz(%0.3f)",hz);
+		m_raw_hz = hz;
 		initSpeedPulse();
 	}
 }
 
 
-void instSimulator::setWindPWM(bool pwm_b, uint8_t duty)
+void instSimulator::setRawPWMDuty(bool pwm_b, uint8_t duty)
 {
-	display(0,"setWindPWM(%d=%s)=%d",pwm_b,pwm_b?"B":"A",duty);
+	display(0,"setRawPWMDuty(%d=%s)=%d",pwm_b,pwm_b?"B":"A",duty);
 	
 	// if (duty > WIND_PWM_8V) duty = WIND_PWM_8V;
 		// note: here I limit the duty cycle to WIND_PWM_8V ~= 194
@@ -185,21 +189,36 @@ void instSimulator::setWindPWM(bool pwm_b, uint8_t duty)
 		// To calibrate the values of WIND_PWM_8V and WIND_PWM_2V
 		//		DISCONNECT ANY REAL WIND INSTRUMENTS
 		// 		comment the above line out
-		//		and use the "raw" m_test_sim_mode=0 and
+		//		and use the "raw" m_ST50_raw_mode=0 and
 		//		attache a multimeter to the tester SIGNALA and SIGNALB pins
 		// to determine the constant values.
 
 	if (pwm_b)
 	{
 		m_last_pwmB = -1;
-		m_user_pwmB = duty;
+		m_raw_pwmB = duty;
 	}
 	else
 	{
 		m_last_pwmA = -1;
-		m_user_pwmA = duty;
+		m_raw_pwmA = duty;
 	}
 }
+
+
+void instSimulator::doST50WindCircle(int how)
+{
+	display(0,"doST50WindCircle(%d)",how);
+	if (how && m_ST50_raw_mode)
+		my_error("Cannot do a WIND_CIRCLE in RAW_MODE!",0);
+	else
+	{
+		m_st50_wind_circle = how;
+		m_circle_delay = 0;
+		m_circle_increment = 0;
+	}
+}
+
 
 
 int volts_to_pwm(float volts)
@@ -245,60 +264,78 @@ void instSimulator::doST50Testing()
 {
 	float hz = 0;
 
-	#define QUICK_TEST 1
-	#if QUICK_TEST
-		m_test_sim_mode = 1;
-	#endif
 	
-	if (!m_test_sim_mode)
+	if (m_ST50_raw_mode)
 	{
-		hz = m_user_hz;
+		hz = m_raw_hz;
 		if (g_GP8_FUNCTION == GP8_FUNCTION_WIND)
 		{
-			m_wind_pwmA = m_user_pwmA;
-			m_wind_pwmB = m_user_pwmB;
+			m_wind_pwmA = m_raw_pwmA;
+			m_wind_pwmB = m_raw_pwmB;
 		}
 	}
 	else	// TEST_MODE_SIM
 	{
 		if (g_GP8_FUNCTION == GP8_FUNCTION_WIND)
 		{
-			#if QUICK_TEST
-				// do two circles at 90 seconds per circle 2 degrees per inc
-				// before going to 15 degree increments and 20 second delays
+			static float last_apparent_angle = 0;
+			if (m_st50_wind_circle)
+			{
+				// Start or continue a Wind Circle for calibration/measurement
 
 				uint32_t now = millis();
-				static uint num_circles = 0;
-				static uint32_t last_heading_change;
 
-				#if 0	// two calibration circles at 2 degrees per 500ms, then
-						// switch to Measurement circles at 15 degrees per 20 seconds
-					int wait_delay = num_circles > 1 ? 20000 : 500;
-					int degree_inc = num_circles > 1 ? 15 : 2;
-				#else	// Measurement circle at 15 degrees per 20 seconds
-					int wait_delay = 20000;
-					int degree_inc = 15;
-				#endif
+				static uint32_t last_circle_change;
+				static int circle_angle;
 
-				if (now - last_heading_change > wait_delay)
+				if (!m_circle_delay)	// uninitialized, setup for new circle
 				{
-					last_heading_change = now;
+					if (m_st50_wind_circle == ST50_WIND_CALIB) // = calibration
+					{
+						m_circle_delay = 250;		// ms
+						m_circle_increment = 2;		// degrees
+					}
+					else	// ST50_WIND_CIRCLE == measurement
+					{
+						m_circle_delay = 15000;		// ms
+						m_circle_increment = 15;		// degrees
+					}
+
+					display(0,"---------- START CIRCLE(%D) delay=%d MS inc=%d degrees --------",
+						m_st50_wind_circle,
+						m_circle_delay,
+						m_circle_increment);
+
+					// start circle at 0 degrees and trigger a redisplay
+
+					circle_angle = 0;
+					boat_sim.setWindAngle(circle_angle);
+					last_circle_change = now;
+					last_apparent_angle = -1;
+				}
+				else if (now - last_circle_change > m_circle_delay)
+				{
+					last_circle_change = now;
+
+					// show most recent seatalk wind heading if
+					// in measurement circle
 					
 					extern volatile float st_wind_angle;
-					display(0,"ACHIEVED ST_WIND_ANGLE=%0.2f",st_wind_angle);
+					if (m_st50_wind_circle == ST50_WIND_CIRCLE)
+						display(0,"ACHIEVED ST_WIND_ANGLE=%0.2f",st_wind_angle);
 
-					static float wa = 0;
-					boat_sim.setHeading(0);
-					wa += degree_inc;
-					if (wa>360)
+					// turn off the circle at the end
+
+					circle_angle += m_circle_increment;
+					boat_sim.setWindAngle(circle_angle);
+					if (circle_angle >= 360)
 					{
-						wa=0;
-						num_circles++;
-						display(0,"---------------- CIRCLE(%d) COMPLETED -------------",num_circles);
+						display(0,"---------- END CIRCLE(%D) --------",m_st50_wind_circle);
+						m_st50_wind_circle = 0;
 					}
-					boat_sim.setWindAngle(wa);
 				}
-			#endif
+			}	// m_st50_wind_circle
+
 
 			// This algorithm is based on the data captured from our reference
 			// Wind Vane attached to our reference Wind Instrument and the voltages
@@ -386,7 +423,6 @@ void instSimulator::doST50Testing()
 			m_wind_pwmB  = volts_to_pwm(Vb_alg);
 			m_wind_pwmA = volts_to_pwm(Vg_alg);
 
-			static float last_apparent_angle = 0;
 			if (last_apparent_angle != apparent_angle)
 			{
 				last_apparent_angle = apparent_angle;

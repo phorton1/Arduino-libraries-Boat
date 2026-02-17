@@ -40,6 +40,10 @@
 #define PIN_WIND_PWMB			12		// BLUE
 #define PIN_UDP_ENABLE			13
 
+#define ST50_WIND_CALIB			1
+#define ST50_WIND_CIRCLE		2
+	// non-zero values for m_st50_wind_circle "modes"
+
 
 //----------------------------------
 // constant defines
@@ -185,14 +189,17 @@ public:
 	void setGP8Function(uint8_t fxn);
 	uint8_t getGP8Function()  	{ return g_GP8_FUNCTION; }
 	
-	void setTestMode(bool sim_mode);
-	int getTestMode()			{ return m_test_sim_mode; }
+	void setRawST50TestMode(bool raw_mode);
+	int getRawST50TestMode()			{ return m_ST50_raw_mode; }
 
-	void setUserPulseHz(float hz);
-	float getUserPulseHz()  	{ return m_user_hz; }
+	void setRawPulseHz(float hz);
+	float getRawPulseHz()  	{ return m_raw_hz; }
 	
-	void setWindPWM(bool pwm_b, uint8_t duty);
-	uint8_t getWindPWM(bool pwm_b) { return pwm_b ? m_user_pwmB : m_user_pwmA; }
+	void setRawPWMDuty(bool pwm_b, uint8_t duty);	// 0..255
+	uint8_t getRawPWMDuty(bool pwm_b) { return pwm_b ? m_raw_pwmB : m_raw_pwmA; }
+
+	void doST50WindCircle(int how);	// 0=off, 1=ST50_WIND_CALIB, 2=ST50_WIND_CIRCLE
+		// 1=calibration, 2=measurement
 
 	bool doTbEsp32();
 
@@ -207,18 +214,26 @@ private:
 
 	static uint8_t g_GP8_FUNCTION;
 
-	bool  m_test_sim_mode;			// true => use sim for speed pulses & pwm
+	bool  m_ST50_raw_mode;			// true => use sim for speed pulses & pwm
 
-	float m_user_hz;				// user provided hertz
+	float m_raw_hz;					// user provided hertz
 	float m_pulse_hz;				// hertz actual setting
 	bool m_pulse_timer_running;		// if using the pulse timer
 
-	int m_user_pwmA;				// user provided 0..255
-	int m_user_pwmB;
-	int m_wind_pwmA;				// acutal setting 0..255
+	int m_raw_pwmA;					// user provided 0..255
+	int m_raw_pwmB;
+	int m_wind_pwmA;				// actual setting 0..255
 	int m_wind_pwmB;
-	int m_last_pwmA;				// previous setting & change detection: -1..255
+	int m_last_pwmA;				// previous setting for change detection: -1..255
 	int m_last_pwmB;
+
+	int m_st50_wind_circle;			// sub_mode for doing automatic wind circles in GP8 WIND mode
+		// 0=off,
+		// 1=do 2 degrees per 250ms (45s total) "calibration" circle
+		// 2=do 15 degrees per 15 second (360s total) "measurement" circle
+	uint32_t m_circle_delay;		// 250 or 15000 ms depending on circle type
+	int	m_circle_increment;			// 2 or 15 degrees
+
 
 	void initST50Testing();
 	void initSpeedPulse();

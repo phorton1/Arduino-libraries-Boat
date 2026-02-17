@@ -615,4 +615,56 @@ After a sanity checkin above the above hastily encoded UI and test code
 I decided to re-implement the UI for ST50 Wind & Speed instrment testing
 according to what I learned.
 
+The UI is essentially driven by the GP8 General Purpose Connector
+"Function" which can be Off, Speed, Wind, or ESP32.  That will not
+change.
+
+My initial approach to the for UI was that I would start by outputing
+"raw" values, HZ for the speed instrument and HZ/PWMA/PWMB for the
+Wind Instrument, and then have a "test_mode" that "turned on" the
+conversion from boatSim's WaterSpeed or WindSpeed/WindAngle into the
+correct HZ or HZ/PWMA/PWMB outputs.
+
+	RAW_MODE = 0/1, default(0)
+
+I will now switch that to the opposite.  That RAW_MODE must be asserted
+and that the default will be TEST_MODE, in order to facilitate easier
+testing of my inventory instruments.  In particular several ST50 Wind
+commands will be added that work in TEST_MODE, leveraging off of what
+I though was just "temporary test code" in the previous implementation.
+
+ST50 Wind (GP8 WIND) TEST_MODE monadic commands added:
+
+	WIND_OFF - will stop any circle currently in progress
+	WIND_CALIB - will do a quick (45s) circle sending 2 degree increments
+		of the apparent wind calculated PWM outputs to the instrument
+		every 250 milliseconds.
+	WIND_CIRCLE - will do a slow 15 seconds per 15 degree increment circle
+		of the apparent wind.
+
+
+Turning the GP8 mode off will CANCEL either of these modes.
+Sending apparent wind angles (WA=xxx) while they are running will
+cause unpredictable events.
+
+The default heading of the simulated boat has been changed to zero and the
+default wind angle has also been changed to zero, so that upon booting
+teensyBoat these values are in known useful positions for ST50 testing
+rather than optimized for a known initial E80 display position.
+
+Thereafter (when not using the WIND_CALIB or WIND_CIRCLE) the water
+speed can be adjusted with S=nnn for the Speed Instrument and
+the wind angle and speed with WA=nnn and WS=nnn for the Wind
+instrument.
+
+
+
+
+
+
+
+
+a
+known pulse frequency (HZ) and
+
 
