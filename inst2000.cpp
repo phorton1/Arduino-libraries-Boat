@@ -68,7 +68,7 @@ static const unsigned long TransmitMessages[] = {
 	PGN_NAVIGATION_DATA,
 	//PGN_ROUTE_WP_INFO,
 	//PGN_SET_AND_DRIFT,
-	//PGN_GNSS_SATS_IN_VIEW,
+	PGN_GNSS_SATS_IN_VIEW,
 	//PGN_AIS_STATIC_B_PART_A,
 	//PGN_AIS_STATIC_B_PART_B.
 	PGN_WIND_DATA,
@@ -156,10 +156,11 @@ void inst2000::init(uint8_t source_address)
 	#endif
 
 
-	#if 1
+	if (source_address == TEENSYBOAT_NMEA_ADDRESS)
+	{
 		// ExtendReceiveMessages(AllMessages);
 		ExtendTransmitMessages(TransmitMessages);
-	#endif
+	}
 
 	SetMsgHandler(onBusMessage);
 

@@ -61,9 +61,13 @@
 #define PGN_HEARTBEAT				126993L
 #define PGN_PRODUCT_INFO			126996L
 #define PGN_DEVICE_CONFIG			126998L
+// Also declared to be sent by the NMEA2000 library but not ever seen:
+// 		60416  ISO_TransportProtocol_DataTransfer
+// 		60928  ISO_TransportProtocol_ConnectionManagement
+// 		126208 N2kPGN_ComplexCommand
+
 
 // D = decoded, x=sent invariantly, 0/1 sent with ifdef
-
 
 #define PGN_SYSTEM_DATE_TIME		126992L		//		1 = gpsInst
 #define PGN_VESSEL_HEADING			127250L		// D 	x = compassInst

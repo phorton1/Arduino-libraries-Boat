@@ -60,10 +60,18 @@
 
 // in instST_out
 
+extern void clearSTQueues();
 extern void queueDatagram(bool port2, const uint16_t *dg);
 extern void queueDatagram8(bool port2, const uint8_t *dg, bool quiet);
+
 extern bool sendDatagram(bool port2);
-extern void clearSTQueues();
+	// sends from the queue given by port2 (0/1) to bound SERIAL_ST1 or SERIAL_ST2
+	// for use in instST_out.cpp
+extern bool sendDatagram(bool port2, HardwareSerial &st_serial);
+	// sends from the queue given by port2 (0/1) to the given Serial port
+	// for use from neoGPS
+
+
 extern void setLampIntensity(int value);	// sent to all ports, 0==off, 1=low, 2=medium, 3=high
 
 // support for neo6M_GPS ST test implementation
@@ -77,11 +85,11 @@ extern void setLampIntensity(int value);	// sent to all ports, 0==off, 1=low, 2=
 #define ST_TRACK_CUTOFF  	4		// number kept in A5 0C 2nd series message
 
 extern void initStSatMessages();
-extern void sendStSatMessags(bool port2);
 extern void addStSatMessage(uint8_t prn, uint8_t ele, uint16_t az, uint8_t snr, uint8_t prn_state);
-
+extern void queueStSatMessages(bool port2);
 
 // in instSTIn
+// not used by neoGPS at this time
 
 extern void showDatagram(bool port2, bool out, const uint8_t *datagram);
 extern void showDatagram16(bool port2, bool out, const uint16_t *dg);

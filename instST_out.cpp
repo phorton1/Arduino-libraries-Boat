@@ -76,18 +76,25 @@ void queueDatagram(bool port2, const uint16_t *dg)
 }
 
 
-
-
-
 bool sendDatagram(bool port2)
+	// used in this file for sending according
+	// to teensyBoat's definition of port 2
 {
 	if (tail[port2] == head[port2])
 		return false;
-
-	HardwareSerial &SERIAL_ST = port2 ?
+	HardwareSerial &USE_SERIAL = port2 ?
 		SERIAL_ST2 :
 		SERIAL_ST1 ;
+	return sendDatagram(port2,USE_SERIAL);
+}
 
+
+bool sendDatagram(bool port2, HardwareSerial &USE_SERIAL)
+	// used by neoGPS - send from queue port2 (0/1) to given serial port
+{
+	if (tail[port2] == head[port2])
+		return false;
+	
 	uint16_t *dg = circ[port2][tail[port2]++];
 	if (tail[port2] >= CIRC_BUF_SIZE)
 		tail[port2] = 0;
@@ -107,7 +114,7 @@ bool sendDatagram(bool port2)
 	int len = (dg[1] & 0xf) + 3;
 	for (int i=0; i<len; i++)
 	{
-		SERIAL_ST.write9bit(dg[i]);
+		USE_SERIAL.write9bit(dg[i]);
 	}
 
 	bool reported = 0;
@@ -115,27 +122,34 @@ bool sendDatagram(bool port2)
 	int got = 0;
 	while (got < len)
 	{
-		if (SERIAL_ST.available())
+		if (USE_SERIAL.available())
 		{
-			int c = SERIAL_ST.read();
-			if (c != dg[got++])
+			uint16_t c = USE_SERIAL.read();
+			if (c != dg[got])
 			{
 				if (!reported)
 				{
-					warning(0,"collision(0x%03x) at %d",dg[0],got);
+					warning(0,"collision got(0x%02x) vs(0x%02x) at %d/%d",c,dg[got],got+1,len);
+					// display_bytes(0,"buf",(uint8_t *)dg,len*2);
 					reported = 1;
 				}
  			}
+			got++;
 		}
 		else if (millis() - send_time >= WRITE_TIMEOUT)
 		{
-			my_error("READBACK TIMEOUT at chr(%d)",got);
+			my_error("READBACK TIMEOUT(0x%02x) at %d/%d",dg[got],got+1,len);
 			return true;
 		}
 	}
 
+	// display(0,"readback (%d) ok",got);
+
 	return true;
 }
+
+
+
 
 
 //------------------------------------
@@ -356,7 +370,7 @@ static uint16_t sat_msg[5][MAX_ST_BUF];
 
 
 
-void sendStSatMessags(bool port2)
+void queueStSatMessages(bool port2)
 {
 	for (int i=0; i<5; i++)
 	{
@@ -643,7 +657,7 @@ void gpsInst::sendSeatalk(bool port2)
 		addStSatMessage(18, 44, 45,  22, 2);
 		addStSatMessage(11, 37, 90,  33, 2);
 
-		sendStSatMessags(port2);
+		queueStSatMessages(port2);
 	}
 
 
