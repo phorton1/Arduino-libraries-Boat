@@ -183,7 +183,26 @@ void inst2000::onBusMessage(const tN2kMsg &msg)
 		if (mon & MON2000_RAW)
 			display_string(RAW_COLOR,0,msgToString(msg,"RAW").c_str());
 
-		if (msg.PGN == PGN_VESSEL_HEADING)
+		if (msg.PGN == PGN_SYSTEM_DATE_TIME)	// 126992L
+		{
+			tN2kTimeSource time_source;
+			uint16_t sys_date;
+			double sys_time;
+			if (ParseN2kPGN126992(msg,sid,sys_date,sys_time,time_source))
+			{
+				msg_handled = true;
+				time_t t = (time_t)(sys_date * 86400 + sys_time);
+				struct tm *tmv = gmtime(&t);
+				if (b_mon_sensors)
+					display(0,"%3d(%d) datetime : %04d-%02d-%02d %02d:%02d:%02d",
+				        msg.Source, msg_counter,
+				        tmv->tm_year+1900, tmv->tm_mon+1, tmv->tm_mday,
+				        tmv->tm_hour, tmv->tm_min, tmv->tm_sec);
+		}
+			else
+				my_error("Parsing PGN_SYSTEM_DATE_TIME(126992)",0);
+		}
+		else if (msg.PGN == PGN_VESSEL_HEADING)
 		{
 			// heading is in radians
 			tN2kHeadingReference ref;

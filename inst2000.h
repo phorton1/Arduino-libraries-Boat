@@ -66,10 +66,9 @@
 // 		60928  ISO_TransportProtocol_ConnectionManagement
 // 		126208 N2kPGN_ComplexCommand
 
-
 // D = decoded, x=sent invariantly, 0/1 sent with ifdef
 
-#define PGN_SYSTEM_DATE_TIME		126992L		//		1 = gpsInst
+#define PGN_SYSTEM_DATE_TIME		126992L		// D	1 = gpsInst
 #define PGN_VESSEL_HEADING			127250L		// D 	x = compassInst
 #define PGN_HEADING_TRACK_CONTROL	127237L		// 		x = apInst
 #define PGN_ENGINE_RAPID 			127488L		// D	x = engInst
