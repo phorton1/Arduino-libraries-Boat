@@ -392,86 +392,7 @@ Sigh, the next morning I booted up teensyBoat.ino, the windTester,
 and the reference W1 Instrument with the same exact bench supply,
 wiring, breadboard, firmware and everything, and the algorithm
 for converting the simulated Wind Angle into PWM values and driving
-the instrument **utterly failed**.   For reference, here is the debug
-output that shows how bad the algorithm "achieved" the desired angles:
-
-WARNING - angle(0.0)  deg(342.0)  theta(5.9690) c(0.9511) s(-0.3090) cr(0.8090) sr(-0.5878) ex(1.5978) ey(-0.5191) Vb(4.9475) Vg(2.6109)
-WARNING -     angle(0.0)  pwma_green=59 pwmb_blue=113
-ACHIEVED ST_WIND_ANGLE=342.00
-ACHIEVED ST_WIND_ANGLE=341.00
-WARNING - angle(15.0)  deg(327.0)  theta(5.7072) c(0.8387) s(-0.5446) cr(0.8090) sr(-0.5878) ex(1.4090) ey(-0.9150) Vb(4.5621) Vg(2.4016)
-WARNING -     angle(15.0)  pwma_green=55 pwmb_blue=104
-ACHIEVED ST_WIND_ANGLE=3.00
-WARNING - angle(30.0)  deg(312.0)  theta(5.4454) c(0.6691) s(-0.7431) cr(0.8090) sr(-0.5878) ex(1.1241) ey(-1.2485) Vb(4.1356) Vg(2.2992)
-WARNING -     angle(30.0)  pwma_green=52 pwmb_blue=94
-ACHIEVED ST_WIND_ANGLE=27.00
-WARNING - angle(45.0)  deg(297.0)  theta(5.1836) c(0.4540) s(-0.8910) cr(0.8090) sr(-0.5878) ex(0.7627) ey(-1.4969) Vb(3.6972) Vg(2.3107)
-WARNING -     angle(45.0)  pwma_green=53 pwmb_blue=84
-ACHIEVED ST_WIND_ANGLE=49.00
-WARNING - angle(60.0)  deg(282.0)  theta(4.9218) c(0.2079) s(-0.9781) cr(0.8090) sr(-0.5878) ex(0.3493) ey(-1.6433) Vb(3.2767) Vg(2.4352)
-WARNING -     angle(60.0)  pwma_green=55 pwmb_blue=75
-ACHIEVED ST_WIND_ANGLE=69.00
-WARNING - angle(75.0)  deg(267.0)  theta(4.6600) c(-0.0523) s(-0.9986) cr(0.8090) sr(-0.5878) ex(-0.0879) ey(-1.6777) Vb(2.9027) Vg(2.6644)
-WARNING -     angle(75.0)  pwma_green=61 pwmb_blue=66
-ACHIEVED ST_WIND_ANGLE=94.00
-WARNING - angle(90.0)  deg(252.0)  theta(4.3982) c(-0.3090) s(-0.9511) cr(0.8090) sr(-0.5878) ex(-0.5191) ey(-1.5978) Vb(2.6009) Vg(2.9825)
-WARNING -     angle(90.0)  pwma_green=68 pwmb_blue=59
-ACHIEVED ST_WIND_ANGLE=115.00
-WARNING - angle(105.0)  deg(237.0)  theta(4.1364) c(-0.5446) s(-0.8387) cr(0.8090) sr(-0.5878) ex(-0.9150) ey(-1.4090) Vb(2.3916) Vg(3.3679)
-WARNING -     angle(105.0)  pwma_green=77 pwmb_blue=54
-ACHIEVED ST_WIND_ANGLE=134.00
-WARNING - angle(120.0)  deg(222.0)  theta(3.8746) c(-0.7431) s(-0.6691) cr(0.8090) sr(-0.5878) ex(-1.2485) ey(-1.1241) Vb(2.2892) Vg(3.7944)
-WARNING -     angle(120.0)  pwma_green=86 pwmb_blue=52
-ACHIEVED ST_WIND_ANGLE=149.00
-WARNING - angle(135.0)  deg(207.0)  theta(3.6128) c(-0.8910) s(-0.4540) cr(0.8090) sr(-0.5878) ex(-1.4969) ey(-0.7627) Vb(2.3007) Vg(4.2328)
-WARNING -     angle(135.0)  pwma_green=96 pwmb_blue=52
-ACHIEVED ST_WIND_ANGLE=163.00
-WARNING - angle(150.0)  deg(192.0)  theta(3.3510) c(-0.9781) s(-0.2079) cr(0.8090) sr(-0.5878) ex(-1.6433) ey(-0.3493) Vb(2.4252) Vg(4.6533)
-WARNING -     angle(150.0)  pwma_green=106 pwmb_blue=55
-ACHIEVED ST_WIND_ANGLE=172.00
-WARNING - angle(165.0)  deg(177.0)  theta(3.0892) c(-0.9986) s(0.0523) cr(0.8090) sr(-0.5878) ex(-1.6777) ey(0.0879) Vb(2.6544) Vg(5.0273)
-WARNING -     angle(165.0)  pwma_green=115 pwmb_blue=60
-ACHIEVED ST_WIND_ANGLE=134.00
-WARNING - angle(180.0)  deg(162.0)  theta(2.8274) c(-0.9511) s(0.3090) cr(0.8090) sr(-0.5878) ex(-1.5978) ey(0.5191) Vb(2.9725) Vg(5.3291)
-WARNING -     angle(180.0)  pwma_green=121 pwmb_blue=68
-ACHIEVED ST_WIND_ANGLE=154.00
-WARNING - angle(195.0)  deg(147.0)  theta(2.5656) c(-0.8387) s(0.5446) cr(0.8090) sr(-0.5878) ex(-1.4090) ey(0.9150) Vb(3.3579) Vg(5.5384)
-WARNING -     angle(195.0)  pwma_green=126 pwmb_blue=76
-ACHIEVED ST_WIND_ANGLE=178.00
-WARNING - angle(210.0)  deg(132.0)  theta(2.3038) c(-0.6691) s(0.7431) cr(0.8090) sr(-0.5878) ex(-1.1241) ey(1.2485) Vb(3.7844) Vg(5.6408)
-WARNING -     angle(210.0)  pwma_green=129 pwmb_blue=86
-ACHIEVED ST_WIND_ANGLE=205.00
-WARNING - angle(225.0)  deg(117.0)  theta(2.0420) c(-0.4540) s(0.8910) cr(0.8090) sr(-0.5878) ex(-0.7627) ey(1.4969) Vb(4.2228) Vg(5.6293)
-WARNING -     angle(225.0)  pwma_green=128 pwmb_blue=96
-ACHIEVED ST_WIND_ANGLE=231.00
-WARNING - angle(240.0)  deg(102.0)  theta(1.7802) c(-0.2079) s(0.9781) cr(0.8090) sr(-0.5878) ex(-0.3493) ey(1.6433) Vb(4.6433) Vg(5.5048)
-WARNING -     angle(240.0)  pwma_green=125 pwmb_blue=106
-ACHIEVED ST_WIND_ANGLE=258.00
-WARNING - angle(255.0)  deg(87.0)  theta(1.5184) c(0.0523) s(0.9986) cr(0.8090) sr(-0.5878) ex(0.0879) ey(1.6777) Vb(5.0173) Vg(5.2756)
-WARNING -     angle(255.0)  pwma_green=120 pwmb_blue=114
-ACHIEVED ST_WIND_ANGLE=279.00
-WARNING - angle(270.0)  deg(72.0)  theta(1.2566) c(0.3090) s(0.9511) cr(0.8090) sr(-0.5878) ex(0.5191) ey(1.5978) Vb(5.3191) Vg(4.9575)
-WARNING -     angle(270.0)  pwma_green=113 pwmb_blue=121
-ACHIEVED ST_WIND_ANGLE=300.00
-WARNING - angle(285.0)  deg(57.0)  theta(0.9948) c(0.5446) s(0.8387) cr(0.8090) sr(-0.5878) ex(0.9150) ey(1.4090) Vb(5.5284) Vg(4.5721)
-WARNING -     angle(285.0)  pwma_green=104 pwmb_blue=126
-ACHIEVED ST_WIND_ANGLE=258.00
-WARNING - angle(300.0)  deg(42.0)  theta(0.7330) c(0.7431) s(0.6691) cr(0.8090) sr(-0.5878) ex(1.2485) ey(1.1241) Vb(5.6308) Vg(4.1456)
-WARNING -     angle(300.0)  pwma_green=94 pwmb_blue=128
-ACHIEVED ST_WIND_ANGLE=269.00
-WARNING - angle(315.0)  deg(27.0)  theta(0.4712) c(0.8910) s(0.4540) cr(0.8090) sr(-0.5878) ex(1.4969) ey(0.7627) Vb(5.6193) Vg(3.7072)
-WARNING -     angle(315.0)  pwma_green=84 pwmb_blue=128
-ACHIEVED ST_WIND_ANGLE=284.00
-WARNING - angle(330.0)  deg(12.0)  theta(0.2094) c(0.9781) s(0.2079) cr(0.8090) sr(-0.5878) ex(1.6433) ey(0.3493) Vb(5.4948) Vg(3.2867)
-WARNING -     angle(330.0)  pwma_green=75 pwmb_blue=125
-ACHIEVED ST_WIND_ANGLE=299.00
-WARNING - angle(345.0)  deg(357.0)  theta(6.2308) c(0.9986) s(-0.0523) cr(0.8090) sr(-0.5878) ex(1.6777) ey(-0.0879) Vb(5.2656) Vg(2.9127)
-WARNING -     angle(345.0)  pwma_green=66 pwmb_blue=120
-ACHIEVED ST_WIND_ANGLE=321.00
-WARNING - angle(0.0)  deg(342.0)  theta(5.9690) c(0.9511) s(-0.3090) cr(0.8090) sr(-0.5878) ex(1.5978) ey(-0.5191) Vb(4.9475) Vg(2.6109)
-WARNING -     angle(0.0)  pwma_green=59 pwmb_blue=113
-ACHIEVED ST_WIND_ANGLE=342.00
-ACHIEVED ST_WIND_ANGLE=342.00
+the instrument **utterly failed**.
 
 Now coPilot is telling me that the likely reason for this huge shift is that the impedance of my
 PWM->opamp->series resitor->blue/green signal circuit does not match the real transducer and that
@@ -483,96 +404,25 @@ Then on a hunch I connected it to the instrument again, and slowly rotated the v
 and did measurements based on the physical angle I set on the vane and what the instrument reported
 and, lo and behold, it got "better".
 
-The conclusion is that the Wind Instrument itself actually characterizes the "ellipse" by
+The conclusion is that the **Wind Instrument itself actually characterizes the "ellipse" by
 continous measurements and approximations of the centers and amplitude of the Blue/Green
-Elipses.
+Elipses.**
 
 To further prove this notion, I tooke the Vane out, re-attached the windTester breadboard
 and modified my "automatic QUICK_TEST" loop to first do two quick (90 seconds) circles
 at 2 degree incrments every 500 ms before doing its 15 degree every 20 seconds measurement
-stage.
-
-**THE RESULT WAS ASTOUNDING** ... after this step the unit got back to reporting angles
+stage. **THE RESULT WAS ASTOUNDING** ... after this step the unit got back to reporting angles
 within 1 or 2 degrees of what I sent it:
 
----------------- CIRCLE(2) COMPLETED -------------
-ACHIEVED ST_WIND_ANGLE=359.00
-WARNING - angle(15.0)  deg(327.0)  theta(5.7072) c(0.8387) s(-0.5446) cr(0.8090) sr(-0.5878) ex(1.4090) ey(-0.9150) Vb(4.5621) Vg(2.4016)
-WARNING -     angle(15.0)  pwma_green=55 pwmb_blue=104
-ACHIEVED ST_WIND_ANGLE=14.00
-WARNING - angle(30.0)  deg(312.0)  theta(5.4454) c(0.6691) s(-0.7431) cr(0.8090) sr(-0.5878) ex(1.1241) ey(-1.2485) Vb(4.1356) Vg(2.2992)
-WARNING -     angle(30.0)  pwma_green=52 pwmb_blue=94
-ACHIEVED ST_WIND_ANGLE=30.00
-WARNING - angle(45.0)  deg(297.0)  theta(5.1836) c(0.4540) s(-0.8910) cr(0.8090) sr(-0.5878) ex(0.7627) ey(-1.4969) Vb(3.6972) Vg(2.3107)
-WARNING -     angle(45.0)  pwma_green=53 pwmb_blue=84
-ACHIEVED ST_WIND_ANGLE=45.00
-WARNING - angle(60.0)  deg(282.0)  theta(4.9218) c(0.2079) s(-0.9781) cr(0.8090) sr(-0.5878) ex(0.3493) ey(-1.6433) Vb(3.2767) Vg(2.4352)
-WARNING -     angle(60.0)  pwma_green=55 pwmb_blue=75
-ACHIEVED ST_WIND_ANGLE=59.00
-WARNING - angle(75.0)  deg(267.0)  theta(4.6600) c(-0.0523) s(-0.9986) cr(0.8090) sr(-0.5878) ex(-0.0879) ey(-1.6777) Vb(2.9027) Vg(2.6644)
-WARNING -     angle(75.0)  pwma_green=61 pwmb_blue=66
-ACHIEVED ST_WIND_ANGLE=75.00
-WARNING - angle(90.0)  deg(252.0)  theta(4.3982) c(-0.3090) s(-0.9511) cr(0.8090) sr(-0.5878) ex(-0.5191) ey(-1.5978) Vb(2.6009) Vg(2.9825)
-WARNING -     angle(90.0)  pwma_green=68 pwmb_blue=59
-ACHIEVED ST_WIND_ANGLE=89.00
-WARNING - angle(105.0)  deg(237.0)  theta(4.1364) c(-0.5446) s(-0.8387) cr(0.8090) sr(-0.5878) ex(-0.9150) ey(-1.4090) Vb(2.3916) Vg(3.3679)
-WARNING -     angle(105.0)  pwma_green=77 pwmb_blue=54
-ACHIEVED ST_WIND_ANGLE=105.00
-WARNING - angle(120.0)  deg(222.0)  theta(3.8746) c(-0.7431) s(-0.6691) cr(0.8090) sr(-0.5878) ex(-1.2485) ey(-1.1241) Vb(2.2892) Vg(3.7944)
-WARNING -     angle(120.0)  pwma_green=86 pwmb_blue=52
-ACHIEVED ST_WIND_ANGLE=118.00
-WARNING - angle(135.0)  deg(207.0)  theta(3.6128) c(-0.8910) s(-0.4540) cr(0.8090) sr(-0.5878) ex(-1.4969) ey(-0.7627) Vb(2.3007) Vg(4.2328)
-WARNING -     angle(135.0)  pwma_green=96 pwmb_blue=52
-ACHIEVED ST_WIND_ANGLE=133.00
-WARNING - angle(150.0)  deg(192.0)  theta(3.3510) c(-0.9781) s(-0.2079) cr(0.8090) sr(-0.5878) ex(-1.6433) ey(-0.3493) Vb(2.4252) Vg(4.6533)
-WARNING -     angle(150.0)  pwma_green=106 pwmb_blue=55
-ACHIEVED ST_WIND_ANGLE=149.00
-WARNING - angle(165.0)  deg(177.0)  theta(3.0892) c(-0.9986) s(0.0523) cr(0.8090) sr(-0.5878) ex(-1.6777) ey(0.0879) Vb(2.6544) Vg(5.0273)
-WARNING -     angle(165.0)  pwma_green=115 pwmb_blue=60
-ACHIEVED ST_WIND_ANGLE=163.00
-WARNING - angle(180.0)  deg(162.0)  theta(2.8274) c(-0.9511) s(0.3090) cr(0.8090) sr(-0.5878) ex(-1.5978) ey(0.5191) Vb(2.9725) Vg(5.3291)
-WARNING -     angle(180.0)  pwma_green=121 pwmb_blue=68
-ACHIEVED ST_WIND_ANGLE=178.00
-WARNING - angle(195.0)  deg(147.0)  theta(2.5656) c(-0.8387) s(0.5446) cr(0.8090) sr(-0.5878) ex(-1.4090) ey(0.9150) Vb(3.3579) Vg(5.5384)
-WARNING -     angle(195.0)  pwma_green=126 pwmb_blue=76
-ACHIEVED ST_WIND_ANGLE=193.00
-WARNING - angle(210.0)  deg(132.0)  theta(2.3038) c(-0.6691) s(0.7431) cr(0.8090) sr(-0.5878) ex(-1.1241) ey(1.2485) Vb(3.7844) Vg(5.6408)
-WARNING -     angle(210.0)  pwma_green=129 pwmb_blue=86
-ACHIEVED ST_WIND_ANGLE=208.00
-WARNING - angle(225.0)  deg(117.0)  theta(2.0420) c(-0.4540) s(0.8910) cr(0.8090) sr(-0.5878) ex(-0.7627) ey(1.4969) Vb(4.2228) Vg(5.6293)
-WARNING -     angle(225.0)  pwma_green=128 pwmb_blue=96
-ACHIEVED ST_WIND_ANGLE=223.00
-WARNING - angle(240.0)  deg(102.0)  theta(1.7802) c(-0.2079) s(0.9781) cr(0.8090) sr(-0.5878) ex(-0.3493) ey(1.6433) Vb(4.6433) Vg(5.5048)
-WARNING -     angle(240.0)  pwma_green=125 pwmb_blue=106
-ACHIEVED ST_WIND_ANGLE=239.00
-WARNING - angle(255.0)  deg(87.0)  theta(1.5184) c(0.0523) s(0.9986) cr(0.8090) sr(-0.5878) ex(0.0879) ey(1.6777) Vb(5.0173) Vg(5.2756)
-WARNING -     angle(255.0)  pwma_green=120 pwmb_blue=114
-ACHIEVED ST_WIND_ANGLE=254.00
-WARNING - angle(270.0)  deg(72.0)  theta(1.2566) c(0.3090) s(0.9511) cr(0.8090) sr(-0.5878) ex(0.5191) ey(1.5978) Vb(5.3191) Vg(4.9575)
-WARNING -     angle(270.0)  pwma_green=113 pwmb_blue=121
-ACHIEVED ST_WIND_ANGLE=269.00
-WARNING - angle(285.0)  deg(57.0)  theta(0.9948) c(0.5446) s(0.8387) cr(0.8090) sr(-0.5878) ex(0.9150) ey(1.4090) Vb(5.5284) Vg(4.5721)
-WARNING -     angle(285.0)  pwma_green=104 pwmb_blue=126
-ACHIEVED ST_WIND_ANGLE=285.00
-WARNING - angle(300.0)  deg(42.0)  theta(0.7330) c(0.7431) s(0.6691) cr(0.8090) sr(-0.5878) ex(1.2485) ey(1.1241) Vb(5.6308) Vg(4.1456)
-WARNING -     angle(300.0)  pwma_green=94 pwmb_blue=128
-ACHIEVED ST_WIND_ANGLE=299.00
-WARNING - angle(315.0)  deg(27.0)  theta(0.4712) c(0.8910) s(0.4540) cr(0.8090) sr(-0.5878) ex(1.4969) ey(0.7627) Vb(5.6193) Vg(3.7072)
-WARNING -     angle(315.0)  pwma_green=84 pwmb_blue=128
-ACHIEVED ST_WIND_ANGLE=315.00
-WARNING - angle(330.0)  deg(12.0)  theta(0.2094) c(0.9781) s(0.2079) cr(0.8090) sr(-0.5878) ex(1.6433) ey(0.3493) Vb(5.4948) Vg(3.2867)
-WARNING -     angle(330.0)  pwma_green=75 pwmb_blue=125
-ACHIEVED ST_WIND_ANGLE=329.00
-WARNING - angle(345.0)  deg(357.0)  theta(6.2308) c(0.9986) s(-0.0523) cr(0.8090) sr(-0.5878) ex(1.6777) ey(-0.0879) Vb(5.2656) Vg(2.9127)
-WARNING -     angle(345.0)  pwma_green=66 pwmb_blue=120
-ACHIEVED ST_WIND_ANGLE=344.00
-WARNING - angle(0.0)  deg(342.0)  theta(5.9690) c(0.9511) s(-0.3090) cr(0.8090) sr(-0.5878) ex(1.5978) ey(-0.5191) Vb(4.9475) Vg(2.6109)
-WARNING -     angle(0.0)  pwma_green=59 pwmb_blue=113
-ACHIEVED ST_WIND_ANGLE=359.00
----------------- CIRCLE(3) COMPLETED -------------
+Hence I codified this into the teensyBoat UI as a rigorous test.
 
-Hence I now need to codify this step into the teensyBoat ST50 Wind Testing methodolgy
-via additional UI.
+### Wind Instrument Testing Cycle
+
+- IN GP8 WIND MODE
+- ATTACH WIND TESTER PCB with BLUE/GREEN/YELLOW wires to instrument
+- DO **WIND_CIRCLE=1** command twice to calibrate
+- DO **WIND_CIRCLE=2** command to measure
+- ADJUST INSTRUMENT CALIBRATION AS NECESSARY
 
 
 ### Wind Speed
