@@ -30,7 +30,12 @@ in-vitro test.
 
 I had at this point two head units, one with a bad LCD and one with a good LCD.
 
-Starting with the good LCD head unit, I took the two pins from the transducer
+Pins, my selected colors, clockwise, facing instrument connector with tab on top
+
+- GND, my green dupont to bottom of 10M/1M resistor divider
+- PULSE, my yellow dupont to top of 10M/1M resistor divider
+
+Starting with the good LCD head unit, Depth #2, I took the two pins from the transducer
 via some jumper cable to a 10M/1M resistor divider network on a small breadboard.
 I plugged the GND and probe of my cheap Fnirsi 2C23T handheld oscilloscope across
 the 1M resistor likewise using short dupont jumpers clamped into the probe.
@@ -39,13 +44,15 @@ I powered up the ST50 Depth Head and ..
 LO AND BEHOLD it stopped flashing "0.0 feet" and started showing a depth of
 50-65 feet ... AND it output Seatalk messages!!!!
 
-It also clearly showed the 200khz original pulse being generated on the scope.
+(note that Depth #3 output 10-14 feet)
+
+The scop also clearly shows the 200khz original pulse being generated on the scope.
 
 Without going into detail (I still have the coPilot conversation as a reference),
 we surmised that there was enough stray capacitance in our circuit to fake the
 ST50 head into seeing a "return" echo and reporting some number of feet.
 
-I was then able to plug the head unit with the bad LCD into that same setup,
+I was then able to plug the Depth #0 with the bad LCD into that same setup,
 and, never before able to verify if it was working or not, IT generated the same
 pulse AND IT TOO output seatalk messags of depth in the 50-65 foot range.
 
@@ -394,7 +401,8 @@ wiring, breadboard, firmware and everything, and the algorithm
 for converting the simulated Wind Angle into PWM values and driving
 the instrument **utterly failed**.
 
-Now coPilot is telling me that the likely reason for this huge shift is that the impedance of my
+Now coPilot is telling me that the likely
+reason for this huge shift is that the impedance of my
 PWM->opamp->series resitor->blue/green signal circuit does not match the real transducer and that
 the Instrument is likely extremely senstive to the **IMPEDANCE** of the circuit, not just the voltages.
 There followed a pass where I rehooked up the transducer, measure resistances and ohms, that didnt
