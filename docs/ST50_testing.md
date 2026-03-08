@@ -285,6 +285,8 @@ and realized, for the first time, that the ST50 Wind Instrument can
 **ACT AS A REPEATER**, that is to say that it can **ACCEPT SEATALK
 DATAGRAMS** and **display** the corresponding **Wind Angle and Speed**.
 
+**The ST50 Wind acts as a repeater by merely receiving ST Wind messages**
+
 Had I realized this sooner I might not have gone down this whole path
 of providing spoofed transducer inputs to the instrument as before this
 that was the only way I had of making the unit "come alive" and verifying
