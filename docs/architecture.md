@@ -136,6 +136,18 @@ Which then, in turn, pushes me to simplify the teensy, and make the esp32 more
 complex.
 
 
+## Please Also See
+
+- [**phorton1/Arduino-boat-teensyBoat**](https://github.com/phorton1/Arduino-boat-teensyBoat) —
+  The Teensy 4.0 firmware that uses this library. Implements Seatalk1, NMEA0183,
+  and NMEA2000 encoding and decoding; includes KiCad PCB schematic and design.
+
+- [**phorton1/base-apps-teensyBoat**](https://github.com/phorton1/base-apps-teensyBoat) —
+  The companion wxPerl desktop application for Windows. Monitors and controls
+  the teensyBoat firmware over USB serial or UDP; consumes the binary packet
+  types defined in this library.
+
+
 
 
 
