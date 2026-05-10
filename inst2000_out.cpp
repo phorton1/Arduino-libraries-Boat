@@ -56,6 +56,9 @@ void logInst::send2000()
 		nmea2000.SendMsg(msg);
 
 	#endif
+
+	// TODO: send PGN_TEMPERATURE (130316) or PGN_ENV_PARAMETERS (130310) using boat_sim.getWaterTemp()
+	// PGN_TEMPERATURE is defined in inst2000.h but commented out of the active PGN list in inst2000.cpp
 }
 
 
@@ -343,7 +346,7 @@ void apInst::send2000()
 				display(0, "   adding wpt(%d,%s)", i, rte_pt->name);
 				if (!AppendN2kPGN129285(msg, i, rte_pt->name, rte_pt->lat, rte_pt->lon))
 				{
-					// Message full — send and start a new one
+					// Message full ï¿½ send and start a new one
 					// Start a new message with same route header
 					nmea2000.SendMsg(msg);
 					SetN2kPGN129285(msg, 0, db_id, route_id, direction, last_route, supplementary);

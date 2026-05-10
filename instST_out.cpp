@@ -278,6 +278,17 @@ void logInst::sendSeatalk(bool port2)
 		dg[6] |= 0xA0;
 		queueDatagram(port2,dg);
 	}
+
+	// Knauf 0x23: dg[2] = Celsius+100, dg[3] = Fahrenheit
+	{
+		int wt_c = (int)round(boat_sim.getWaterTemp());
+		int wt_f = (int)round(boat_sim.getWaterTemp() * 9.0 / 5.0 + 32.0);
+		dg[0] = ST_WATER_TEMPR;
+		dg[1] = 0x01;
+		dg[2] = (uint8_t)wt_c;
+		dg[3] = (uint8_t)wt_f;
+		queueDatagram(port2,dg);
+	}
 }
 
 
@@ -595,7 +606,7 @@ void gpsInst::sendSeatalk(bool port2)
 	}
 
 	//------------------------------------------------
-	// SAT_DET_INFO (A5 57)  — GPS Fix + HDOP block
+	// SAT_DET_INFO (A5 57)  ï¿½ GPS Fix + HDOP block
 	//------------------------------------------------
 	// note we send hdop 3 from this as opposed to 2 above
 
@@ -894,12 +905,12 @@ void apInst::sendSeatalk(bool port2)
 	//       M & 0x04 = 4 : Off course
 	//       M & 0x08 = 8 : Wind Shift
 	//     Rudder position: RR degrees (positive values steer right,
-	//       negative values steer left. Example: 0xFE = 2° left)
+	//       negative values steer left. Example: 0xFE = 2ï¿½ left)
 	//     SS & 0x01 : when set, turns off heading display on 600R control.
 	//     SS & 0x02 : always on with 400G
-	//     SS & 0x08 : displays “NO DATA” on 600R
-	//     SS & 0x10 : displays “LARGE XTE” on 600R
-	//     SS & 0x80 : Displays “Auto Rel” on 600R
+	//     SS & 0x08 : displays ï¿½NO DATAï¿½ on 600R
+	//     SS & 0x10 : displays ï¿½LARGE XTEï¿½ on 600R
+	//     SS & 0x80 : Displays ï¿½Auto Relï¿½ on 600R
 	//     TT : Always 0x08 on 400G computer, always 0x05 on 150(G) computer
 	//
 	// MY NOTES:
@@ -1016,8 +1027,8 @@ void apInst::sendSeatalk(bool port2)
 			//	85  X6  XX  VU ZW ZZ YF 00 yf   Navigation to waypoint information
 			//		Cross Track Error: XXX/100 nautical miles
 			//			Example: X-track error 2.61nm => 261 dec => 0x105 => X6XX=5_10
-			//		Bearing to destination: (U & 0x3) * 90° + WV / 2°
-			//			Example: GPS course 230°=180+50=2*90 + 0x64/2 => VUZW=42_6
+			//		Bearing to destination: (U & 0x3) * 90ï¿½ + WV / 2ï¿½
+			//			Example: GPS course 230ï¿½=180+50=2*90 + 0x64/2 => VUZW=42_6
 			//		U&8: U&8 = 8 -> Bearing is true, U&8 = 0 -> Bearing is magnetic
 			//		Distance to destination:
 			//			Distance 0-9.99nm: ZZZ/100nm, Y & 1 = 1

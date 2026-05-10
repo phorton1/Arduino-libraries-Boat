@@ -68,6 +68,7 @@ public:
 
 
 	float	 getDepth()				{ return m_depth; }				// feet below surface
+	float	 getWaterTemp()			{ return m_water_temp; }		// degrees Celsius
 	float	 getHeading()			{ return m_heading; }			// the true direction the boat is pointing
 	float	 getWaterSpeed()		{ return m_water_speed; }		// water relative to boat as measured by logInst
 	float 	 getCurrentSet()		{ return m_current_set; }		// direction current is going to
@@ -133,6 +134,7 @@ public:
 	// setters
 
 	void setDepth		(float depth);
+	void setWaterTemp	(float temp_c);
 	void setHeading		(float heading);
 	void setWaterSpeed	(float speed);
 	void setCurrentSet	(float angle);		// angle the water is going TO
@@ -212,6 +214,7 @@ private:
 	float	 m_trip_distance;	// trip odometer
 
 	float	 m_depth;
+	float	 m_water_temp;
 	float	 m_heading;
 	float	 m_water_speed;
 	float	 m_current_set;		// absolute angle the current is going TO

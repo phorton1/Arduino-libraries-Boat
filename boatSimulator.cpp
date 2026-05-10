@@ -82,6 +82,7 @@ void boatSimulator::init()
 	m_rudder = 0;
 	
 	m_depth 	 	= 10;
+	m_water_temp	= 20.0;
 	m_heading		= 0;	// 180;
 	m_water_speed   = 0;
 	m_wind_angle 	= 0;	// 90;			// from true east
@@ -148,6 +149,12 @@ void boatSimulator::setDepth(float depth)
 		my_error("Depth(%0.1f) must be >= zero",depth);
 		return;
 	}
+}
+
+void boatSimulator::setWaterTemp(float temp_c)
+{
+	m_water_temp = temp_c;
+	sendBinarySimState(!m_running);
 }
 
 void boatSimulator::setHeading(float heading)
@@ -710,7 +717,7 @@ void boatSimulator::doAutopilot()
 	// convert heading adjustment into rudder angle
 	// and clamp to physical limits for rudimentary testing
 
-	m_rudder = adjustment * 3.0f;   // scale factor: 10° adj = 30° rudder
+	m_rudder = adjustment * 3.0f;   // scale factor: 10ï¿½ adj = 30ï¿½ rudder
 	if (m_rudder > 30.0f)  m_rudder = 30.0f;
 	if (m_rudder < -30.0f) m_rudder = -30.0f;
 	display(dbg_ap+2, "rudder(%0.1f)", m_rudder);
@@ -972,6 +979,7 @@ void boatSimulator::sendBinarySimState(bool doit /*=1*/)
 	offset = binaryFloat	(buf,offset,m_rudder);
 	
 	offset = binaryFloat	(buf,offset,m_depth);
+	offset = binaryFloat	(buf,offset,m_water_temp);
 	offset = binaryFloat	(buf,offset,m_heading);
 	offset = binaryFloat	(buf,offset,m_water_speed);
 	offset = binaryFloat	(buf,offset,m_current_set);

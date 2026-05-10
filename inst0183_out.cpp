@@ -205,6 +205,8 @@ void logInst::send0183(bool portB)
 		// display(show_0183,"logInst --> %s", nmea_buf);
 		sendNMEA0183(portB);
 	}
+
+	// TODO: add $SDMTW,N.N,C (water temperature) using boat_sim.getWaterTemp()
 }
 
 
@@ -279,11 +281,11 @@ void compassInst::send0183(bool portB)
 void gpsInst::send0183(bool portB)
 	//	Recommended NMEA Sentence Order
 	//	For a full GPS data stream that devices like the Raymarine E80 expect, the typical order and priority is:
-	//	- $GPGGA — Fix data (position, satellites used, HDOP, altitude)
-	//	- $GPGSA — Satellites used in fix + DOP values
-	//	- $GPGSV — Satellites in view (PRNs, elevation, azimuth, SNR)
-	//	- $GPRMC — Recommended minimum data (position, speed, course, date)
-	//	- $GPGLL — Latitude/Longitude (optional, often redundant with GGA/RMC)
+	//	- $GPGGA ï¿½ Fix data (position, satellites used, HDOP, altitude)
+	//	- $GPGSA ï¿½ Satellites used in fix + DOP values
+	//	- $GPGSV ï¿½ Satellites in view (PRNs, elevation, azimuth, SNR)
+	//	- $GPRMC ï¿½ Recommended minimum data (position, speed, course, date)
+	//	- $GPGLL ï¿½ Latitude/Longitude (optional, often redundant with GGA/RMC)
 {
 
 	if (1)
@@ -299,7 +301,7 @@ void gpsInst::send0183(bool portB)
 		//  4) Longitude (dddmm.mmmm)
 		//  5) E/W Indicator
 		//  6) Fix Quality: 0 = invalid, 1 = GPS fix, 2 = DGPS fix
-		//  7) Number of satellites used (00–12 typical)
+		//  7) Number of satellites used (00ï¿½12 typical)
 		//  8) HDOP (horizontal dilution of precision)
 		//  9) Altitude above mean sea level (meters)
 		// 10) 'M' = units for altitude
