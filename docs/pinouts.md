@@ -1,20 +1,20 @@
-# Arduino Boat Library - Connectors & Cables
-
-**[Home](readme.md)** --
-**[Architecture](architecture.md)** --
-**[Boat Simulator](boatSimulator.md)** --
-**[Instruments](instSimulator.md)** --
-**Connectors & Cables** --
-**[ST50 Testing](ST50_testing.md)**
-
-repos: **[phorton1](https://github.com/phorton1)** --
-**[teensyBoat Firmware](https://github.com/phorton1/Arduino-boat-teensyBoat/blob/master/docs/readme.md)** --
-**[teensyBoat App](https://github.com/phorton1/base-apps-teensyBoat/blob/master/docs/readme.md)** --
-**Boat Library** --
-**[tbESP32 WiFi](https://github.com/phorton1/Arduino-boat-tbESP32/blob/master/docs/readme.md)** --
-**[teensyWind Tester](https://github.com/phorton1/Arduino-boat-teensyWind/blob/master/docs/readme.md)** --
-**[teensyGPS](https://github.com/phorton1/Arduino-boat-teensyGPS/blob/master/docs/readme.md)**
-
+# Arduino Boat Library - Connectors & Cables
+
+**[Home](readme.md)** --
+**[Architecture](architecture.md)** --
+**[Boat Simulator](boatSimulator.md)** --
+**[Instruments](instSimulator.md)** --
+**Connectors & Cables** --
+**[ST50 Testing](ST50_testing.md)**
+
+repos: **[phorton1](https://github.com/phorton1)** --
+**[teensyBoat Firmware](https://github.com/phorton1/Arduino-boat-teensyBoat/blob/master/docs/readme.md)** --
+**[teensyBoat App](https://github.com/phorton1/base-apps-teensyBoat/blob/master/docs/readme.md)** --
+**Boat Library** --
+**[tbESP32 WiFi](https://github.com/phorton1/Arduino-boat-tbESP32/blob/master/docs/readme.md)** --
+**[teensyWind Tester](https://github.com/phorton1/Arduino-boat-teensyWind/blob/master/docs/readme.md)** --
+**[teensyGPS](https://github.com/phorton1/Arduino-boat-teensyGPS/blob/master/docs/readme.md)**
+
 ## E80
 
 ### E80 "Seatalk/Alarm" cable pinout
