@@ -1,5 +1,20 @@
-# boatSimulator
-
+# Arduino Boat Library - Boat Simulator
+
+**[Home](readme.md)** --
+**[Architecture](architecture.md)** --
+**Boat Simulator** --
+**[Instruments](instSimulator.md)** --
+**[Connectors & Cables](pinouts.md)** --
+**[ST50 Testing](ST50_testing.md)**
+
+repos: **[phorton1](https://github.com/phorton1)** --
+**[teensyBoat Firmware](https://github.com/phorton1/Arduino-boat-teensyBoat/blob/master/docs/readme.md)** --
+**[teensyBoat App](https://github.com/phorton1/base-apps-teensyBoat/blob/master/docs/readme.md)** --
+**Boat Library** --
+**[tbESP32 WiFi](https://github.com/phorton1/Arduino-boat-tbESP32/blob/master/docs/readme.md)** --
+**[teensyWind Tester](https://github.com/phorton1/Arduino-boat-teensyWind/blob/master/docs/readme.md)** --
+**[teensyGPS](https://github.com/phorton1/Arduino-boat-teensyGPS/blob/master/docs/readme.md)**
+
 A generic platform independent Arduino library that provides
 a simple simulation of a boat with a motor.
 It has a rudimentary **autopilot** that uses a built-in set of
@@ -194,3 +209,7 @@ two fuel tanks.
 
 end of boatSimulator.md
 
+
+---
+
+**Next:** [Instruments](instSimulator.md)

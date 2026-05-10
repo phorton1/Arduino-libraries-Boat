@@ -1,5 +1,20 @@
-#  ST50 Instrument Testing
-
+# Arduino Boat Library - ST50 Instrument Testing
+
+**[Home](readme.md)** --
+**[Architecture](architecture.md)** --
+**[Boat Simulator](boatSimulator.md)** --
+**[Instruments](instSimulator.md)** --
+**[Connectors & Cables](pinouts.md)** --
+**ST50 Testing**
+
+repos: **[phorton1](https://github.com/phorton1)** --
+**[teensyBoat Firmware](https://github.com/phorton1/Arduino-boat-teensyBoat/blob/master/docs/readme.md)** --
+**[teensyBoat App](https://github.com/phorton1/base-apps-teensyBoat/blob/master/docs/readme.md)** --
+**Boat Library** --
+**[tbESP32 WiFi](https://github.com/phorton1/Arduino-boat-tbESP32/blob/master/docs/readme.md)** --
+**[teensyWind Tester](https://github.com/phorton1/Arduino-boat-teensyWind/blob/master/docs/readme.md)** --
+**[teensyGPS](https://github.com/phorton1/Arduino-boat-teensyGPS/blob/master/docs/readme.md)**
+
 Note that you can use "lamp=0..3" command in teensyBoat.ino to set the
 lamp level on any connected ST50 instruments:
 

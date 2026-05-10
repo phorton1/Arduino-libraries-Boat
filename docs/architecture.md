@@ -1,154 +1,105 @@
-# Architecture
+# Arduino Boat Library - Architecture
 
-- teensy 4.0 provides all actual protocol interfaces to boat or desktop systems
-- ESP32 provides web based UI
-- they communicate via a custom serial protocol
-  - commands from the ESP32 to the teensy
-  - monitor and historical information from the teensy to the ESP32
+**[Home](readme.md)** --
+**Architecture** --
+**[Boat Simulator](boatSimulator.md)** --
+**[Instruments](instSimulator.md)** --
+**[Connectors & Cables](pinouts.md)** --
+**[ST50 Testing](ST50_testing.md)**
 
-The ESP32 will communicate with the teensy via a custom built serial protocol,
-which will be a line oriented command sequence allowing for an arbitrary
-level of complexity in controlling the teensy.
+repos: **[phorton1](https://github.com/phorton1)** --
+**[teensyBoat Firmware](https://github.com/phorton1/Arduino-boat-teensyBoat/blob/master/docs/readme.md)** --
+**[teensyBoat App](https://github.com/phorton1/base-apps-teensyBoat/blob/master/docs/readme.md)** --
+**Boat Library** --
+**[tbESP32 WiFi](https://github.com/phorton1/Arduino-boat-tbESP32/blob/master/docs/readme.md)** --
+**[teensyWind Tester](https://github.com/phorton1/Arduino-boat-teensyWind/blob/master/docs/readme.md)** --
+**[teensyGPS](https://github.com/phorton1/Arduino-boat-teensyGPS/blob/master/docs/readme.md)**
 
-Likewise, the teensy will send real-time monitoring information and/or
-state, and/or historical information to the ESP32 for further processing.
-
-To the degree that the serial protocol can also be implemented in Perl
-on the laptop. it should be possible to bypass the ESP32 and connect
-directly to the teensy with the (a) laptop to avoid entirely the usage
-of wifi on the boat_sim.
-
-### Big Question
-
-It is not clear that a single teensy can handle all of the traffic required
-to both simulate, and monitor, the virtual boat and its instruments as well
-as the real boat and its instruments.
-
-It seems as if there wants to be two separate devices.  The simulator will
-generally not be used on the boat, but the monitor will.  It seems nice to
-be able to monitor the simulator itself.  For Seatalk and NMEA2000 this is
-probably do-able, but for NMEA0183 it is complicated by the fact that there
-is a single TALKER.
-
-As it is, I would need multiple RS232 modules to even monitor the system,
-but to simulate in-vitro, I need a way to switch the role (and GND) of
-the VHF NMEA output.  With the fundamental requirement that AIS works without
-any intermediate MPU, this gets tricky, electronically.
+The Boat Library is built in three layers, each one sitting on top of the previous.
+Together they let a small microcontroller pretend to be a fully-equipped boat on
+a marine network.
 
 
-Makes we want to bite the bullet and just stick a teensy in between
-the VHF and E80 for the NMEA0183.
+## Layer 1 - The Virtual Boat
+
+At the base is a simple model of a boat under way -- the **boatSimulator**.
+Think of it as a stripped-down nautical video-game engine.
+At any moment it knows where the boat is on earth, what direction it is heading,
+how fast it is moving, what the wind is doing, how deep the water is,
+and what the engine is up to.
+Time advances in one-second steps, and with each step the simulator moves the
+boat forward and updates everything consistently.
+
+The simulator also has a basic **autopilot**.  Give it a target position (a waypoint)
+and it will steer toward it.  String waypoints together into a route and enable
+**routing**, and it will navigate the full sequence automatically, stopping the
+boat when it reaches the end.
+
+None of this involves real electronics -- the virtual boat is just numbers in memory,
+updated once a second.  Its job is to produce a continuous stream of realistic,
+self-consistent data for the layer above.
 
 
-I can *almost* envision a teensyt PCB with
+## Layer 2 - The Virtual Instruments
 
-- a CANBUS transiever for NMEA2000
-- an opto-isolated interface to SeaTalk (requires 12V from Seatalk connector)
-- two rs232 interfaces
+Real marine instruments take a physical measurement and broadcast it over
+one or more communications networks.  The **instSimulator** does exactly the same
+thing with the virtual boat's data.
 
-where I would be mightily tempted to use a teensy 4.1 rather than a 4.0
-so-as to have the built in SD card.  Which then further wants a standalone
-touch screen LCD UI, which is seriously probably asking too much of a
-single teensy.
+Each virtual instrument -- depth sounder, GPS receiver, wind instrument,
+speed/log, engine monitor -- can be switched on or off independently.
+Each can also be assigned to any combination of the three marine protocols
+that this library supports.  A virtual GPS, for example, can simultaneously
+send its position as a Seatalk1 datagram, an NMEA 0183 sentence, and an
+NMEA 2000 packet -- just as a real multi-protocol GPS device would.
 
-So as we talk about throwing an ESP32 into the mix, then the ESP32
-might/could have a display device (I have several with built in
-LCDs, like the big, never used ideaSpark ones).
-
-
-When, in the end, what I really want to be able to do route, waypoint,
-and track management on the E80 via my own interface.  I am sort of
-wistfully holding out hope that NMEA2000 will get me there, but I
-know, in my heart, that is not the case.
-
-Which then leads me to want to replace the screen in the old desk E80,
-and see if I can get at it's CPU innards somehow, but that is probably
-a hopelessly complicated and weird approach.  Even dealing with the
-ARCHIVE.FSH files and CF cards was nearly hopelessly complicated.
+When the boat is moving, the instrument simulator calls the boat simulator
+once per second, reads the updated state, and fires off whatever output
+has been configured.
 
 
+## Layer 3 - The Protocol Encoders and Decoders
+
+The library contains complete send (encode) and receive (decode) implementations
+for three marine communications protocols.
+
+**Seatalk1** is Raymarine's older proprietary 9-bit serial protocol, used by
+ST50 and ST60 series instruments and by Raymarine chartplotters of the E80/E120
+generation.  The Seatalk1 implementation here builds on and extends the only
+published public reference, Thomas Knauf's *SeaTalk Technical Reference*
+(see the home page for details).
+
+**NMEA 0183** is the long-established industry-standard text protocol understood
+by virtually all marine electronics.  The library implements the sentence types
+for GPS position, depth, wind, speed, heading, engine data, and AIS.
+
+**NMEA 2000** is the modern CAN-bus-based standard now used in most new marine
+installations.  It carries the same kinds of information as the older protocols
+but in a structured binary format over a dedicated bus.
 
 
+## The Binary Protocol
+
+When **teensyBoat.ino** is connected to the **teensyBoat.pm** Windows application
+over USB, a fourth channel carries data back and forth in a compact binary format --
+the **binary packet protocol** defined in boatBinary.h.  This channel carries
+instrument state snapshots for the PC display, monitoring output for each protocol,
+and commands from the PC back to the firmware.  Both sides of this protocol
+(firmware and PC application) are driven by the definitions in this library.
 
 
-I will/can initially implement the protocol via the teensy USB serial port.
+## Reuse Across Projects
 
+Because all the protocol knowledge and simulation logic live in this shared library,
+individual projects only need to add the hardware-specific wiring.
 
-### boatSimulator
+- **teensyBoat.ino** adds the physical serial and CAN interfaces, the USB connection
+  to the PC application, and a general-purpose GPIO connector for instrument testing.
+- **teensyGPS.ino** uses just the GPS output side of the protocol layer to build
+  a standalone marine GPS device.
+- **teensyWind.ino** uses the signal-processing math to read a real Raymarine
+  wind vane transducer and convert its analog signals into protocol output.
 
-The boat simulator will have commands to "drive" the boat, which, in turn
-will drive an instrument simulator.
+---
 
-### instSimulator
-
-The instrument simulator will encapsulate a number of particular instruments
-on the virtual boat_sim. Some of these will map to my existing actual ST50
-or other instruments.
-
-- depth
-- log
-- gps
-- wind
-- autopilot
-- ais (future)
-
-wheras others will exist solely to drive the E80 and/or for future expansion
-
-- engine
-- fridge (future)
-- temperature (future)
-  - outside
-  - cabin
-
-Each instrument can be turned on or off individually, and shall be allowed
-to send on any protocol(s) which supports such an instrument.
-
-
-### boatMonitor
-
-A teensy 4.1 with an SD card can be used to log the "real" boat's protcols
-(instruments) at some useful level of detail.  This is tricky because we
-want to date/timestamp the log entries and make them of a fixed size so that
-we can support reading from the end of the file(s).  A database on the teensy
-might be a better proposition for logging and meeting these requirements.
-
-The ESP32 *could* then support a useful UI that includes things like meters
-and charts that show the state of the boat in a single glance, without going
-so far as to try to emulate a chart-plotter.
-
-- track logging
-
-In addition, I sort of envision getting rid of the whole ESP32/myIOT architecture
-on the boat, and using NMEA2000 to connect (and possibly power) my various device:
-
-- fridgeController
-- bilgeAlarm
-- tempController
-- lightController
-
-which would then also require that I develop my own series of proprietary PGNS
-to control these devices from the single ESP32 (web) entry point.
-
-
-### Performance
-
-Which then, in turn, pushes me to simplify the teensy, and make the esp32 more
-complex.
-
-
-## Please Also See
-
-- [**phorton1/Arduino-boat-teensyBoat**](https://github.com/phorton1/Arduino-boat-teensyBoat) —
-  The Teensy 4.0 firmware that uses this library. Implements Seatalk1, NMEA0183,
-  and NMEA2000 encoding and decoding; includes KiCad PCB schematic and design.
-
-- [**phorton1/base-apps-teensyBoat**](https://github.com/phorton1/base-apps-teensyBoat) —
-  The companion wxPerl desktop application for Windows. Monitors and controls
-  the teensyBoat firmware over USB serial or UDP; consumes the binary packet
-  types defined in this library.
-
-
-
-
-
-
+**Next:** [Boat Simulator](boatSimulator.md)
