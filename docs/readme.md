@@ -5,7 +5,8 @@
 **[Boat Simulator](boatSimulator.md)** --
 **[Instruments](instSimulator.md)** --
 **[Connectors & Cables](pinouts.md)** --
-**[ST50 Testing](ST50_testing.md)**
+**[ST50 Testing](ST50_testing.md)** --
+**[Seatalk Knowledge](new_st_knowledge.md)**
 
 repos: **[phorton1](https://github.com/phorton1)** --
 **[teensyBoat Firmware](https://github.com/phorton1/Arduino-boat-teensyBoat/blob/master/docs/readme.md)** --
@@ -37,6 +38,8 @@ corrects the only comprehensive public reference: Thomas Knauf's
 not covered by Knauf, corrections to documented byte sequences verified against
 real instruments, and complete encoding (transmit) coverage -- where Knauf
 documents primarily the receive/decode direction -- are all included here.
+The complete catalogue of corrections, extensions, and new datagrams is documented on the
+**[Seatalk Knowledge](new_st_knowledge.md)** page.
 
 The **Connectors & Cables** documentation records pinouts and wiring details
 accumulated through hands-on work with Raymarine and Standard Horizon hardware.
@@ -83,6 +86,12 @@ Depth instruments without their real transducers.  Notable findings include:
   Desktop testing procedures and empirical data for the Raymarine ST50 Speed,
   Wind, and Depth instruments.  Connector pinouts, pulse-frequency and
   voltage tables, calibration procedures, and instrument behavior discoveries.
+
+- **[Seatalk Knowledge](new_st_knowledge.md)** --
+  Corrections and extensions to Thomas Knauf's *SeaTalk Technical Reference*,
+  verified against the Raymarine E80 chartplotter, ST7000 autopilot head, and
+  ST50 instruments.  Covers corrected datagram encodings, an extended device ID
+  table (IDs 0x21..0xD5), undocumented sub-messages, and new datagrams not in Knauf.
 
 
 ## Credits
