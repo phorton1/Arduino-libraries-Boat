@@ -4,8 +4,10 @@
 **[Architecture](architecture.md)** --
 **Boat Simulator** --
 **[Instruments](instSimulator.md)** --
+**[Commands](commands.md)** --
 **[Connectors & Cables](pinouts.md)** --
-**[ST50 Testing](ST50_testing.md)**
+**[ST50 Testing](ST50_testing.md)** --
+**[Seatalk Knowledge](new_st_knowledge.md)**
 
 repos: **[phorton1](https://github.com/phorton1)** --
 **[teensyBoat Firmware](https://github.com/phorton1/Arduino-boat-teensyBoat/blob/master/docs/readme.md)** --
@@ -203,12 +205,6 @@ E80 chartplotter display shows two fuel tanks.
 
 TODO: check that the E80 actually DOES display
 two fuel tanks.
-
-
-
-
-end of boatSimulator.md
-
 
 ---
 

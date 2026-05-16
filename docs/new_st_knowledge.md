@@ -4,6 +4,7 @@
 **[Architecture](architecture.md)** --
 **[Boat Simulator](boatSimulator.md)** --
 **[Instruments](instSimulator.md)** --
+**[Commands](commands.md)** --
 **[Connectors & Cables](pinouts.md)** --
 **[ST50 Testing](ST50_testing.md)** --
 **Seatalk Knowledge**

@@ -4,6 +4,7 @@
 **[Architecture](architecture.md)** --
 **[Boat Simulator](boatSimulator.md)** --
 **[Instruments](instSimulator.md)** --
+**[Commands](commands.md)** --
 **[Connectors & Cables](pinouts.md)** --
 **[ST50 Testing](ST50_testing.md)** --
 **[Seatalk Knowledge](new_st_knowledge.md)**
@@ -76,6 +77,12 @@ Depth instruments without their real transducers.  Notable findings include:
 - **[Instruments](instSimulator.md)** --
   The virtual instruments: depth, GPS, wind, speed/log, engine.  How each instrument
   maps to one or more protocols, and the instSimulator API.
+
+- **[Commands](commands.md)** --
+  The complete text command interface the library exposes via the standard
+  firmware serial parser: virtual boat control, routing and autopilot,
+  instrument configuration, monitoring and forwarding, GP8/ST50 testing,
+  NMEA 2000 device queries, and binary streaming.
 
 - **[Connectors & Cables](pinouts.md)** --
   Pinouts and wiring for the Raymarine E80 (Seatalk, NMEA 0183, NMEA 2000),

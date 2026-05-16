@@ -4,8 +4,10 @@
 **[Architecture](architecture.md)** --
 **[Boat Simulator](boatSimulator.md)** --
 **Instruments** --
+**[Commands](commands.md)** --
 **[Connectors & Cables](pinouts.md)** --
-**[ST50 Testing](ST50_testing.md)**
+**[ST50 Testing](ST50_testing.md)** --
+**[Seatalk Knowledge](new_st_knowledge.md)**
 
 repos: **[phorton1](https://github.com/phorton1)** --
 **[teensyBoat Firmware](https://github.com/phorton1/Arduino-boat-teensyBoat/blob/master/docs/readme.md)** --
@@ -44,4 +46,4 @@ the three protocols.
 
 ---
 
-**Next:** [Connectors & Cables](pinouts.md)
+**Next:** [Commands](commands.md)
