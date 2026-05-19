@@ -144,11 +144,6 @@ void boatSimulator::setDepth(float depth)
 {
 	m_depth = depth;
 	sendBinarySimState(!m_running);
-	if (depth<0)
-	{
-		my_error("Depth(%0.1f) must be >= zero",depth);
-		return;
-	}
 }
 
 void boatSimulator::setWaterTemp(float temp_c)

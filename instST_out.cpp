@@ -203,8 +203,8 @@ void depthInst::sendSeatalk(bool port2)
 	sendDeviceId(port2,0x01,1,1);		// Depth device
 
 	uint16_t d10;
-	if (boat_sim.getDepth() > 999)
-		d10 = 9990;
+	if (boat_sim.getDepth() > 6553.5)
+		d10 = 65535;
 	else
 		d10 = (boat_sim.getDepth() + 0.05) * 10.0;
 
