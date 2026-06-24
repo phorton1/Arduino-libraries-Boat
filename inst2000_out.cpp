@@ -406,6 +406,8 @@ void apInst::send2000()
 
 void engInst::send2000()
 {
+	#define DUAL_ENGINE		1
+
 	tN2kMsg msg;
 
 	SetN2kPGN127488(			// PGN_ENGINE_RAPID
@@ -415,6 +417,18 @@ void engInst::send2000()
 			boat_sim.getBoostPressure()  * PSI_TO_PASCAL,	// EngineBoostPressure
 			N2kUInt8NA);				// EngineTiltTrim
 	nmea2000.SendMsg(msg);
+
+	if (DUAL_ENGINE)
+	{
+		SetN2kPGN127488(			// PGN_ENGINE_RAPID
+				msg,
+				1,							// EngineInstance
+				boat_sim.getRPM()/2,				// EngineSpeed
+				boat_sim.getBoostPressure()  * PSI_TO_PASCAL/2,	// EngineBoostPressure
+				N2kUInt8NA);				// EngineTiltTrim
+		nmea2000.SendMsg(msg);
+	}
+
 
 	static tN2kEngineDiscreteStatus1 status1;		// filled with zeros
 	static tN2kEngineDiscreteStatus2 status2;		// filled with zeros
@@ -434,6 +448,26 @@ void engInst::send2000()
 		status1,									// Status1             Engine Discrete Status 1
 		status2);									// Status2             Engine Discrete Status 2
 	nmea2000.SendMsg(msg);
+
+
+	if (DUAL_ENGINE)
+	{
+		SetN2kPGN127489(msg,		// PGN_ENGINE_DYNAMIC
+			1,											// EngineInstance
+			boat_sim.getOilPressure() * PSI_TO_PASCAL,		// EngineOilPress      in Pascal
+			FToKelvin(boat_sim.getOilTemp()),				// EngineOilTemp       in Kelvin
+			FToKelvin(boat_sim.getCoolantTemp()),			// EngineCoolantTemp   in Kelvin
+			boat_sim.getAltVoltage(),						// AltenatorVoltage    in Voltage
+			boat_sim.getFuelRate() * GALLON_TO_LITRE,		// FuelRate            in litres/hour
+			N2kDoubleNA,								// EngineHours         in seconds
+			N2kDoubleNA,								// EngineCoolantPress  in Pascal
+			N2kDoubleNA,								// EngineFuelPress     in Pascal
+			100 * boat_sim.getRPM() / 7200,					// EngineLoad          in %
+			0,											// EngineTorque        in %
+			status1,									// Status1             Engine Discrete Status 1
+			status2);									// Status2             Engine Discrete Status 2
+		nmea2000.SendMsg(msg);
+	}
 
 	tN2kFluidType fluid_type = N2kft_Fuel;
 

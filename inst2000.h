@@ -50,7 +50,7 @@
 // defines
 //-------------------------------
 
-#define TEENSYBOAT_NMEA_ADDRESS		25		// uses product definition in init() method
+#define TEENSYBOAT_NMEA_ADDRESS		37		// uses product definition in init() method
 #define TEENSYGPS_NMEA_ADDRESS		30		// otherwise you must set product definition before init
 
 
