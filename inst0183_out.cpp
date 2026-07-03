@@ -7,7 +7,9 @@
 #include "instSimulator.h"
 #include "boatSimulator.h"
 #include "boatBinary.h"
+#include "aisTargets.h"
 #include <myDebug.h>
+#include <math.h>
 
 // #define show_0183 (1-g_MON_0183)
 
@@ -417,8 +419,185 @@ void gpsInst::send0183(bool portB)
 }
 
 
-void aisInst::send0183(bool portB)
+//------------------------------------------------------------
+// AIS !AIVDM encoder for the virtual targets
+//------------------------------------------------------------
+// We only decode VDM on input (inst0183_in.cpp); this is the inverse.
+// Builds AIS message 18 (Class B position) and message 24 parts A/B
+// (name / static), 6-bit ASCII armored into a single-fragment !AIVDM
+// sentence, then re-uses sendNMEA0183() for the serial + binary path.
+
+static uint8_t ais_bits[256];
+static int ais_bit_len;
+
+
+static void aisReset()
 {
+	ais_bit_len = 0;
+}
+
+
+static void aisPutBits(uint32_t val, int n)
+	// append the low n bits of val, MSB first.  Signed fields are passed
+	// as (uint32_t) casts; their low n bits are correct two's complement.
+{
+	for (int i = n - 1; i >= 0; i--)
+		ais_bits[ais_bit_len++] = (val >> i) & 1;
+}
+
+
+static void aisPutStr6(const char *s, int num_chars)
+	// pack exactly num_chars AIS 6-bit characters, padding with '@' (value 0)
+{
+	int slen = strlen(s);
+	for (int i = 0; i < num_chars; i++)
+	{
+		uint8_t v = 0;						// '@' pad
+		if (i < slen)
+		{
+			char c = s[i];
+			if (c >= 'a' && c <= 'z')		c -= 32;		// uppercase
+			if (c >= 64 && c <= 95)			v = c - 64;		// @ A..Z [ \ ] ^ _
+			else if (c >= 32 && c <= 63)	v = c;			// space .. ? and digits
+			else							v = 0;
+		}
+		aisPutBits(v, 6);
+	}
+}
+
+
+static void aisBuildMsg18(aisTarget *t)
+	// AIS message 18 == Standard Class B position report (168 bits)
+{
+	aisReset();
+	aisPutBits(18, 6);						// message type
+	aisPutBits(0, 2);						// repeat indicator
+	aisPutBits(t->mmsi, 30);				// MMSI
+	aisPutBits(0, 8);						// reserved
+
+	uint32_t sog = (uint32_t)(t->sog * 10.0 + 0.5);
+	if (sog > 1022) sog = 1022;
+	aisPutBits(sog, 10);					// SOG in 0.1 knots
+	aisPutBits(0, 1);						// position accuracy
+
+	int32_t lon = (int32_t) lround(t->lon * 600000.0);
+	int32_t lat = (int32_t) lround(t->lat * 600000.0);
+	aisPutBits((uint32_t) lon, 28);			// longitude 1/600000 min
+	aisPutBits((uint32_t) lat, 27);			// latitude  1/600000 min
+
+	uint32_t cog10 = (uint32_t)(t->cog * 10.0 + 0.5);
+	while (cog10 >= 3600) cog10 -= 3600;
+	aisPutBits(cog10, 12);					// COG in 0.1 degrees
+
+	uint32_t hdg = (uint32_t)(t->heading + 0.5);
+	while (hdg >= 360) hdg -= 360;
+	aisPutBits(hdg, 9);						// true heading, whole degrees
+
+	aisPutBits(boat_sim.getSecond() & 0x3F, 6);	// UTC second timestamp
+	aisPutBits(0, 2);						// regional / spare
+	aisPutBits(1, 1);						// CS unit flag (Class B "CS")
+	aisPutBits(0, 1);						// display flag
+	aisPutBits(0, 1);						// DSC flag
+	aisPutBits(1, 1);						// band flag
+	aisPutBits(1, 1);						// message 22 flag
+	aisPutBits(0, 1);						// assigned-mode flag
+	aisPutBits(0, 1);						// RAIM flag
+	aisPutBits(0, 20);						// radio status
+}
+
+
+static void aisBuildMsg24A(aisTarget *t)
+	// AIS message 24 part A == vessel name (160 bits)
+{
+	aisReset();
+	aisPutBits(24, 6);						// message type
+	aisPutBits(0, 2);						// repeat
+	aisPutBits(t->mmsi, 30);				// MMSI
+	aisPutBits(0, 2);						// part number 0 (A)
+	aisPutStr6(t->name, 20);				// vessel name (120 bits)
+}
+
+
+static void aisBuildMsg24B(aisTarget *t)
+	// AIS message 24 part B == static data (168 bits)
+{
+	aisReset();
+	aisPutBits(24, 6);						// message type
+	aisPutBits(0, 2);						// repeat
+	aisPutBits(t->mmsi, 30);				// MMSI
+	aisPutBits(1, 2);						// part number 1 (B)
+	aisPutBits(t->ship_type, 8);			// ship and cargo type
+	aisPutStr6("SIM", 7);					// vendor ID (42 bits)
+	aisPutStr6(t->callsign, 7);				// call sign (42 bits)
+
+	uint32_t bow   = (uint32_t)(t->length_m * 3 / 4);
+	uint32_t stern = t->length_m - bow;
+	uint32_t port  = t->beam_m / 2;
+	uint32_t stbd  = t->beam_m - port;
+	aisPutBits(bow, 9);						// dimension to bow
+	aisPutBits(stern, 9);					// dimension to stern
+	aisPutBits(port, 6);					// dimension to port
+	aisPutBits(stbd, 6);					// dimension to starboard
+	aisPutBits(0, 6);						// spare
+}
+
+
+static void aisArmorAndSend(bool portB)
+	// 6-bit armor the current bit buffer into a single-fragment !AIVDM
+	// sentence (channel A), append the NMEA checksum, and send it.
+{
+	char payload[64];
+	int nchars = (ais_bit_len + 5) / 6;
+	for (int i = 0; i < nchars; i++)
+	{
+		int v = 0;
+		for (int b = 0; b < 6; b++)
+		{
+			int idx = i * 6 + b;
+			int bit = (idx < ais_bit_len) ? ais_bits[idx] : 0;
+			v = (v << 1) | bit;
+		}
+		payload[i] = (v < 40) ? (char)(v + 48) : (char)(v + 56);
+	}
+	payload[nchars] = 0;
+	int fill = nchars * 6 - ais_bit_len;
+
+	char body[MAX_NMEA_MSG + 1];
+	sprintf(body, "!AIVDM,1,1,,A,%s,%d", payload, fill);
+
+	unsigned char cs = 0;
+	for (const char *p = body + 1; *p; p++)		// XOR everything after the '!'
+		cs ^= (unsigned char) *p;
+
+	sprintf(nmea_buf, "%s*%02X", body, cs);
+	sendNMEA0183(portB);						// existing serial + binary monitor path
+}
+
+
+void aisInst::send0183(bool portB)
+	// Emit an !AIVDM sentence for whichever vboat the scheduler marked to
+	// transmit this slice (usually one), on the given 0183 port.
+{
+	if (!ais_targets.getEnabled())
+		return;
+
+	for (int i = 0; i < ais_targets.getMaxTargets(); i++)
+	{
+		aisTarget *t = ais_targets.getTarget(i);
+		if (!t->active || t->sched_msg == AIS_MSG_NONE)
+			continue;
+
+		if (t->sched_msg == AIS_MSG_POSITION)
+			aisBuildMsg18(t);
+		else if (t->sched_msg == AIS_MSG_STATIC_A)
+			aisBuildMsg24A(t);
+		else if (t->sched_msg == AIS_MSG_STATIC_B)
+			aisBuildMsg24B(t);
+		else
+			continue;
+
+		aisArmorAndSend(portB);
+	}
 }
 
 

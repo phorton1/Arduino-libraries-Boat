@@ -11,6 +11,7 @@
 #include "inst2000.h"
 #include "instSimulator.h"
 #include "boatSimulator.h"
+#include "aisTargets.h"
 #include <N2kMessages.h>
 #include <myDebug.h>
 #include <cmath>
@@ -214,7 +215,69 @@ void gpsInst::send2000()
 
 
 void aisInst::send2000()
+	// Emit NMEA2000 AIS for whichever vboat(s) the scheduler marked to transmit
+	// this slice.  Our N2K device (source address) acts as the AIS receiver; the
+	// per-vessel MMSI travels as the UserID inside the PGN, exactly as a real AIS
+	// transponder reports other vessels' Class B reports onto the bus.
 {
+	if (!ais_targets.getEnabled())
+		return;
+
+	for (int i = 0; i < ais_targets.getMaxTargets(); i++)
+	{
+		aisTarget *t = ais_targets.getTarget(i);
+		if (!t->active || t->sched_msg == AIS_MSG_NONE)
+			continue;
+
+		tN2kMsg msg;
+
+		if (t->sched_msg == AIS_MSG_POSITION)
+		{
+			// PGN_AIS_CLASS_B_POSITION (129039) == AIS message 18
+			SetN2kAISClassBPosition(msg,
+				18,								// AIS message type
+				N2kaisr_Initial,				// repeat indicator
+				t->mmsi,						// UserID (vessel MMSI)
+				t->lat, t->lon,					// degrees
+				false,							// position accuracy
+				false,							// RAIM
+				boat_sim.getSecond(),			// UTC seconds timestamp
+				DegToRad(t->cog),				// COG
+				KnotsToms(t->sog),				// SOG
+				N2kaischannel_A_VDL_reception,	// transceiver info
+				DegToRad(t->heading),			// true heading
+				N2kaisunit_ClassB_CS,			// Class B "CS" unit
+				false,							// display flag
+				false,							// DSC flag
+				true,							// band flag
+				true,							// message 22 flag
+				N2kaismode_Autonomous,			// mode
+				false);							// state
+			nmea2000.SendMsg(msg);
+		}
+		else if (t->sched_msg == AIS_MSG_STATIC_A)
+		{
+			// PGN_AIS_STATIC_B_PART_A (129809) == AIS message 24 part A (name)
+			SetN2kAISClassBStaticPartA(msg,
+				24, N2kaisr_Initial, t->mmsi, t->name);
+			nmea2000.SendMsg(msg);
+		}
+		else if (t->sched_msg == AIS_MSG_STATIC_B)
+		{
+			// PGN_AIS_STATIC_B_PART_B (129810) == AIS message 24 part B (static)
+			SetN2kAISClassBStaticPartB(msg,
+				24, N2kaisr_Initial, t->mmsi,
+				t->ship_type,
+				"SIM",							// vendor id
+				t->callsign,
+				(double) t->length_m,			// length (meters)
+				(double) t->beam_m,				// beam (meters)
+				(double) t->beam_m / 2.0,		// position ref from starboard
+				(double) t->length_m * 0.75,	// position ref from bow
+				0);								// mothership MMSI (none)
+			nmea2000.SendMsg(msg);
+		}
+	}
 }
 
 

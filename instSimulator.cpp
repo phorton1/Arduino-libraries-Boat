@@ -24,6 +24,7 @@
 #include "inst0183.h"
 #include "instST.h"
 #include "boatBinary.h"
+#include "aisTargets.h"
 #include <EEPROM.h>
 #include <myDebug.h>
 #include <IntervalTimer.h>
@@ -56,6 +57,17 @@ uint8_t  instSimulator::g_GP8_FUNCTION;
 
 static IntervalTimer s_pulseTimer;
 static volatile bool s_pulse_state;			// whether pulse is on or off in last explicit toggle
+
+
+static void updateAisEnabled()
+	// The virtual AIS targets run whenever the AIS virtual instrument has ANY
+	// port active (SeaTalk included, though it transmits no AIS).  Called after
+	// every change to the instrument port masks.  This keeps the enable decision
+	// up here in the instSimulator layer; the aisSimulator model itself knows
+	// nothing about ports or instSimulator.
+{
+	ais_targets.setEnabled(i_ais.getPorts() != 0);
+}
 
 
 //-------------------------------------------------
@@ -609,6 +621,7 @@ void instSimulator::loadFromEEPROM()
 		fxn = 0;
 	display(dbg_eeprom,"got GP8_FUNCTION=%02x",fxn);
 	setGP8Function(fxn);
+	updateAisEnabled();
 	sendBinaryState();
 }
 
@@ -624,6 +637,7 @@ void instSimulator::setPorts(int inst_num, uint8_t port_mask)
 {
 	display(0,"setPorts(%d) mask(0x%02x)",inst_num,port_mask);
 	m_inst[inst_num]->setPorts(port_mask);
+	updateAisEnabled();
 	sendBinaryState();
 }
 
@@ -643,6 +657,7 @@ void instSimulator::setAll(int port_num, bool on)
 			cur &= ~port_mask;
 		inst->setPorts(cur);
 	}
+	updateAisEnabled();
 	sendBinaryState();
 }
 
@@ -692,6 +707,7 @@ void instSimulator::clearState()
 	}
 	setGP8Function(0);
 	boat_sim.g_MON_SIM = 0;
+	updateAisEnabled();
 	sendBinaryState();
 
 }
@@ -763,6 +779,7 @@ void instSimulator::init()
 	// and instrument simulator initialization
 
 	boat_sim.init();
+	ais_targets.init();
 
 	m_inst[INST_DEPTH]		= &i_depth;
 	m_inst[INST_LOG]		= &i_log;
@@ -906,6 +923,14 @@ void instSimulator::run()
 			//
 			//		clearSTQueues();
 
+			// tick the virtual AIS target model only while enabled.  The enable
+			// is flipped by updateAisEnabled() whenever the AIS instrument port
+			// mask changes, so this costs nothing when AIS is turned off.
+
+			bool ais_active = ais_targets.getEnabled();
+			if (ais_active)
+				ais_targets.update();
+
 			for (int i=0; i<NUM_INSTRUMENTS; i++)
 			{
 				delay(10);
@@ -922,6 +947,12 @@ void instSimulator::run()
 				if (inst->portActive(PORT_2000))
 					inst->send2000();
 			}
+
+			// one aggregated AIS binary packet per slice for the wxPerl window
+			// (only whatever vboats actually transmitted this slice)
+
+			if (ais_active)
+				ais_targets.sendBinaryAisState();
 		}
 
 		st_device_query_pending = 0;
